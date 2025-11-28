@@ -1,0 +1,5 @@
+ALTER TABLE games ADD COLUMN IF NOT EXISTS game_type VARCHAR(20) DEFAULT 'regular_season';
+ALTER TABLE games ADD COLUMN IF NOT EXISTS playoff_round VARCHAR(20);
+ALTER TABLE games ADD COLUMN IF NOT EXISTS is_in_season_tournament BOOLEAN DEFAULT FALSE;
+
+CREATE INDEX IF NOT EXISTS idx_games_type ON games(game_type);
