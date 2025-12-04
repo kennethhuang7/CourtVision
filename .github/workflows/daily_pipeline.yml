@@ -37,9 +37,9 @@ jobs:
         python daily_pipeline.py
     
     - name: Upload logs
-          if: always()
-          uses: actions/upload-artifact@v4
-          with:
-            name: pipeline-logs
-            path: src/automation/*.log
-            retention-days: 7
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: pipeline-logs
+        path: src/automation/*.log
+        retention-days: 7
