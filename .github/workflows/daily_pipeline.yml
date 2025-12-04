@@ -30,48 +30,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
-    - name: Run Step 1 - Collect yesterday's games
-      id: collect_games
-      continue-on-error: true
-      run: |
-        cd src/data_collection
-        python update_yesterday_games.py
-    
-    - name: Run remaining steps
-      if: steps.collect_games.outcome == 'success'
+    - name: Run daily pipeline
       run: |
         cd src/automation
         python daily_pipeline.py
-    
-    - name: Run injuries and predictions only
-      if: steps.collect_games.outcome == 'failure'
-      run: |
-        cd src/data_collection
-        python scrape_injuries.py
-        python mark_recovered_players.py
-        python collect_todays_schedule.py
-        cd ../predictions
-        python predict_games.py
-    
-    - name: Send email notification
-      if: steps.collect_games.outcome == 'failure'
-      uses: dawidd6/action-send-mail@v3
-      with:
-        server_address: smtp.gmail.com
-        server_port: 465
-        username: ${{ secrets.EMAIL_USERNAME }}
-        password: ${{ secrets.EMAIL_PASSWORD }}
-        subject: NBA API Timeout - Manual Collection Needed
-        to: ${{ secrets.EMAIL_TO }}
-        from: NBA Predictor Bot
-        body: |
-          The NBA API timed out at 3 AM EST.
-          
-          Please run the manual collection script:
-          
-          cd src/automation
-          python manual_data_collection.py
-          
-          This will collect yesterday's games and update all stats.
-          
-          Check logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
