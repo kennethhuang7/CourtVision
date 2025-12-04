@@ -69,13 +69,22 @@ def update_yesterday_games(target_date=None):
                 print(f"  Failed after {max_retries} attempts: {e}")
                 cur.close()
                 conn.close()
-                return
+                sys.exit(1)
     
     games_df = gamefinder.get_data_frames()[0]
     
     unique_game_ids = games_df['GAME_ID'].unique()
     
-    print(f"Found {len(unique_game_ids)} games\n")
+    valid_game_ids = []
+    for game_id in unique_game_ids:
+        if str(game_id).startswith('002'):
+            valid_game_ids.append(game_id)
+        else:
+            print(f"Skipping non-NBA game: {game_id}")
+    
+    unique_game_ids = valid_game_ids
+    
+    print(f"Found {len(unique_game_ids)} NBA games\n")
     
     for game_id in unique_game_ids:
         print(f"Processing {game_id}...")
@@ -125,7 +134,7 @@ def update_yesterday_games(target_date=None):
             cur.execute("""
                 INSERT INTO games (
                     game_id, game_date, season, home_team_id, away_team_id,
-                    home_team_score, away_team_score, game_status, game_type
+                    home_score, away_score, game_status, game_type
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 game_id,
@@ -142,8 +151,8 @@ def update_yesterday_games(target_date=None):
             print(f"  Game {game_id} already exists, updating stats...")
             cur.execute("""
                 UPDATE games SET
-                    home_team_score = %s,
-                    away_team_score = %s,
+                    home_score = %s,
+                    away_score = %s,
                     game_status = 'completed'
                 WHERE game_id = %s
             """, (int(home_score), int(away_score), game_id))
@@ -154,7 +163,8 @@ def update_yesterday_games(target_date=None):
             if player_id == 0:
                 continue
             
-            add_missing_player(cur, player_id, player['name'])
+            player_name = player.get('name', player.get('firstName', '') + ' ' + player.get('familyName', f'Player_{player_id}'))
+            add_missing_player(cur, player_id, player_name)
             
             cur.execute("""
                 SELECT stat_id FROM player_game_stats 
