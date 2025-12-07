@@ -74,7 +74,10 @@ def mark_recovered_players(target_date=None):
             """, (target_date, games_missed, injury_id))
             
             recovered += 1
-            print(f"  [RECOVERED] {player_name} (missed {games_missed} games, was {injury_status})")
+            try:
+                print(f"  [RECOVERED] {player_name} (missed {games_missed} games, was {injury_status})")
+            except UnicodeEncodeError:
+                sys.stdout.buffer.write(f"  [RECOVERED] {player_name} (missed {games_missed} games, was {injury_status})\n".encode('utf-8'))
         else:
             still_injured += 1
     

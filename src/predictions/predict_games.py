@@ -83,19 +83,23 @@ def predict_upcoming_games(target_date=None):
     print(f"Found {len(games_df)} games\n")
     
     print("Loading models and scalers...")
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(os.path.dirname(script_dir))
+    models_dir = os.path.join(project_root, 'data', 'models')
+    
     models = {
-        'points': joblib.load('../../data/models/xgboost_points.pkl'),
-        'rebounds': joblib.load('../../data/models/xgboost_rebounds.pkl'),
-        'assists': joblib.load('../../data/models/xgboost_assists.pkl'),
-        'steals': joblib.load('../../data/models/xgboost_steals.pkl'),
-        'blocks': joblib.load('../../data/models/xgboost_blocks.pkl'),
-        'turnovers': joblib.load('../../data/models/xgboost_turnovers.pkl'),
-        'three_pointers_made': joblib.load('../../data/models/xgboost_three_pointers_made.pkl')
+        'points': joblib.load(os.path.join(models_dir, 'xgboost_points.pkl')),
+        'rebounds': joblib.load(os.path.join(models_dir, 'xgboost_rebounds.pkl')),
+        'assists': joblib.load(os.path.join(models_dir, 'xgboost_assists.pkl')),
+        'steals': joblib.load(os.path.join(models_dir, 'xgboost_steals.pkl')),
+        'blocks': joblib.load(os.path.join(models_dir, 'xgboost_blocks.pkl')),
+        'turnovers': joblib.load(os.path.join(models_dir, 'xgboost_turnovers.pkl')),
+        'three_pointers_made': joblib.load(os.path.join(models_dir, 'xgboost_three_pointers_made.pkl'))
     }
     
     scalers = {}
     for stat_name in models.keys():
-        scaler_path = f'../../data/models/scaler_{stat_name}.pkl'
+        scaler_path = os.path.join(models_dir, f'scaler_{stat_name}.pkl')
         if os.path.exists(scaler_path):
             scalers[stat_name] = joblib.load(scaler_path)
         else:

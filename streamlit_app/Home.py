@@ -946,7 +946,6 @@ def display_players(players_df, target_date):
         confidence_class = get_confidence_class(player['confidence_score'])
         prediction_id = player['prediction_id']
         
-        # Check if game is in the past and player has actual stats
         game_date_val = player.get('game_date')
         if pd.notna(game_date_val):
             if isinstance(game_date_val, str):
@@ -961,11 +960,9 @@ def display_players(players_df, target_date):
         has_actuals = pd.notna(player.get('actual_points'))
         is_past_game = game_date is not None and game_date < today
         
-        # Only show button if game is in past AND player has actual stats
         should_show_button = has_actuals and is_past_game
         show_actuals = st.session_state.get(f"show_actuals_{prediction_id}", False)
         
-        # Create a wrapper container for the player and button
         if should_show_button:
             player_container = st.container()
             with player_container:
@@ -1033,7 +1030,6 @@ def display_players(players_df, target_date):
                     st.rerun()
         
         if should_show_button and show_actuals:
-            # Render actuals in the same container if it exists
             container_to_use = player_container if player_container else st.container()
             with container_to_use:
                 try:
@@ -1053,7 +1049,6 @@ def display_players(players_df, target_date):
                     total_actual = sum([float(player.get(act, 0)) if pd.notna(player.get(act)) else 0.0 for _, _, act in stats_to_compare])
                     accuracy = 100 - (abs(total_pred - total_actual) / max(total_actual, 1) * 100) if total_actual > 0 else 0
                     
-                    # Build stat cards HTML with proper formatting
                     stat_cards_parts = []
                     for label, pred_key, actual_key in stats_to_compare:
                         predicted = float(player[pred_key]) if pd.notna(player[pred_key]) else 0.0
@@ -1072,12 +1067,10 @@ def display_players(players_df, target_date):
                     
                     stat_cards_html = ''.join(stat_cards_parts)
                     
-                    # Construct complete HTML as a single clean string with data attribute
                     actuals_html = '<div class="actuals-row" data-prediction-id="{}"><div class="actuals-header"><div class="actuals-title">Actual Performance</div><div><span class="error-badge">Error: {:.2f}</span><span class="accuracy-badge">{:.1f}% Accurate</span></div></div><div class="stat-comparison">{}</div></div>'.format(
                         prediction_id, error, accuracy, stat_cards_html
                     )
                     
-                    # Render HTML - ensure it's treated as HTML, not markdown code
                     st.markdown(actuals_html, unsafe_allow_html=True)
                 except Exception as e:
                     st.error(f"Error displaying actuals: {str(e)}")
@@ -1085,17 +1078,14 @@ def display_players(players_df, target_date):
 def main():
     load_custom_css()
     
-    # Header with title and subtitle
     st.markdown("""
     <h1>NBA PREDICTIONS</h1>
     """, unsafe_allow_html=True)
     
-    # Subtitle
     st.markdown("""
     <p class="subtitle">AI-powered player performance predictions powered by XGBoost</p>
     """, unsafe_allow_html=True)
     
-    # Info button below subtitle
     if 'show_info' not in st.session_state:
         st.session_state.show_info = False
     
@@ -1104,7 +1094,6 @@ def main():
         st.session_state.show_info = not st.session_state.show_info
         st.rerun()
     
-    # Info modal - use pure HTML to avoid Streamlit container styling
     if st.session_state.show_info:
         info_html = """<div class="info-modal"><h3>Model Overview</h3><p>Our predictions use <strong>XGBoost</strong>, a gradient boosting machine learning algorithm, trained on historical NBA player performance data. We maintain separate models for each statistic (Points, Rebounds, Assists, Steals, Blocks, Turnovers, and 3-Pointers Made). All features are standardized (z-score normalization) to ensure fair comparison across different scales.</p><br><h3>Features Used</h3><ul><li><strong>Recent Form:</strong> Rolling averages from last 5, 10, and 20 games for points, rebounds, and assists. We use both unweighted averages and exponentially weighted averages where more recent games are weighted more heavily (exponential decay factor of 0.1). This captures both overall recent performance and recency trends.</li><li><strong>Game Context:</strong> Home/away status (home court advantage), days of rest between games, and whether it's a back-to-back game. These factors significantly impact player performance and fatigue levels.</li><li><strong>Team Ratings:</strong> Offensive rating (points per 100 possessions), defensive rating (points allowed per 100 possessions), and pace (possessions per game) for both the player's team and opponent. These metrics capture team strength and playing style.</li><li><strong>Opponent Defense:</strong> Field goal percentage and 3-point percentage allowed by the opposing team. Stronger defensive teams typically limit individual player production.</li><li><strong>Teammate Impact:</strong> Whether star teammates (20+ PPG) are injured or out. When star players are unavailable, other players often see increased usage and production opportunities.</li><li><strong>Playoff Experience:</strong> Career playoff games played and playoff performance boost (difference between playoff and regular season scoring averages). These features are only applied when predicting playoff games, as playoff basketball has different intensity and defensive schemes.</li><li><strong>Altitude:</strong> Arena altitude effects for away games. High-altitude venues (above 3000 feet) can impact player performance due to reduced oxygen levels, particularly affecting endurance and shooting accuracy.</li></ul><br><h3>Confidence Score</h3><p>The confidence score (0-100%) indicates prediction reliability based on:</p><ul><li>Player's recent game history and consistency (lower variance = higher confidence)</li><li>Availability of required features (missing data reduces confidence)</li><li>Number of games played in the season (more games = more reliable patterns)</li><li>Contextual factors (back-to-back games, injuries, altitude reduce confidence)</li></ul><br><h3>Accuracy Metrics</h3><p>When actual game results are available, we calculate:</p><ul><li><strong>Error:</strong> Average absolute error across all 7 statistics</li><li><strong>% Accurate:</strong> Calculated as 100 - (|Total Predicted - Total Actual| / Total Actual) × 100, where totals are the sum of all 7 statistics (Points, Rebounds, Assists, Steals, Blocks, Turnovers, 3-Pointers). This measures how close the combined predicted stats are to the combined actual stats.</li></ul><br><h3>View Actuals</h3><p>The "View Actuals" button appears for past games where actual statistics are available. It shows a comparison between predicted and actual performance, including the difference for each statistic.</p></div>"""
         st.markdown(info_html, unsafe_allow_html=True)

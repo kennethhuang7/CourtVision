@@ -77,10 +77,39 @@ def update_team_ratings_for_yesterday(target_date=None):
         if game_count == 0:
             continue
         
-        offensive_rating = round((points_for / game_count) * 100 / 100, 1)
-        defensive_rating = round((points_against / game_count) * 100 / 100, 1)
+        cur.execute("""
+            SELECT 
+                SUM(pgs.field_goals_attempted) as fga,
+                SUM(pgs.rebounds_offensive) as oreb,
+                SUM(pgs.turnovers) as tov,
+                SUM(pgs.free_throws_attempted) as fta
+            FROM player_game_stats pgs
+            JOIN games g ON pgs.game_id = g.game_id
+            WHERE pgs.team_id = %s
+                AND g.season = %s
+                AND g.game_status = 'completed'
+                AND g.game_type = 'regular_season'
+        """, (team_id, season))
+        
+        team_stats = cur.fetchone()
+        
+        if not team_stats or not team_stats[0]:
+            continue
+        
+        fga = team_stats[0] or 0
+        oreb = team_stats[1] or 0
+        tov = team_stats[2] or 0
+        fta = team_stats[3] or 0
+        
+        possessions = fga - oreb + tov + 0.44 * fta
+        
+        if possessions == 0:
+            continue
+        
+        offensive_rating = round((points_for / possessions) * 100, 1)
+        defensive_rating = round((points_against / possessions) * 100, 1)
         net_rating = round(offensive_rating - defensive_rating, 1)
-        pace = round(100, 1)
+        pace = round(possessions / game_count, 1)
         
         cur.execute("""
             INSERT INTO team_ratings (
