@@ -21,66 +21,6 @@ st.set_page_config(
 )
 
 def show_navigation():
-    st.sidebar.markdown("""
-    <script>
-    (function() {
-        function replaceStreamlitAppTitle() {
-            const sidebar = document.querySelector('[data-testid="stSidebar"]');
-            if (sidebar) {
-                const walker = document.createTreeWalker(
-                    sidebar,
-                    NodeFilter.SHOW_TEXT,
-                    null,
-                    false
-                );
-                let node;
-                while (node = walker.nextNode()) {
-                    if (node.textContent.trim().toLowerCase() === 'streamlit app') {
-                        node.textContent = 'Predictions';
-                        let parent = node.parentElement;
-                        if (parent) {
-                            parent.style.color = '#d4af37';
-                            parent.style.fontWeight = '700';
-                            parent.style.fontSize = '1.25rem';
-                        }
-                    }
-                }
-                const allElements = sidebar.querySelectorAll('*');
-                allElements.forEach(el => {
-                    if (el.textContent && el.textContent.trim().toLowerCase() === 'streamlit app') {
-                        el.textContent = 'Predictions';
-                        el.style.color = '#d4af37';
-                        el.style.fontWeight = '700';
-                        el.style.fontSize = '1.25rem';
-                    }
-                });
-            }
-        }
-        replaceStreamlitAppTitle();
-        setTimeout(replaceStreamlitAppTitle, 10);
-        setTimeout(replaceStreamlitAppTitle, 50);
-        setTimeout(replaceStreamlitAppTitle, 100);
-        setTimeout(replaceStreamlitAppTitle, 200);
-        setTimeout(replaceStreamlitAppTitle, 500);
-        setTimeout(replaceStreamlitAppTitle, 1000);
-        setTimeout(replaceStreamlitAppTitle, 2000);
-        
-        const observer = new MutationObserver(function(mutations) {
-            replaceStreamlitAppTitle();
-        });
-        const sidebar = document.querySelector('[data-testid="stSidebar"]');
-        if (sidebar) {
-            observer.observe(sidebar, { 
-                childList: true, 
-                subtree: true,
-                characterData: true
-            });
-        }
-        document.addEventListener('DOMContentLoaded', replaceStreamlitAppTitle);
-        window.addEventListener('load', replaceStreamlitAppTitle);
-    })();
-    </script>
-    """, unsafe_allow_html=True)
     st.sidebar.markdown("## Predictions")
     st.sidebar.markdown("---")
     st.sidebar.markdown("Use the pages menu above to navigate between pages")
