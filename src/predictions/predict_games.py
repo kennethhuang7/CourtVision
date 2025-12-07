@@ -3,6 +3,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from data_collection.utils import get_db_connection
 import pandas as pd
+import numpy as np
 import joblib
 from datetime import datetime, timedelta
 
@@ -81,7 +82,7 @@ def predict_upcoming_games(target_date=None):
     
     print(f"Found {len(games_df)} games\n")
     
-    print("Loading models...")
+    print("Loading models and scalers...")
     models = {
         'points': joblib.load('../../data/models/xgboost_points.pkl'),
         'rebounds': joblib.load('../../data/models/xgboost_rebounds.pkl'),
@@ -91,6 +92,15 @@ def predict_upcoming_games(target_date=None):
         'turnovers': joblib.load('../../data/models/xgboost_turnovers.pkl'),
         'three_pointers_made': joblib.load('../../data/models/xgboost_three_pointers_made.pkl')
     }
+    
+    scalers = {}
+    for stat_name in models.keys():
+        scaler_path = f'../../data/models/scaler_{stat_name}.pkl'
+        if os.path.exists(scaler_path):
+            scalers[stat_name] = joblib.load(scaler_path)
+        else:
+            print(f"Warning: Scaler not found for {stat_name}, predictions may be inaccurate")
+            scalers[stat_name] = None
     
     all_predictions = []
     predictions_inserted = 0
@@ -112,10 +122,10 @@ def predict_upcoming_games(target_date=None):
             print(f"  Processing {team_name} team {team_id}...")
             
             players_query = f"""
-                SELECT DISTINCT player_id
-                FROM player_game_stats
-                WHERE team_id = {team_id}
-                    AND game_id IN (
+                SELECT DISTINCT pgs.player_id
+                FROM player_game_stats pgs
+                WHERE pgs.team_id = {team_id}
+                    AND pgs.game_id IN (
                         SELECT game_id FROM games 
                         WHERE season = '{season}' 
                         AND game_date < '{target_date}'
@@ -123,11 +133,18 @@ def predict_upcoming_games(target_date=None):
                         ORDER BY game_date DESC
                         LIMIT 10
                     )
+                    AND pgs.player_id NOT IN (
+                        SELECT DISTINCT i.player_id
+                        FROM injuries i
+                        WHERE i.injury_status = 'Out'
+                        AND i.report_date <= '{target_date}'
+                        AND (i.return_date IS NULL OR i.return_date > '{target_date}')
+                    )
             """
             
             players = pd.read_sql(players_query, conn)
             
-            print(f"    Found {len(players)} qualifying players")
+            print(f"    Found {len(players)} qualifying players (injured players excluded)")
             
             for player_id in players['player_id']:
                 features, recent_games = build_features_for_player(
@@ -140,7 +157,13 @@ def predict_upcoming_games(target_date=None):
                 
                 predictions = {}
                 for stat_name, model in models.items():
-                    pred = model.predict(features)[0]
+                    features_scaled = features.copy()
+                    if scalers[stat_name] is not None:
+                        features_scaled = pd.DataFrame(
+                            scalers[stat_name].transform(features),
+                            columns=features.columns
+                        )
+                    pred = model.predict(features_scaled)[0]
                     predictions[stat_name] = float(round(pred, 1))
                 
                 confidence_score = calculate_confidence(features, recent_games)
@@ -253,44 +276,63 @@ def build_features_for_player(conn, player_id, team_id, opponent_id,
         features[f'rebounds_total_l{window}'] = window_games['rebounds_total'].mean()
         features[f'assists_l{window}'] = window_games['assists'].mean()
     
-    playoff_games_query = f"""
-        SELECT COUNT(*) as playoff_games
-        FROM player_game_stats pgs
-        JOIN games g ON pgs.game_id = g.game_id
-        WHERE pgs.player_id = {player_id}
-            AND g.game_type = 'playoff'
-            AND g.game_status = 'completed'
-    """
+    decay_factor = 0.1
+    for window in [5, 10, 20]:
+        window_games = recent_games.head(window).copy()
+        if len(window_games) > 0:
+            weights = np.exp(-decay_factor * np.arange(len(window_games))[::-1])
+            weights = weights / weights.sum()
+            
+            features[f'points_l{window}_weighted'] = np.sum(window_games['points'].values * weights)
+            features[f'rebounds_total_l{window}_weighted'] = np.sum(window_games['rebounds_total'].values * weights)
+            features[f'assists_l{window}_weighted'] = np.sum(window_games['assists'].values * weights)
+        else:
+            features[f'points_l{window}_weighted'] = 0
+            features[f'rebounds_total_l{window}_weighted'] = 0
+            features[f'assists_l{window}_weighted'] = 0
     
-    playoff_count = pd.read_sql(playoff_games_query, conn)
-    features['playoff_games_career'] = playoff_count.iloc[0]['playoff_games'] if len(playoff_count) > 0 else 0
-    
-    playoff_avg_query = f"""
-        SELECT AVG(pgs.points) as playoff_avg
-        FROM player_game_stats pgs
-        JOIN games g ON pgs.game_id = g.game_id
-        WHERE pgs.player_id = {player_id}
-            AND g.game_type = 'playoff'
-            AND g.game_status = 'completed'
-    """
-    
-    regular_avg_query = f"""
-        SELECT AVG(pgs.points) as regular_avg
-        FROM player_game_stats pgs
-        JOIN games g ON pgs.game_id = g.game_id
-        WHERE pgs.player_id = {player_id}
-            AND g.game_type = 'regular_season'
-            AND g.game_status = 'completed'
-    """
-    
-    playoff_avg = pd.read_sql(playoff_avg_query, conn)
-    regular_avg = pd.read_sql(regular_avg_query, conn)
-    
-    if len(playoff_avg) > 0 and len(regular_avg) > 0:
-        playoff_ppg = playoff_avg.iloc[0]['playoff_avg'] or 0
-        regular_ppg = regular_avg.iloc[0]['regular_avg'] or 0
-        features['playoff_performance_boost'] = playoff_ppg - regular_ppg
+    if game_type == 'playoff':
+        playoff_games_query = f"""
+            SELECT COUNT(*) as playoff_games
+            FROM player_game_stats pgs
+            JOIN games g ON pgs.game_id = g.game_id
+            WHERE pgs.player_id = {player_id}
+                AND g.game_type = 'playoff'
+                AND g.game_status = 'completed'
+        """
+        
+        playoff_count = pd.read_sql(playoff_games_query, conn)
+        features['playoff_games_career'] = playoff_count.iloc[0]['playoff_games'] if len(playoff_count) > 0 else 0
+        
+        playoff_avg_query = f"""
+            SELECT AVG(pgs.points) as playoff_avg
+            FROM player_game_stats pgs
+            JOIN games g ON pgs.game_id = g.game_id
+            WHERE pgs.player_id = {player_id}
+                AND g.game_type = 'playoff'
+                AND g.game_status = 'completed'
+        """
+        
+        regular_avg_query = f"""
+            SELECT AVG(pgs.points) as regular_avg
+            FROM player_game_stats pgs
+            JOIN games g ON pgs.game_id = g.game_id
+            WHERE pgs.player_id = {player_id}
+                AND g.game_type = 'regular_season'
+                AND g.game_status = 'completed'
+        """
+        
+        playoff_avg = pd.read_sql(playoff_avg_query, conn)
+        regular_avg = pd.read_sql(regular_avg_query, conn)
+        
+        if len(playoff_avg) > 0 and len(regular_avg) > 0:
+            playoff_ppg = playoff_avg.iloc[0]['playoff_avg'] or 0
+            regular_ppg = regular_avg.iloc[0]['regular_avg'] or 0
+            features['playoff_performance_boost'] = playoff_ppg - regular_ppg
+        else:
+            features['playoff_performance_boost'] = 0
     else:
+        features['playoff_games_career'] = 0
         features['playoff_performance_boost'] = 0
     
     features['is_home'] = is_home
@@ -423,9 +465,13 @@ def build_features_for_player(conn, player_id, team_id, opponent_id,
     features_df = pd.DataFrame([features])
     
     column_order = [
-        'is_playoff', 'points_l5', 'rebounds_total_l5', 'assists_l5',
+        'is_playoff', 
+        'points_l5', 'rebounds_total_l5', 'assists_l5',
         'points_l10', 'rebounds_total_l10', 'assists_l10',
         'points_l20', 'rebounds_total_l20', 'assists_l20',
+        'points_l5_weighted', 'rebounds_total_l5_weighted', 'assists_l5_weighted',
+        'points_l10_weighted', 'rebounds_total_l10_weighted', 'assists_l10_weighted',
+        'points_l20_weighted', 'rebounds_total_l20_weighted', 'assists_l20_weighted',
         'star_teammate_out', 'star_teammate_ppg', 'games_without_star',  
         'playoff_games_career', 'playoff_performance_boost',
         'is_home', 'days_rest', 'is_back_to_back', 'games_played_season',

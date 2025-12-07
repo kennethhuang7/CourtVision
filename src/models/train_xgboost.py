@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.preprocessing import StandardScaler
 import xgboost as xgb
 import joblib
 
@@ -23,7 +24,7 @@ def train_xgboost_models():
     print(f"After removing NaN: {len(df)} records\n")
     
     feature_cols = [col for col in df.columns if any(x in col for x in 
-               ['_l5', '_l10', '_l20', 'is_', 'days_rest', 'games_played',
+               ['_l5', '_l10', '_l20', '_weighted', 'is_', 'days_rest', 'games_played',
                 'offensive_rating', 'defensive_rating', 'pace', 'opp_', 'altitude', 'playoff',
                 'star_teammate', 'games_without_star'])]
     
@@ -50,13 +51,18 @@ def train_xgboost_models():
         
         y = df[target_col]
         
+        print("Fitting StandardScaler...")
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+        X_scaled = pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
+        
         tscv = TimeSeriesSplit(n_splits=3)
         
         best_model = None
         best_score = float('inf')
         
-        for fold, (train_idx, val_idx) in enumerate(tscv.split(X), 1):
-            X_train, X_val = X.iloc[train_idx], X.iloc[val_idx]
+        for fold, (train_idx, val_idx) in enumerate(tscv.split(X_scaled), 1):
+            X_train, X_val = X_scaled.iloc[train_idx], X_scaled.iloc[val_idx]
             y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
             
             model = xgb.XGBRegressor(
@@ -96,11 +102,15 @@ def train_xgboost_models():
             n_jobs=-1
         )
         
-        final_model.fit(X, y, verbose=False)
+        final_model.fit(X_scaled, y, verbose=False)
         
         model_path = f'../../data/models/xgboost_{target_name}.pkl'
+        scaler_path = f'../../data/models/scaler_{target_name}.pkl'
+        
         joblib.dump(final_model, model_path)
-        print(f"Saved: {model_path}\n")
+        joblib.dump(scaler, scaler_path)
+        print(f"Saved: {model_path}")
+        print(f"Saved: {scaler_path}\n")
     
     print("="*50)
     print("ALL MODELS TRAINED!")

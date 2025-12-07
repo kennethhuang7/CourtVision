@@ -18,15 +18,12 @@ def mark_recovered_players(target_date=None):
     cur = conn.cursor()
     
     cur.execute("""
-        SELECT DISTINCT i.injury_id, i.player_id, p.full_name, i.report_date, i.injury_status
+        SELECT DISTINCT ON (i.player_id) 
+            i.injury_id, i.player_id, p.full_name, i.report_date, i.injury_status
         FROM injuries i
         JOIN players p ON i.player_id = p.player_id
         WHERE i.injury_status IN ('Out', 'Day-To-Day', 'Questionable')
-        AND i.report_date = (
-            SELECT MAX(report_date)
-            FROM injuries i2
-            WHERE i2.player_id = i.player_id
-        )
+        ORDER BY i.player_id, i.report_date DESC, i.injury_id DESC
     """)
     
     injured_players = cur.fetchall()
@@ -50,6 +47,7 @@ def mark_recovered_players(target_date=None):
             WHERE pgs.player_id = %s
             AND g.game_date = %s
             AND g.game_status = 'completed'
+            AND pgs.minutes_played > 0
         """, (player_id, target_date))
         
         played = cur.fetchone()[0]
@@ -61,7 +59,9 @@ def mark_recovered_players(target_date=None):
                 WHERE g.game_date >= %s
                 AND g.game_date < %s
                 AND g.game_status = 'completed'
-            """, (injury_date, target_date))
+                AND (g.home_team_id IN (SELECT team_id FROM players WHERE player_id = %s)
+                     OR g.away_team_id IN (SELECT team_id FROM players WHERE player_id = %s))
+            """, (injury_date, target_date, player_id, player_id))
             
             games_missed = cur.fetchone()[0]
             
@@ -74,7 +74,7 @@ def mark_recovered_players(target_date=None):
             """, (target_date, games_missed, injury_id))
             
             recovered += 1
-            print(f"  ✓ {player_name} recovered (missed {games_missed} games)")
+            print(f"  [RECOVERED] {player_name} (missed {games_missed} games, was {injury_status})")
         else:
             still_injured += 1
     

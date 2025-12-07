@@ -19,3 +19,4 @@ schedule==1.2.0
 pytz==2023.3
 jupyter==1.0.0
 pytest==7.4.3
+streamlit==1.29.0

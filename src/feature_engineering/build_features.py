@@ -3,6 +3,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from data_collection.utils import get_db_connection
 import pandas as pd
+import numpy as np
 
 import warnings
 warnings.filterwarnings('ignore', message='pandas only supports SQLAlchemy')
@@ -51,11 +52,26 @@ def build_features_for_training():
     print("  - Playoff indicator")
     df['is_playoff'] = (df['game_type'] == 'playoff').astype(int)
     
-    print("  - Recent form (L5, L10, L20)")
+    print("  - Recent form (L5, L10, L20) - unweighted")
     for window in [5, 10, 20]:
         for stat in ['points', 'rebounds_total', 'assists']:
             df[f'{stat}_l{window}'] = df.groupby('player_id')[stat].transform(
                 lambda x: x.rolling(window=window, min_periods=1).mean().shift(1)
+            )
+    
+    print("  - Recent form (L5, L10, L20) - exponentially weighted")
+    decay_factor = 0.1
+    for window in [5, 10, 20]:
+        for stat in ['points', 'rebounds_total', 'assists']:
+            def exp_weighted_mean(series):
+                if len(series) == 0:
+                    return np.nan
+                weights = np.exp(-decay_factor * np.arange(len(series))[::-1])
+                weights = weights / weights.sum()
+                return np.sum(series * weights)
+            
+            df[f'{stat}_l{window}_weighted'] = df.groupby('player_id')[stat].transform(
+                lambda x: x.rolling(window=window, min_periods=1).apply(exp_weighted_mean, raw=True).shift(1)
             )
     
     print("  - Teammate dependency features")
