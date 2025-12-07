@@ -24,45 +24,37 @@ def show_navigation():
     st.sidebar.markdown("""
     <script>
     (function() {
-        function hideStreamlitAppTitle() {
+        function replaceStreamlitAppTitle() {
             const sidebar = document.querySelector('[data-testid="stSidebar"]');
             if (sidebar) {
-                const allElements = sidebar.querySelectorAll('p, div, span, h1, h2, h3, h4, h5, h6');
-                allElements.forEach(el => {
-                    const text = (el.textContent || el.innerText || '').trim().toLowerCase();
-                    if (text === 'streamlit app' && !el.closest('[data-testid="stMarkdownContainer"]:has(h2)')) {
-                        el.style.display = 'none';
-                        el.style.visibility = 'hidden';
-                        el.style.height = '0';
-                        el.style.margin = '0';
-                        el.style.padding = '0';
-                        el.style.overflow = 'hidden';
-                        el.style.fontSize = '0';
-                        el.style.lineHeight = '0';
+                const firstChild = sidebar.firstElementChild;
+                if (firstChild) {
+                    const firstMarkdown = firstChild.querySelector('[data-testid="stMarkdownContainer"]');
+                    if (firstMarkdown) {
+                        const text = (firstMarkdown.textContent || firstMarkdown.innerText || '').trim().toLowerCase();
+                        if (text === 'streamlit app') {
+                            firstMarkdown.innerHTML = '<h2 style="color: #d4af37; font-weight: 700; margin: 0; padding: 0;">Predictions</h2>';
+                        }
                     }
-                });
-                const firstMarkdown = sidebar.querySelector('[data-testid="stMarkdownContainer"]:first-of-type');
-                if (firstMarkdown) {
-                    const text = (firstMarkdown.textContent || firstMarkdown.innerText || '').trim().toLowerCase();
-                    if (text === 'streamlit app') {
-                        firstMarkdown.style.display = 'none';
-                        firstMarkdown.style.visibility = 'hidden';
-                        firstMarkdown.style.height = '0';
-                        firstMarkdown.style.margin = '0';
-                        firstMarkdown.style.padding = '0';
-                    }
+                    const allText = firstChild.querySelectorAll('p, span, div');
+                    allText.forEach(el => {
+                        const text = (el.textContent || el.innerText || '').trim().toLowerCase();
+                        if (text === 'streamlit app' && el.parentElement === firstChild) {
+                            el.innerHTML = '<h2 style="color: #d4af37; font-weight: 700; margin: 0; padding: 0;">Predictions</h2>';
+                        }
+                    });
                 }
             }
         }
-        hideStreamlitAppTitle();
-        setTimeout(hideStreamlitAppTitle, 50);
-        setTimeout(hideStreamlitAppTitle, 100);
-        setTimeout(hideStreamlitAppTitle, 300);
-        setTimeout(hideStreamlitAppTitle, 500);
-        setTimeout(hideStreamlitAppTitle, 1000);
+        replaceStreamlitAppTitle();
+        setTimeout(replaceStreamlitAppTitle, 50);
+        setTimeout(replaceStreamlitAppTitle, 100);
+        setTimeout(replaceStreamlitAppTitle, 300);
+        setTimeout(replaceStreamlitAppTitle, 500);
+        setTimeout(replaceStreamlitAppTitle, 1000);
         
         const observer = new MutationObserver(function(mutations) {
-            hideStreamlitAppTitle();
+            replaceStreamlitAppTitle();
         });
         const sidebar = document.querySelector('[data-testid="stSidebar"]');
         if (sidebar) {
@@ -75,7 +67,6 @@ def show_navigation():
     })();
     </script>
     """, unsafe_allow_html=True)
-    st.sidebar.markdown("## Predictions")
     st.sidebar.markdown("---")
     st.sidebar.markdown("Use the pages menu above to navigate between pages")
 
