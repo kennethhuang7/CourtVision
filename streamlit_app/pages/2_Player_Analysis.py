@@ -7,6 +7,9 @@ from dotenv import load_dotenv
 import plotly.graph_objects as go
 import plotly.express as px
 import re
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils import get_ensemble_selection
 
 import warnings
 warnings.filterwarnings('ignore', message='pandas only supports SQLAlchemy')
@@ -86,9 +89,10 @@ def load_custom_css():
             color: #d4af37 !important;
             font-weight: 700;
             font-size: 2.5rem;
-            margin: 0 0 0.5rem 0 !important;
+            margin: 0 0 0 0 !important;
             letter-spacing: -0.02em;
             padding-top: 0 !important;
+            padding-bottom: 0 !important;
         }
 
         [data-testid="stAppViewContainer"] {
@@ -107,7 +111,8 @@ def load_custom_css():
             color: #888;
             font-size: 1rem;
             margin-bottom: 0.5rem;
-            margin-top: 0.25rem;
+            margin-top: 0 !important;
+            padding-top: 0 !important;
         }
         
         .player-info-card {
@@ -195,17 +200,14 @@ def load_custom_css():
             color: #cccccc !important;
         }
         
-        /* Style Our Prediction metric to use gold color - target metrics without delta */
         div[data-testid="stMetricContainer"]:not(:has(div[data-testid="stMetricDelta"])) div[data-testid="stMetricValue"] {
             color: #d4af37 !important;
         }
         
-        /* More aggressive targeting - all metric values without deltas in the right column */
         div[data-testid="column"]:nth-child(2) div[data-testid="stMetricContainer"]:not(:has(div[data-testid="stMetricDelta"])) div[data-testid="stMetricValue"] {
             color: #d4af37 !important;
         }
         
-        /* Left-align stat column in historical data table - target all possible dataframe containers */
         div[data-testid="stDataFrame"] table tbody td:nth-child(3),
         div[data-testid="stDataFrame"] table thead th:nth-child(3),
         div[data-testid="stDataFrame"] table tbody tr td:last-child,
@@ -218,7 +220,6 @@ def load_custom_css():
             padding-left: 0.5rem !important;
         }
         
-        /* Also try targeting by data type - numeric columns */
         div[data-testid="stDataFrame"] table tbody td[style*="text-align: right"],
         div[data-testid="stDataFrame"] table tbody td[style*="text-align:right"] {
             text-align: left !important;
@@ -233,24 +234,20 @@ def load_custom_css():
             padding: 0;
         }
         
-        /* Reduce spacing after plotly chart */
         div[data-testid="stPlotlyChart"] {
             margin-bottom: 0 !important;
         }
         
-        /* Target element containers to reduce spacing */
         .element-container:has(.info-cards-grid) {
             margin-top: -2rem !important;
             padding-top: 0 !important;
         }
         
-        /* Also target the element container that wraps the plotly chart */
         .element-container:has(div[data-testid="stPlotlyChart"]) {
             margin-bottom: 0 !important;
             padding-bottom: 0 !important;
         }
         
-        /* Info cards grid container - use CSS Grid for perfect even spacing */
         .info-cards-grid {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
@@ -259,7 +256,6 @@ def load_custom_css():
             width: 100%;
         }
         
-        /* Ensure cards don't have extra margins */
         .context-info-card-wrapper {
             width: 100%;
             margin: 0;
@@ -526,20 +522,29 @@ def get_player_prediction(player_id, game_id, stat_name):
     if not column:
         return None
     
+    ensemble_models = get_ensemble_selection()
+    
+    if len(ensemble_models) == 0:
+        ensemble_models = ['xgboost']
+    
+    placeholders = ','.join(['%s'] * len(ensemble_models))
+    
     query = f"""
-        SELECT {column} as prediction
+        SELECT AVG({column}) as prediction
         FROM predictions
-        WHERE player_id = %s AND game_id = %s
+        WHERE player_id = %s AND game_id = %s AND model_version IN ({placeholders})
     """
     
     player_id_int = int(player_id)
     game_id_str = str(game_id)
     
-    result = pd.read_sql(query, conn, params=(player_id_int, game_id_str))
+    params = [player_id_int, game_id_str] + ensemble_models
+    
+    result = pd.read_sql(query, conn, params=params)
     conn.close()
     
-    if len(result) > 0:
-        return result.iloc[0]['prediction']
+    if len(result) > 0 and pd.notna(result.iloc[0]['prediction']):
+        return float(result.iloc[0]['prediction'])
     return None
 
 def get_position_defense_ranking(opponent_id, season, position, stat_name):
@@ -1074,7 +1079,7 @@ def main():
         exclude_dnp = st.checkbox("Exclude DNP", value=True)
         
         st.markdown("<div style='color: #d4af37; font-weight: 600; margin-bottom: 0.5rem; margin-top: 0.5rem;'>Minimum Minutes</div>", unsafe_allow_html=True)
-        min_minutes_options = list(range(0, 65, 5))  # 0, 5, 10, 15, ..., 60
+        min_minutes_options = list(range(0, 65, 5))
         min_minutes = st.selectbox("Minimum Minutes", min_minutes_options, index=0, key="min_minutes", label_visibility="collapsed")
         
         filter_labels = []

@@ -181,13 +181,6 @@ def build_features_for_training():
     
     print("  - Position-specific opponent defense")
     def map_position_to_defense_position(pos):
-        """
-        Maps player positions to defense position categories (G, F, C).
-        Maps:
-        - Guards and Guard-Forwards → 'G'
-        - Forwards and Forward-Centers → 'F'
-        - Centers → 'C'
-        """
         if pd.isna(pos):
             return 'G'
         pos_str = str(pos).upper().strip()

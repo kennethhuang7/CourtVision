@@ -25,7 +25,7 @@ def run_manual_collection():
         ("Scrape injuries", "../data_collection/scrape_injuries.py", None),
         ("Mark recovered players", "../data_collection/mark_recovered_players.py", yesterday),
         ("Collect today's schedule", "../data_collection/collect_todays_schedule.py", today),
-        ("Generate predictions for today", "../predictions/predict_games.py", today),
+        ("Generate predictions for today", "../predictions/predict_games.py", (today, "--all")),
         ("Evaluate yesterday's predictions", "../predictions/evaluate_predictions.py", yesterday)
     ]
     
@@ -38,6 +38,13 @@ def run_manual_collection():
             result = subprocess.run([
                 sys.executable,
                 script_path
+            ], capture_output=True, text=True)
+        elif isinstance(date_arg, tuple):
+            result = subprocess.run([
+                sys.executable,
+                script_path,
+                str(date_arg[0]),
+                date_arg[1]
             ], capture_output=True, text=True)
         else:
             result = subprocess.run([

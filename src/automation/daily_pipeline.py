@@ -110,12 +110,13 @@ def run_daily_pipeline():
     if result.stderr:
         print("ERROR:", result.stderr)
     
-    print("\nSTEP 9: Generate predictions for today")
+    print("\nSTEP 9: Generate predictions for today (all models)")
     print("-"*50)
     result = subprocess.run([
         sys.executable,
         '../predictions/predict_games.py',
-        str(today)
+        str(today),
+        '--all'
     ], capture_output=True, text=True)
     print(result.stdout)
     if result.stderr:

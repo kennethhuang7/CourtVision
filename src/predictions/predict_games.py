@@ -1,11 +1,11 @@
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from data_collection.utils import get_db_connection
+from data_collection.utils import get_db_connection, ensure_connection
 import pandas as pd
 import numpy as np
 import joblib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 import warnings
 warnings.filterwarnings('ignore', message='pandas only supports SQLAlchemy')
@@ -53,15 +53,18 @@ def calculate_confidence(features_df, recent_games_df):
     
     return int(max(0, min(100, score)))
 
-def predict_upcoming_games(target_date=None):
-    print("Predicting player performance for upcoming games...\n")
+def predict_upcoming_games(target_date=None, model_type='xgboost'):
+    print(f"Predicting player performance for upcoming games using {model_type}...\n")
     
     if target_date is None:
         target_date = datetime.now().date()
-    else:
+    elif isinstance(target_date, str):
         target_date = datetime.strptime(target_date, '%Y-%m-%d').date()
+    elif isinstance(target_date, date):
+        target_date = target_date
     
-    print(f"Target date: {target_date}\n")
+    print(f"Target date: {target_date}")
+    print(f"Model type: {model_type}\n")
     
     conn = get_db_connection()
     cur = conn.cursor()
@@ -89,29 +92,48 @@ def predict_upcoming_games(target_date=None):
     project_root = os.path.dirname(os.path.dirname(script_dir))
     models_dir = os.path.join(project_root, 'data', 'models')
     
-    models = {
-        'points': joblib.load(os.path.join(models_dir, 'xgboost_points.pkl')),
-        'rebounds': joblib.load(os.path.join(models_dir, 'xgboost_rebounds.pkl')),
-        'assists': joblib.load(os.path.join(models_dir, 'xgboost_assists.pkl')),
-        'steals': joblib.load(os.path.join(models_dir, 'xgboost_steals.pkl')),
-        'blocks': joblib.load(os.path.join(models_dir, 'xgboost_blocks.pkl')),
-        'turnovers': joblib.load(os.path.join(models_dir, 'xgboost_turnovers.pkl')),
-        'three_pointers_made': joblib.load(os.path.join(models_dir, 'xgboost_three_pointers_made.pkl'))
+    models = {}
+    scalers = {}
+    
+    targets = {
+        'points': 'points',
+        'rebounds': 'rebounds_total',
+        'assists': 'assists',
+        'steals': 'steals',
+        'blocks': 'blocks',
+        'turnovers': 'turnovers',
+        'three_pointers_made': 'three_pointers_made'
     }
     
-    scalers = {}
-    for stat_name in models.keys():
-        scaler_path = os.path.join(models_dir, f'scaler_{stat_name}.pkl')
-        if os.path.exists(scaler_path):
-            scalers[stat_name] = joblib.load(scaler_path)
+    for stat_name in targets.keys():
+        model_path = os.path.join(models_dir, f'{model_type}_{stat_name}.pkl')
+        scaler_path = os.path.join(models_dir, f'scaler_{model_type}_{stat_name}.pkl')
+        
+        if os.path.exists(model_path):
+            models[stat_name] = joblib.load(model_path)
+            if os.path.exists(scaler_path):
+                scalers[stat_name] = joblib.load(scaler_path)
+            else:
+                print(f"Warning: Scaler not found for {model_type}_{stat_name}, predictions may be inaccurate")
+                scalers[stat_name] = None
         else:
-            print(f"Warning: Scaler not found for {stat_name}, predictions may be inaccurate")
-            scalers[stat_name] = None
+            print(f"Warning: Model not found: {model_path}")
+            models[stat_name] = None
+    
+    if all(v is None for v in models.values()):
+        print(f"No {model_type} models found! Please train models first.")
+        cur.close()
+        conn.close()
+        return
+    
+    model_version = model_type
     
     all_predictions = []
     predictions_inserted = 0
     
     for _, game in games_df.iterrows():
+        conn, cur = ensure_connection(conn, cur)
+        
         game_id = game['game_id']
         home_team = game['home_team_id']
         away_team = game['away_team_id']
@@ -121,6 +143,8 @@ def predict_upcoming_games(target_date=None):
         print(f"\nProcessing game {game_id}...")
         
         for team_id in [home_team, away_team]:
+            conn, cur = ensure_connection(conn, cur)
+            
             is_home = 1 if team_id == home_team else 0
             opponent_id = away_team if is_home else home_team
             
@@ -162,36 +186,58 @@ def predict_upcoming_games(target_date=None):
                     continue
                 
                 predictions = {}
+                
                 for stat_name, model in models.items():
-                    model_feature_names = model.get_booster().feature_names
-                    features_ordered = features[[col for col in model_feature_names if col in features.columns]]
+                    if model is None:
+                        continue
                     
-                    if len(features_ordered.columns) != len(model_feature_names):
-                        missing = set(model_feature_names) - set(features_ordered.columns)
-                        missing = {col for col in missing if 'team_id' not in col and 'player_id' not in col and 'game_id' not in col}
-                        if missing:
-                            print(f"Warning: Missing features for {stat_name}: {missing}")
-                        for col in missing:
-                            features_ordered[col] = 0
-                        available_model_cols = [col for col in model_feature_names if col in features_ordered.columns]
-                        features_ordered = features_ordered[available_model_cols]
-                    
-                    features_ordered = features_ordered.fillna(0)
-                    
-                    if scalers[stat_name] is not None:
-                        features_scaled = pd.DataFrame(
-                            scalers[stat_name].transform(features_ordered),
-                            columns=features_ordered.columns
-                        )
-                    else:
-                        features_scaled = features_ordered
-                    
-                    pred = model.predict(features_scaled)[0]
-                    predictions[stat_name] = float(round(pred, 1))
+                    try:
+                        if hasattr(model, 'get_booster'):
+                            model_feature_names = model.get_booster().feature_names
+                        elif hasattr(model, 'feature_name_'):
+                            model_feature_names = model.feature_name_
+                        elif hasattr(model, 'feature_names_in_'):
+                            model_feature_names = model.feature_names_in_
+                        elif hasattr(model, 'feature_names_'):
+                            model_feature_names = model.feature_names_
+                        else:
+                            model_feature_names = features.columns.tolist()
+                        
+                        features_ordered = features[[col for col in model_feature_names if col in features.columns]].copy()
+                        
+                        if len(features_ordered.columns) != len(model_feature_names):
+                            missing = set(model_feature_names) - set(features_ordered.columns)
+                            missing = {col for col in missing if 'team_id' not in col and 'player_id' not in col and 'game_id' not in col}
+                            if missing:
+                                print(f"Warning: Missing features for {stat_name}: {missing}")
+                            for col in missing:
+                                features_ordered[col] = 0
+                            available_model_cols = [col for col in model_feature_names if col in features_ordered.columns]
+                            features_ordered = features_ordered[available_model_cols]
+                        
+                        features_ordered = features_ordered.fillna(0)
+                        
+                        if scalers[stat_name] is not None:
+                            features_scaled = pd.DataFrame(
+                                scalers[stat_name].transform(features_ordered),
+                                columns=features_ordered.columns
+                            )
+                        else:
+                            features_scaled = features_ordered
+                        
+                        pred = model.predict(features_scaled)[0]
+                        pred = max(0.0, pred)
+                        predictions[stat_name] = float(round(pred, 1))
+                        
+                    except Exception as e:
+                        print(f"Warning: Error predicting {stat_name} with {model_type}: {e}")
+                        predictions[stat_name] = 0.0
                 
                 confidence_score = calculate_confidence(features, recent_games)
                 
                 try:
+                    conn, cur = ensure_connection(conn, cur)
+                    
                     cur.execute("""
                         INSERT INTO predictions (
                             game_id, player_id, prediction_date,
@@ -199,7 +245,7 @@ def predict_upcoming_games(target_date=None):
                             predicted_steals, predicted_blocks, predicted_turnovers,
                             predicted_three_pointers_made, confidence_score, model_version
                         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (game_id, player_id) DO UPDATE SET
+                        ON CONFLICT (player_id, game_id, model_version) DO UPDATE SET
                             predicted_points = EXCLUDED.predicted_points,
                             predicted_rebounds = EXCLUDED.predicted_rebounds,
                             predicted_assists = EXCLUDED.predicted_assists,
@@ -208,7 +254,7 @@ def predict_upcoming_games(target_date=None):
                             predicted_turnovers = EXCLUDED.predicted_turnovers,
                             predicted_three_pointers_made = EXCLUDED.predicted_three_pointers_made,
                             confidence_score = EXCLUDED.confidence_score,
-                            model_version = EXCLUDED.model_version
+                            prediction_date = EXCLUDED.prediction_date
                     """, (
                         game_id,
                         player_id,
@@ -221,14 +267,20 @@ def predict_upcoming_games(target_date=None):
                         predictions['turnovers'],
                         predictions['three_pointers_made'],
                         confidence_score,
-                        'xgboost'
+                        model_version
                     ))
                     
                     predictions_inserted += 1
                     
                 except Exception as e:
                     print(f"Error inserting prediction for player {player_id}: {e}")
-                    conn.rollback()
+                    if "connection" in str(e).lower() or "cursor" in str(e).lower():
+                        conn, cur = ensure_connection(conn, cur)
+                    else:
+                        try:
+                            conn.rollback()
+                        except:
+                            conn, cur = ensure_connection(conn, cur)
                     continue
                 
                 all_predictions.append({
@@ -239,9 +291,18 @@ def predict_upcoming_games(target_date=None):
                     **predictions
                 })
     
-    conn.commit()
-    cur.close()
-    conn.close()
+    try:
+        conn.commit()
+    except Exception as commit_error:
+        print(f"Final commit error, reconnecting: {commit_error}")
+        conn, cur = ensure_connection(conn, cur)
+        conn.commit()
+    
+    try:
+        cur.close()
+        conn.close()
+    except:
+        pass
     
     if len(all_predictions) == 0:
         print("No predictions generated")
@@ -541,10 +602,29 @@ def build_features_for_player(conn, player_id, team_id, opponent_id,
     
     return features_df, recent_games
 
+def predict_all_models(target_date=None):
+    if target_date is None:
+        target_date = datetime.now().date()
+    elif isinstance(target_date, str):
+        target_date = datetime.strptime(target_date, '%Y-%m-%d').date()
+    
+    model_types = ['xgboost', 'lightgbm', 'random_forest', 'catboost']
+    
+    for model_type in model_types:
+        try:
+            predict_upcoming_games(target_date, model_type)
+        except Exception as e:
+            print(f"Error predicting with {model_type}: {e}")
+            continue
+
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1:
         target_date = sys.argv[1]
-        predict_upcoming_games(target_date)
+        if len(sys.argv) > 2 and sys.argv[2] == '--all':
+            predict_all_models(target_date)
+        else:
+            model_type = sys.argv[2] if len(sys.argv) > 2 else 'xgboost'
+            predict_upcoming_games(target_date, model_type)
     else:
-        predict_upcoming_games()
+        predict_all_models()

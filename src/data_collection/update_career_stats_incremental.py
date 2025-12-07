@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from nba_api.stats.endpoints import playercareerstats
-from utils import get_db_connection
+from utils import get_db_connection, ensure_connection
 import time
 from datetime import datetime, timedelta
 
@@ -41,6 +41,8 @@ def update_career_stats_for_yesterday(target_date=None):
     
     for player_id, full_name in players:
         try:
+            conn, cur = ensure_connection(conn, cur)
+            
             cur.execute("""
                 SELECT career_points, career_rebounds, career_assists, career_games
                 FROM player_career_stats
@@ -70,6 +72,8 @@ def update_career_stats_for_yesterday(target_date=None):
             total_games = int(regular_season['GP'].sum())
             total_steals = int(regular_season['STL'].sum())
             total_blocks = int(regular_season['BLK'].sum())
+            
+            conn, cur = ensure_connection(conn, cur)
             
             cur.execute("""
                 INSERT INTO player_career_stats (
@@ -105,6 +109,8 @@ def update_career_stats_for_yesterday(target_date=None):
                 else:
                     status = 'OK'
                 
+                conn, cur = ensure_connection(conn, cur)
+                
                 cur.execute("""
                     INSERT INTO career_stats_validation (
                         player_id, check_date, our_total, nba_api_total, difference, status
@@ -115,11 +121,18 @@ def update_career_stats_for_yesterday(target_date=None):
             
             if updated % 10 == 0:
                 print(f"Progress: {updated}/{len(players)} players updated")
-                conn.commit()
+                try:
+                    conn.commit()
+                except Exception as commit_error:
+                    print(f"  Commit error, reconnecting: {commit_error}")
+                    conn, cur = ensure_connection(conn, cur)
+                    conn.commit()
             
         except Exception as e:
             print(f"Error processing {full_name}: {e}")
             errors += 1
+            if "connection" in str(e).lower() or "cursor" in str(e).lower():
+                conn, cur = ensure_connection(conn, cur)
             continue
     
     conn.commit()

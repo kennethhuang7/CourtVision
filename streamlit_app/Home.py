@@ -4,6 +4,8 @@ import psycopg2
 from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
+import numpy as np
+from utils import load_predictions_with_ensemble, get_ensemble_selection, get_ensemble_warning
 
 import warnings
 warnings.filterwarnings('ignore', message='pandas only supports SQLAlchemy')
@@ -61,9 +63,10 @@ def load_custom_css():
             color: #d4af37 !important;
             font-weight: 700;
             font-size: 2.5rem;
-            margin: 0 0 0.5rem 0 !important;
+            margin: 0 0 0 0 !important;
             letter-spacing: -0.02em;
             padding-top: 0 !important;
+            padding-bottom: 0 !important;
         }
 
         [data-testid="stAppViewContainer"] {
@@ -79,7 +82,6 @@ def load_custom_css():
             max-width: 100% !important;
         }
         
-        /* Prevent layout shift */
         [data-testid="stAppViewContainer"] {
             padding-left: 0 !important;
             padding-right: 0 !important;
@@ -100,10 +102,10 @@ def load_custom_css():
             color: #888;
             font-size: 1rem;
             margin-bottom: 0.5rem;
-            margin-top: 0.25rem;
+            margin-top: 0 !important;
+            padding-top: 0 !important;
         }
         
-        /* Make subtitle and button appear on same line */
         div[data-testid="column"]:has(p.subtitle) {
             display: inline-block !important;
             vertical-align: middle !important;
@@ -247,7 +249,6 @@ def load_custom_css():
             padding-bottom: 0;
         }
         
-        /* Remove all default spacing from info modal elements */
         .info-modal * {
             margin-top: 0 !important;
             margin-bottom: 0 !important;
@@ -308,7 +309,6 @@ def load_custom_css():
             font-size: 0.65rem !important;
         }
         
-        /* Prevent layout shift when info modal appears/disappears */
         .main .block-container {
             max-width: 100% !important;
             padding-left: 1rem !important;
@@ -320,13 +320,11 @@ def load_custom_css():
             padding-right: 0 !important;
         }
         
-        /* Prevent horizontal scrolling and layout shift */
         div[data-testid="stVerticalBlock"] {
             width: 100% !important;
             overflow-x: hidden !important;
         }
         
-        /* Remove any container boxes around info modal - be very aggressive */
         div:has(.info-modal),
         div[data-testid="element-container"]:has(.info-modal),
         div[data-testid="stMarkdownContainer"]:has(.info-modal),
@@ -339,7 +337,6 @@ def load_custom_css():
             box-shadow: none !important;
         }
         
-        /* Remove yellow border from any containers - target all possible Streamlit containers */
         div[style*="border"]:has(.info-modal),
         div[class*="container"]:has(.info-modal),
         div[class*="block"]:has(.info-modal) {
@@ -348,13 +345,11 @@ def load_custom_css():
             outline: none !important;
         }
         
-        /* Target Streamlit markdown containers specifically */
         div[data-testid="stMarkdownContainer"] {
             background: transparent !important;
             border: none !important;
         }
         
-        /* Force smaller font sizes on Streamlit markdown content inside info-modal */
         .info-modal div[data-testid="stMarkdownContainer"] p,
         .info-modal div[data-testid="stMarkdownContainer"] li,
         .info-modal div[data-testid="stMarkdownContainer"] {
@@ -370,7 +365,6 @@ def load_custom_css():
             font-size: 0.55rem !important;
         }
         
-        /* Hide empty containers and reduce gaps */
         .element-container:empty {
             display: none !important;
             height: 0 !important;
@@ -392,12 +386,10 @@ def load_custom_css():
             display: none !important;
         }
         
-        /* Target specific empty divs between elements */
         div[data-testid="element-container"] + div[data-testid="element-container"]:empty {
             display: none !important;
         }
         
-        /* Hide all empty divs with background */
         div:empty[style*="background"] {
             display: none !important;
         }
@@ -411,7 +403,6 @@ def load_custom_css():
             margin-top: 0rem;
         }
         
-        /* Style the main container that holds the filters */
         [data-testid="stVerticalBlock"] > div:has(> [data-testid="stHorizontalBlock"]) {
             background: #1e1e1e !important;
             border: 1px solid #2d2d2d !important;
@@ -628,7 +619,7 @@ def load_custom_css():
             background: linear-gradient(135deg, #1a1a1a 0%, #151515 100%);
             border: 1px solid #d4af37;
             border-radius: 10px;
-            padding: 1.25rem;
+            padding: 1rem 1.25rem;
             margin-bottom: 1rem;
             margin-top: 0.5rem;
             display: flex;
@@ -636,20 +627,12 @@ def load_custom_css():
             gap: 1.5rem;
         }
         
-        .actuals-header {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
+        .actuals-row .player-info {
             min-width: 200px;
+            flex-shrink: 0;
+            display: flex;
             align-items: center;
-        }
-        
-        .actuals-title {
-            color: #d4af37;
-            font-size: 1.1rem;
-            font-weight: 700;
-            text-align: center;
-            width: 100%;
+            gap: 1rem;
         }
         
         .error-badge {
@@ -673,17 +656,6 @@ def load_custom_css():
             color: #fff;
         }
         
-        .stat-comparison {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 1rem;
-            flex: 1;
-        }
-        
-        .stat-compare-card {
-            text-align: center;
-        }
-        
         .stat-actual {
             color: #4ade80;
             font-size: 1.4rem;
@@ -692,7 +664,7 @@ def load_custom_css():
         
         .stat-diff {
             color: #888;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             margin-top: 0.25rem;
         }
         
@@ -709,7 +681,15 @@ def load_custom_css():
             margin-left: 1rem;
         }
         
-        /* Make the horizontal block (columns container) use flexbox with stretch */
+        div[data-testid="column"]:has(button[key^="actuals_btn_"]) {
+            margin-top: 0.5rem;
+        }
+        
+        button[key^="actuals_btn_"] {
+            width: auto !important;
+            min-width: 120px;
+        }
+        
         div[data-testid="stHorizontalBlock"]:has(.player-row) {
             display: flex !important;
             align-items: stretch !important;
@@ -718,7 +698,6 @@ def load_custom_css():
             overflow: hidden !important;
         }
         
-        /* Make both columns stretch to match the tallest content */
         div[data-testid="column"]:has(.player-row),
         div[data-testid="column"]:has(button[key^="actuals_btn_"]) {
             display: flex !important;
@@ -729,14 +708,12 @@ def load_custom_css():
             overflow: visible !important;
         }
         
-        /* Ensure player-row container doesn't overflow */
         div[data-testid="column"]:has(.player-row) > div {
             width: 100% !important;
             max-width: 100% !important;
             overflow: visible !important;
         }
         
-        /* Prevent container from cutting off content */
         div[data-testid="stVerticalBlock"]:has(.player-row) {
             overflow: visible !important;
             min-height: auto !important;
@@ -749,14 +726,12 @@ def load_custom_css():
             max-height: none !important;
         }
         
-        /* Ensure markdown containers don't clip content */
         div[data-testid="stMarkdownContainer"]:has(.player-row) {
             overflow: visible !important;
             padding: 0 !important;
             margin: 0 !important;
         }
         
-        /* Make the button column's inner div stretch */
         div[data-testid="column"]:has(button[key^="actuals_btn_"]) > div {
             display: flex !important;
             flex-direction: column !important;
@@ -787,13 +762,34 @@ def load_custom_css():
             border: none !important;
         }
         
-        .stExpander > summary {
+        div[data-testid="stExpander"] > summary,
+        div[data-testid="stExpander"] > summary:hover,
+        div[data-testid="stExpander"] > summary:focus,
+        div[data-testid="stExpander"] > summary:active,
+        .stExpander > summary,
+        .stExpander > summary:hover,
+        .stExpander > summary:focus,
+        .stExpander > summary:active {
+            color: #d4af37 !important;
+            background-color: transparent !important;
+        }
+        
+        div[data-testid="stExpander"] > summary p,
+        div[data-testid="stExpander"] > summary p:hover,
+        div[data-testid="stExpander"] > summary label,
+        div[data-testid="stExpander"] > summary label:hover,
+        .stExpander label,
+        .stExpander label:hover,
+        .stExpander label:focus,
+        .stExpander label:active,
+        .stExpander p,
+        .stExpander p:hover,
+        .stExpander div[data-testid="stMarkdownContainer"],
+        .stExpander div[data-testid="stMarkdownContainer"] p,
+        .stExpander div[data-testid="stMarkdownContainer"] p:hover {
             color: #d4af37 !important;
         }
         
-        .stExpander > summary:hover {
-            color: #f4a460 !important;
-        }
         
         button[kind="primary"] {
             background: linear-gradient(135deg, #d4af37 0%, #b8941f 100%) !important;
@@ -1018,80 +1014,37 @@ def normalize_team_search(search_term):
 
 def load_todays_predictions(target_date, search_query="", team_search="", position_filter="All Positions", game_filter="All Games"):
     try:
-        conn = get_db_connection()
-        params = [target_date]
-        search_filters = []
+        df = load_predictions_with_ensemble(target_date)
+        
+        if df.empty:
+            return df
         
         if search_query:
-            search_filters.append("LOWER(pl.full_name) LIKE LOWER(%s)")
-            params.append(f"%{search_query}%")
+            df = df[df['player_name'].str.contains(search_query, case=False, na=False)]
         
         if team_search:
             normalized_team = normalize_team_search(team_search)
             if normalized_team and len(normalized_team) == 3:
-                search_filters.append("LOWER(t1.abbreviation) = LOWER(%s)")
-                params.append(normalized_team)
+                df = df[df['team_abbr'].str.upper() == normalized_team.upper()]
             else:
-                search_filters.append("(LOWER(t1.abbreviation) LIKE LOWER(%s) OR LOWER(t1.full_name) LIKE LOWER(%s) OR LOWER(t1.city) LIKE LOWER(%s))")
-                params.append(f"%{team_search}%")
-                params.append(f"%{team_search}%")
-                params.append(f"%{team_search}%")
+                df = df[
+                    df['team_abbr'].str.contains(team_search, case=False, na=False) |
+                    df['team_name'].str.contains(team_search, case=False, na=False)
+                ]
         
         if position_filter != "All Positions":
             if position_filter == "Guard":
-                search_filters.append("pl.position IN ('Guard', 'Guard-Forward')")
+                df = df[df['position'].isin(['Guard', 'Guard-Forward'])]
             elif position_filter == "Forward":
-                search_filters.append("pl.position IN ('Forward', 'Forward-Center', 'Guard-Forward')")
+                df = df[df['position'].isin(['Forward', 'Forward-Center', 'Guard-Forward'])]
             elif position_filter == "Center":
-                search_filters.append("pl.position IN ('Center', 'Center-Forward', 'Forward-Center')")
+                df = df[df['position'].isin(['Center', 'Center-Forward', 'Forward-Center'])]
         
         if game_filter != "All Games":
-            search_filters.append("p.game_id = %s")
-            params.append(game_filter)
+            df = df[df['game_id'] == game_filter]
         
-        where_clause = " AND " + " AND ".join(search_filters) if search_filters else ""
+        df = df.sort_values(['game_id', 'confidence_score'], ascending=[True, False])
         
-        query = f"""
-            SELECT 
-                p.prediction_id,
-                p.player_id,
-                p.game_id,
-                g.game_date,
-                pl.full_name as player_name,
-                pl.position,
-                pl.team_id,
-                t1.full_name as team_name,
-                t1.abbreviation as team_abbr,
-                t2.full_name as opponent_name,
-                t2.abbreviation as opponent_abbr,
-                CASE WHEN g.home_team_id = pl.team_id THEN 'HOME' ELSE 'AWAY' END as location,
-                p.predicted_points,
-                p.predicted_rebounds,
-                p.predicted_assists,
-                p.predicted_steals,
-                p.predicted_blocks,
-                p.predicted_turnovers,
-                p.predicted_three_pointers_made,
-                p.confidence_score,
-                p.actual_points,
-                p.actual_rebounds,
-                p.actual_assists,
-                p.actual_steals,
-                p.actual_blocks,
-                p.actual_turnovers,
-                p.actual_three_pointers_made,
-                p.prediction_error
-            FROM predictions p
-            JOIN players pl ON p.player_id = pl.player_id
-            JOIN games g ON p.game_id = g.game_id
-            JOIN teams t1 ON pl.team_id = t1.team_id
-            JOIN teams t2 ON (CASE WHEN g.home_team_id = pl.team_id THEN g.away_team_id ELSE g.home_team_id END) = t2.team_id
-            WHERE p.prediction_date = %s
-            {where_clause}
-            ORDER BY g.game_id, p.confidence_score DESC
-        """
-        df = pd.read_sql(query, conn, params=tuple(params))
-        conn.close()
         return df
     except Exception as e:
         st.error(f"Error loading predictions: {str(e)}")
@@ -1122,14 +1075,9 @@ def display_players(players_df, target_date):
         should_show_button = has_actuals and is_past_game
         show_actuals = st.session_state.get(f"show_actuals_{prediction_id}", False)
         
-        if should_show_button:
-            player_container = st.container()
-            with player_container:
-                col1, col2 = st.columns([11, 1])
-        else:
+        player_container = st.container()
+        with player_container:
             col1 = st.container()
-            col2 = None
-            player_container = None
         
         with col1:
             player_html = f"""
@@ -1178,9 +1126,9 @@ def display_players(players_df, target_date):
             """
             st.markdown(player_html, unsafe_allow_html=True)
         
-        if col2 and should_show_button:
-            with col2:
-                button_text = "View\nActuals" if not show_actuals else "Hide\nActuals"
+        if should_show_button:
+            with col1:
+                button_text = "View Actuals" if not show_actuals else "Hide Actuals"
                 if st.button(button_text, 
                             key=f"actuals_btn_{prediction_id}", 
                             type="secondary",
@@ -1189,8 +1137,7 @@ def display_players(players_df, target_date):
                     st.rerun()
         
         if should_show_button and show_actuals:
-            container_to_use = player_container if player_container else st.container()
-            with container_to_use:
+            with player_container:
                 try:
                     error = float(player.get('prediction_error', 0)) if pd.notna(player.get('prediction_error')) else 0.0
                     
@@ -1204,9 +1151,29 @@ def display_players(players_df, target_date):
                         ('3PM', 'predicted_three_pointers_made', 'actual_three_pointers_made')
                     ]
                     
-                    total_pred = sum([float(player[pred]) if pd.notna(player[pred]) else 0.0 for _, pred, _ in stats_to_compare])
-                    total_actual = sum([float(player.get(act, 0)) if pd.notna(player.get(act)) else 0.0 for _, _, act in stats_to_compare])
-                    accuracy = 100 - (abs(total_pred - total_actual) / max(total_actual, 1) * 100) if total_actual > 0 else 0
+                    stat_accuracies = []
+                    for _, pred_key, actual_key in stats_to_compare:
+                        pred_val = float(player[pred_key]) if pd.notna(player[pred_key]) else 0.0
+                        actual_val = float(player.get(actual_key, 0)) if pd.notna(player.get(actual_key)) else 0.0
+                        
+                        if actual_val > 0:
+                            error_pct = abs(pred_val - actual_val) / actual_val * 100
+                            stat_accuracy = max(0, 100 - error_pct)
+                            stat_accuracies.append(stat_accuracy)
+                        elif actual_val == 0 and pred_val == 0:
+                            stat_accuracies.append(100)
+                    
+                    accuracy = np.mean(stat_accuracies) if stat_accuracies else 0
+                    
+                    shift_map = {
+                        'PTS': 1.75,
+                        'REB': 1.5,
+                        'AST': 1.25,
+                        'STL': 1.0,
+                        'BLK': 0,
+                        'TO': 0,
+                        '3PM': 0
+                    }
                     
                     stat_cards_parts = []
                     for label, pred_key, actual_key in stats_to_compare:
@@ -1216,8 +1183,11 @@ def display_players(players_df, target_date):
                         diff_class = "positive" if diff > 0 else ("negative" if diff < 0 else "")
                         diff_sign = "+" if diff > 0 else ""
                         
+                        shift = shift_map.get(label, 0)
+                        margin_left = f"margin-left: -{shift}rem;" if shift > 0 else ""
+                        
                         stat_cards_parts.append(
-                            f'<div class="stat-compare-card">'
+                            f'<div class="stat-card" style="{margin_left}">'
                             f'<div class="stat-label">{label}</div>'
                             f'<div class="stat-actual">{actual:.1f}</div>'
                             f'<div class="stat-diff {diff_class}">{diff_sign}{diff:.1f}</div>'
@@ -1226,9 +1196,23 @@ def display_players(players_df, target_date):
                     
                     stat_cards_html = ''.join(stat_cards_parts)
                     
-                    actuals_html = '<div class="actuals-row" data-prediction-id="{}"><div class="actuals-header"><div class="actuals-title">Actual Performance</div><div><span class="error-badge">Error: {:.2f}</span><span class="accuracy-badge">{:.1f}% Accurate</span></div></div><div class="stat-comparison">{}</div></div>'.format(
-                        prediction_id, error, accuracy, stat_cards_html
-                    )
+                    actuals_html = f"""
+                    <div class="actuals-row" data-prediction-id="{prediction_id}">
+                        <div class="player-info">
+                            <div style="width: 70px; height: 70px; min-width: 70px; min-height: 70px; max-width: 70px; max-height: 70px; flex-shrink: 0; visibility: hidden;"></div>
+                            <div class="player-details" style="justify-content: center; align-items: center; display: flex; flex-direction: column; gap: 0.5rem;">
+                                <div style="color: #d4af37; font-size: 1.1rem; font-weight: 700; position: relative; left: -1.75rem;">Actual Performance</div>
+                                <div style="position: relative; left: -1.75rem;">
+                                    <span class="error-badge">Error: {error:.2f}</span>
+                                    <span class="accuracy-badge">{accuracy:.1f}% Accurate</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="stats-grid">
+                            {stat_cards_html}
+                        </div>
+                    </div>
+                    """
                     
                     st.markdown(actuals_html, unsafe_allow_html=True)
                 except Exception as e:
@@ -1239,24 +1223,12 @@ def main():
     show_navigation()
     
     st.markdown("""
-    <h1>NBA PREDICTIONS</h1>
+    <h1>NBA Predictions</h1>
     """, unsafe_allow_html=True)
     
     st.markdown("""
-    <p class="subtitle">AI-powered player performance predictions powered by XGBoost</p>
+    <p class="subtitle">AI-powered player performance predictions</p>
     """, unsafe_allow_html=True)
-    
-    if 'show_info' not in st.session_state:
-        st.session_state.show_info = False
-    
-    button_text = "Hide Info" if st.session_state.show_info else "Show Info"
-    if st.button(button_text, key="info_button", help="Click for information about how predictions work"):
-        st.session_state.show_info = not st.session_state.show_info
-        st.rerun()
-    
-    if st.session_state.show_info:
-        info_html = """<div class="info-modal"><h3>Model Overview</h3><p>Our predictions use <strong>XGBoost</strong>, a gradient boosting machine learning algorithm, trained on historical NBA player performance data. We maintain separate models for each statistic (Points, Rebounds, Assists, Steals, Blocks, Turnovers, and 3-Pointers Made). All features are standardized (z-score normalization) to ensure fair comparison across different scales.</p><br><h3>Features Used</h3><ul><li><strong>Recent Form:</strong> Rolling averages from last 5, 10, and 20 games for points, rebounds, and assists. We use both unweighted averages and exponentially weighted averages where more recent games are weighted more heavily (exponential decay factor of 0.1). This captures both overall recent performance and recency trends.</li><li><strong>Game Context:</strong> Home/away status (home court advantage), days of rest between games, and whether it's a back-to-back game. These factors significantly impact player performance and fatigue levels.</li><li><strong>Team Ratings:</strong> Offensive rating (points per 100 possessions), defensive rating (points allowed per 100 possessions), and pace (possessions per game) for both the player's team and opponent. These metrics capture team strength and playing style.</li><li><strong>Opponent Defense:</strong> Field goal percentage and 3-point percentage allowed by the opposing team. Stronger defensive teams typically limit individual player production.</li><li><strong>Position-Specific Defense:</strong> Points, rebounds, assists, steals, blocks, turnovers forced, and three-pointers made allowed per game by the opposing team to the player's position (Guard, Forward, or Center). This captures how well teams defend against specific positions, which is crucial since different positions have different roles and production patterns. For example, a guard facing a team that struggles to defend guards will likely see increased production opportunities.</li><li><strong>Teammate Impact:</strong> Whether star teammates (20+ PPG) are injured or out. When star players are unavailable, other players often see increased usage and production opportunities.</li><li><strong>Playoff Experience:</strong> Career playoff games played and playoff performance boost (difference between playoff and regular season scoring averages). These features are only applied when predicting playoff games, as playoff basketball has different intensity and defensive schemes.</li><li><strong>Altitude:</strong> Arena altitude effects for away games. High-altitude venues (above 3000 feet) can impact player performance due to reduced oxygen levels, particularly affecting endurance and shooting accuracy.</li></ul><br><h3>Confidence Score</h3><p>The confidence score (0-100%) indicates prediction reliability based on:</p><ul><li>Player's recent game history and consistency (lower variance = higher confidence)</li><li>Availability of required features (missing data reduces confidence)</li><li>Number of games played in the season (more games = more reliable patterns)</li><li>Contextual factors (back-to-back games, injuries, altitude reduce confidence)</li></ul><br><h3>Accuracy Metrics</h3><p>When actual game results are available, we calculate:</p><ul><li><strong>Error:</strong> Average absolute error across all 7 statistics</li><li><strong>% Accurate:</strong> Calculated as 100 - (|Total Predicted - Total Actual| / Total Actual) × 100, where totals are the sum of all 7 statistics (Points, Rebounds, Assists, Steals, Blocks, Turnovers, 3-Pointers). This measures how close the combined predicted stats are to the combined actual stats.</li></ul><br><h3>View Actuals</h3><p>The "View Actuals" button appears for past games where actual statistics are available. It shows a comparison between predicted and actual performance, including the difference for each statistic.</p></div>"""
-        st.markdown(info_html, unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -1307,6 +1279,12 @@ def main():
 
     predictions_df = load_todays_predictions(target_date, search_query, team_search, position_filter, game_filter)
 
+    ensemble_warning = get_ensemble_warning(target_date)
+    if ensemble_warning:
+        missing = ', '.join(ensemble_warning['missing'])
+        available = ', '.join(ensemble_warning['available'])
+        st.info(f"ℹ️ **Ensemble Note:** Not all selected models have predictions for {target_date}. Using available models: **{available}**. Missing: {missing}.")
+
     if predictions_df.empty:
         st.warning(f"No predictions found for {target_date}")
         return
@@ -1347,11 +1325,24 @@ def main():
     games_grouped = predictions_df.groupby('game_id')
 
     for game_id, game_group in games_grouped:
-        teams = game_group['team_abbr'].unique()
-        team1_abbr = teams[0]
-        team2_abbr = game_group[game_group['team_abbr'] != team1_abbr]['team_abbr'].iloc[0] if len(teams) > 1 else teams[0]
-
-        matchup_title = f"{team1_abbr} vs {team2_abbr}"
+        game_info = games_df[games_df['game_id'] == game_id]
+        if len(game_info) > 0:
+            home_team = game_info.iloc[0]['home_team']
+            away_team = game_info.iloc[0]['away_team']
+            matchup_title = f"{away_team} @ {home_team}"
+        else:
+            teams = game_group['team_abbr'].unique()
+            team1_abbr = teams[0]
+            team2_abbr = game_group[game_group['team_abbr'] != team1_abbr]['team_abbr'].iloc[0] if len(teams) > 1 else teams[0]
+            matchup_title = f"{team1_abbr} vs {team2_abbr}"
+        
+        if len(game_info) > 0:
+            team1_abbr = away_team
+            team2_abbr = home_team
+        else:
+            teams = game_group['team_abbr'].unique()
+            team1_abbr = teams[0]
+            team2_abbr = game_group[game_group['team_abbr'] != team1_abbr]['team_abbr'].iloc[0] if len(teams) > 1 else teams[0]
 
         with st.expander(matchup_title, expanded=True):
             st.markdown(f'<div class="matchup-header">{matchup_title}</div>', unsafe_allow_html=True)
@@ -1389,14 +1380,14 @@ def main():
                 if len(team1_players) > 0:
                     display_players(team1_players, target_date)
                 else:
-                    st.markdown(f'<div style="text-align: center; color: #888; padding: 2rem;"><em>No Valid Predictions</em></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="text-align: center; color: #888; padding: 2rem;"><em>No players matched your search criteria for {team1_abbr}</em></div>', unsafe_allow_html=True)
 
                 if len(team2_players) > 0:
                     st.markdown(f'<div class="team-divider"><span class="team-divider-label">{team2_abbr}</span></div>', unsafe_allow_html=True)
                     display_players(team2_players, target_date)
                 elif len(team1_players) > 0:
                     st.markdown(f'<div class="team-divider"><span class="team-divider-label">{team2_abbr}</span></div>', unsafe_allow_html=True)
-                    st.markdown(f'<div style="text-align: center; color: #888; padding: 2rem;"><em>No Valid Predictions</em></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="text-align: center; color: #888; padding: 2rem;"><em>No players matched your search criteria for {team2_abbr}</em></div>', unsafe_allow_html=True)
             else:
                 filtered_players = game_group[game_group['team_abbr'] == current_filter]
                 display_players(filtered_players, target_date)

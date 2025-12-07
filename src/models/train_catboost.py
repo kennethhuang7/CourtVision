@@ -6,15 +6,15 @@ import numpy as np
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.preprocessing import StandardScaler
-import xgboost as xgb
+from catboost import CatBoostRegressor
 import joblib
 
 import warnings
 warnings.filterwarnings('ignore', message='pandas only supports SQLAlchemy')
 warnings.filterwarnings('ignore', category=FutureWarning)
 
-def train_xgboost_models():
-    print("Training XGBoost models for NBA player predictions...\n")
+def train_catboost_models():
+    print("Training CatBoost models for NBA player predictions...\n")
     
     print("Loading features...")
     df = pd.read_csv('../../data/processed/training_features.csv')
@@ -67,17 +67,18 @@ def train_xgboost_models():
             X_train, X_val = X_scaled.iloc[train_idx], X_scaled.iloc[val_idx]
             y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
             
-            model = xgb.XGBRegressor(
-                n_estimators=100,
-                max_depth=6,
+            model = CatBoostRegressor(
+                iterations=100,
+                depth=6,
                 learning_rate=0.1,
                 subsample=0.8,
-                colsample_bytree=0.8,
-                random_state=42,
-                n_jobs=-1
+                colsample_bylevel=0.8,
+                random_seed=42,
+                thread_count=-1,
+                verbose=False
             )
             
-            model.fit(X_train, y_train, verbose=False)
+            model.fit(X_train, y_train)
             
             y_pred = model.predict(X_val)
             
@@ -94,20 +95,21 @@ def train_xgboost_models():
         results[target_name] = best_score
         
         print("Training final model on all data...")
-        final_model = xgb.XGBRegressor(
-            n_estimators=100,
-            max_depth=6,
+        final_model = CatBoostRegressor(
+            iterations=100,
+            depth=6,
             learning_rate=0.1,
             subsample=0.8,
-            colsample_bytree=0.8,
-            random_state=42,
-            n_jobs=-1
+            colsample_bylevel=0.8,
+            random_seed=42,
+            thread_count=-1,
+            verbose=False
         )
         
-        final_model.fit(X_scaled, y, verbose=False)
+        final_model.fit(X_scaled, y)
         
-        model_path = f'../../data/models/xgboost_{target_name}.pkl'
-        scaler_path = f'../../data/models/scaler_xgboost_{target_name}.pkl'
+        model_path = f'../../data/models/catboost_{target_name}.pkl'
+        scaler_path = f'../../data/models/scaler_catboost_{target_name}.pkl'
         
         joblib.dump(final_model, model_path)
         joblib.dump(scaler, scaler_path)
@@ -123,4 +125,5 @@ def train_xgboost_models():
     return results
 
 if __name__ == "__main__":
-    train_xgboost_models()
+    train_catboost_models()
+
