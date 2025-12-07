@@ -161,12 +161,24 @@ def predict_upcoming_games(target_date=None):
                 
                 predictions = {}
                 for stat_name, model in models.items():
-                    features_scaled = features.copy()
+                    model_feature_names = model.get_booster().feature_names
+                    features_ordered = features[[col for col in model_feature_names if col in features.columns]]
+                    
+                    if len(features_ordered.columns) != len(model_feature_names):
+                        missing = set(model_feature_names) - set(features_ordered.columns)
+                        print(f"Warning: Missing features for {stat_name}: {missing}")
+                        for col in missing:
+                            features_ordered[col] = 0
+                        features_ordered = features_ordered[model_feature_names]
+                    
                     if scalers[stat_name] is not None:
                         features_scaled = pd.DataFrame(
-                            scalers[stat_name].transform(features),
-                            columns=features.columns
+                            scalers[stat_name].transform(features_ordered),
+                            columns=features_ordered.columns
                         )
+                    else:
+                        features_scaled = features_ordered
+                    
                     pred = model.predict(features_scaled)[0]
                     predictions[stat_name] = float(round(pred, 1))
                 
@@ -485,7 +497,8 @@ def build_features_for_player(conn, player_id, team_id, opponent_id,
         'team_id_opp_venue', 'arena_altitude', 'altitude_away'
     ]
     
-    features_df = features_df[column_order]
+    available_cols = [col for col in column_order if col in features_df.columns]
+    features_df = features_df[available_cols]
     
     return features_df, recent_games
 
