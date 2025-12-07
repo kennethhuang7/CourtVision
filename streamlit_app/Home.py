@@ -27,56 +27,59 @@ def show_navigation():
         function hideStreamlitAppTitle() {
             const sidebar = document.querySelector('[data-testid="stSidebar"]');
             if (sidebar) {
-                const walker = document.createTreeWalker(
-                    sidebar,
-                    NodeFilter.SHOW_TEXT,
-                    null,
-                    false
-                );
-                let node;
-                while (node = walker.nextNode()) {
-                    if (node.textContent.trim().toLowerCase() === 'streamlit app') {
-                        let parent = node.parentElement;
-                        while (parent && parent !== sidebar) {
-                            if (parent.tagName === 'P' || parent.tagName === 'DIV' || parent.tagName === 'SPAN') {
-                                parent.style.display = 'none';
-                                break;
-                            }
-                            parent = parent.parentElement;
-                        }
+                const firstChild = sidebar.firstElementChild;
+                if (firstChild && firstChild.firstElementChild) {
+                    const secondChild = firstChild.firstElementChild;
+                    if (secondChild.textContent && secondChild.textContent.trim().toLowerCase().includes('streamlit')) {
+                        secondChild.style.display = 'none';
+                        secondChild.style.visibility = 'hidden';
+                        secondChild.style.height = '0';
+                        secondChild.style.margin = '0';
+                        secondChild.style.padding = '0';
+                        secondChild.style.overflow = 'hidden';
                     }
                 }
                 const allElements = sidebar.querySelectorAll('*');
                 allElements.forEach(el => {
-                    if (el.textContent && el.textContent.trim().toLowerCase() === 'streamlit app') {
+                    const text = el.textContent || el.innerText || '';
+                    if (text.trim().toLowerCase() === 'streamlit app' || text.trim().toLowerCase().includes('streamlit app')) {
                         el.style.display = 'none';
                         el.style.visibility = 'hidden';
                         el.style.height = '0';
                         el.style.margin = '0';
                         el.style.padding = '0';
+                        el.style.overflow = 'hidden';
+                        el.style.fontSize = '0';
                     }
                 });
             }
         }
         hideStreamlitAppTitle();
+        setTimeout(hideStreamlitAppTitle, 10);
         setTimeout(hideStreamlitAppTitle, 50);
         setTimeout(hideStreamlitAppTitle, 100);
-        setTimeout(hideStreamlitAppTitle, 300);
+        setTimeout(hideStreamlitAppTitle, 200);
         setTimeout(hideStreamlitAppTitle, 500);
         setTimeout(hideStreamlitAppTitle, 1000);
+        setTimeout(hideStreamlitAppTitle, 2000);
         
-        const observer = new MutationObserver(hideStreamlitAppTitle);
+        const observer = new MutationObserver(function(mutations) {
+            hideStreamlitAppTitle();
+        });
         const sidebar = document.querySelector('[data-testid="stSidebar"]');
         if (sidebar) {
-            observer.observe(sidebar, { childList: true, subtree: true });
+            observer.observe(sidebar, { 
+                childList: true, 
+                subtree: true,
+                characterData: true,
+                attributes: true
+            });
         }
+        
+        document.addEventListener('DOMContentLoaded', hideStreamlitAppTitle);
+        window.addEventListener('load', hideStreamlitAppTitle);
     })();
     </script>
-    <style>
-    [data-testid="stSidebar"] > div:first-child > div:first-child {
-        display: none !important;
-    }
-    </style>
     """, unsafe_allow_html=True)
     st.sidebar.markdown("## Predictions")
     st.sidebar.markdown("---")
@@ -155,8 +158,17 @@ def load_custom_css():
             margin: 0 !important;
         }
         
-        [data-testid="stSidebar"] > div:first-child > div:first-child {
+        [data-testid="stSidebar"] > div:first-child > div:first-child,
+        [data-testid="stSidebar"] > div:first-child > div:first-child > *,
+        [data-testid="stSidebar"] [data-testid="stMarkdownContainer"]:first-child,
+        [data-testid="stSidebar"] p:first-of-type,
+        [data-testid="stSidebar"] > div:first-child {
             display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
         }
         
         .subtitle {
