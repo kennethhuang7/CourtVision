@@ -21,7 +21,31 @@ st.set_page_config(
 )
 
 def show_navigation():
-    st.sidebar.markdown("## NBA Predictions")
+    st.sidebar.markdown("""
+    <script>
+    (function() {
+        function hideStreamlitAppTitle() {
+            const sidebar = document.querySelector('[data-testid="stSidebar"]');
+            if (sidebar) {
+                const firstChild = sidebar.querySelector('div:first-child > div:first-child');
+                if (firstChild && firstChild.textContent && firstChild.textContent.toLowerCase().includes('streamlit app')) {
+                    firstChild.style.display = 'none';
+                }
+                const allElements = sidebar.querySelectorAll('p, div, span');
+                allElements.forEach(el => {
+                    if (el.textContent && el.textContent.trim().toLowerCase() === 'streamlit app') {
+                        el.style.display = 'none';
+                    }
+                });
+            }
+        }
+        hideStreamlitAppTitle();
+        setTimeout(hideStreamlitAppTitle, 100);
+        setTimeout(hideStreamlitAppTitle, 500);
+    })();
+    </script>
+    """, unsafe_allow_html=True)
+    st.sidebar.markdown("## Predictions")
     st.sidebar.markdown("---")
     st.sidebar.markdown("Use the pages menu above to navigate between pages")
 
@@ -96,6 +120,10 @@ def load_custom_css():
             background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
             padding-top: 0 !important;
             margin: 0 !important;
+        }
+        
+        [data-testid="stSidebar"] > div:first-child > div:first-child {
+            display: none !important;
         }
         
         .subtitle {
