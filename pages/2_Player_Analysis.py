@@ -10,9 +10,10 @@ import re
 import sys
 import os
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if root_dir not in sys.path:
-    sys.path.insert(0, root_dir)
-from streamlit_app.utils import get_ensemble_selection
+streamlit_app_dir = os.path.join(root_dir, 'streamlit_app')
+if streamlit_app_dir not in sys.path:
+    sys.path.insert(0, streamlit_app_dir)
+from utils import get_ensemble_selection
 
 import warnings
 warnings.filterwarnings('ignore', message='pandas only supports SQLAlchemy')
