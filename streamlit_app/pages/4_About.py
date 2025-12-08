@@ -411,19 +411,23 @@ def main():
         <p style="margin-top: 0.5rem;"><strong>Example:</strong> A veteran with 500 career games and 50 games this season gets a high score. 
         A rookie with 10 career games gets a lower score. A player who just returned from a 20-game injury absence gets an additional deduction.</p>
         
-        <h4 style="color: #d4af37; margin-top: 1rem; margin-bottom: 0.5rem;">4. Recent Trades (Team Changes Create Uncertainty)</h4>
-        <p>When a player is traded to a new team, there's uncertainty about how they'll perform in a new system, with new teammates, 
-        and potentially a different role. We reduce confidence based on how recently the trade happened:</p>
+        <h4 style="color: #d4af37; margin-top: 1rem; margin-bottom: 0.5rem;">4. Recent Transactions (Team Changes Create Uncertainty)</h4>
+        <p>When a player is traded or signed to a new team, there's uncertainty about how they'll perform in a new system, with new teammates, 
+        and potentially a different role. We automatically detect trades, signings, and waivers from ESPN and reduce confidence based on how recently the transaction happened:</p>
         <ul style="color: #ccc; line-height: 1.8; margin-left: 1.5rem;">
             <li><strong>Traded within last 7 days:</strong> Major confidence reduction (15 points) - very uncertain</li>
             <li><strong>Traded 8-14 days ago:</strong> Moderate reduction (10 points) - still adjusting</li>
             <li><strong>Traded 15-21 days ago:</strong> Small reduction (5 points) - some uncertainty remains</li>
-            <li><strong>Traded 22+ days ago:</strong> Minimal or no reduction - player has had time to adjust</li>
+            <li><strong>Signed within last 7 days:</strong> Significant reduction (12 points) - adjusting to new team</li>
+            <li><strong>Signed 8-14 days ago:</strong> Moderate reduction (8 points) - still settling in</li>
+            <li><strong>Signed 15-21 days ago:</strong> Small reduction (4 points) - some uncertainty remains</li>
+            <li><strong>Transaction 22+ days ago:</strong> Minimal or no reduction - player has had time to adjust</li>
         </ul>
-        <p style="margin-top: 0.5rem;">We also check if a player has played very few games with their current team (even if we don't have a trade record). 
-        If they have less than 3 games with their current team but have played 5+ games overall this season, it suggests they might be new to the team.</p>
+        <p style="margin-top: 0.5rem;">We also check if a player has played very few games with their current team (even if we don't have a transaction record). 
+        If they have less than 3 games with their current team but have played 5+ games overall this season, it suggests they might be new to the team, 
+        and we apply an additional confidence reduction.</p>
         <p style="margin-top: 0.5rem;"><strong>Example:</strong> A player traded 3 days ago gets a significant confidence reduction. 
-        A player traded 25 days ago with 8 games under their belt gets little to no penalty.</p>
+        A player signed 5 days ago also gets a reduction, though slightly less than a trade. A player traded 25 days ago with 8 games under their belt gets little to no penalty.</p>
         
         <h4 style="color: #d4af37; margin-top: 1.5rem; margin-bottom: 0.5rem;">How to Interpret Confidence Scores:</h4>
         <ul style="color: #ccc; line-height: 1.8;">
@@ -498,9 +502,9 @@ def main():
             playoff performance history), but playoff basketball can be more unpredictable due to increased intensity and strategic adjustments.</li>
             <li><strong style="color: #d4af37;">Rookies and new players:</strong> Limited historical data means lower confidence scores and potentially 
             less accurate predictions. The system accounts for this by reducing confidence for players with fewer career games.</li>
-            <li><strong style="color: #d4af37;">Recently traded players:</strong> While we detect trades and adjust confidence scores accordingly, 
-            it takes time for players to adjust to new teams. Predictions for players traded within the last 2-3 weeks may be less accurate 
-            as they adapt to new systems and roles.</li>
+            <li><strong style="color: #d4af37;">Recently traded or signed players:</strong> While we automatically detect trades, signings, and waivers from ESPN 
+            and adjust confidence scores accordingly, it takes time for players to adjust to new teams. Predictions for players traded or signed within the last 2-3 weeks 
+            may be less accurate as they adapt to new systems and roles.</li>
             <li><strong style="color: #d4af37;">Statistical variance:</strong> Basketball has inherent randomness. Even perfect models can't predict 
             every game perfectly. A player might have an off night, get in foul trouble early, or have an unexpectedly great game.</li>
         </ul>
