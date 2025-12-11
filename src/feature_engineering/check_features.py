@@ -53,12 +53,12 @@ for category, cols in key_features.items():
         if col in df.columns:
             null_count = df[col].isna().sum()
             null_pct = 100 * null_count / len(df)
-            status = "✓" if null_pct < 50 else "⚠"
+            status = "[OK]" if null_pct < 50 else "[WARN]"
             print(f"  {status} {col}: {null_pct:.1f}% null ({len(df) - null_count:,} non-null)")
             if null_pct >= 50:
                 all_good = False
         else:
-            print(f"  ✗ {col}: MISSING!")
+            print(f"  [MISSING] {col}: MISSING!")
             all_good = False
 
 print("\n" + "="*60)
@@ -69,12 +69,12 @@ old_cols = ['offensive_rating', 'defensive_rating', 'pace']
 found_old = False
 for col in old_cols:
     if col in df.columns:
-        print(f"  ✗ Found old column: {col}")
+        print(f"  [FOUND] Found old column: {col}")
         found_old = True
         all_good = False
 
 if not found_old:
-    print("  ✓ No old column names found")
+    print("  [OK] No old column names found")
 
 print("\n" + "="*60)
 print("SAMPLE VALUES (first row)")
@@ -88,8 +88,8 @@ if len(df) > 0:
 
 print("\n" + "="*60)
 if all_good:
-    print("✓ ALL CHECKS PASSED! Features look good for training.")
+    print("ALL CHECKS PASSED! Features look good for training.")
 else:
-    print("⚠ SOME ISSUES FOUND. Review the output above.")
+    print("SOME ISSUES FOUND. Review the output above.")
 print("="*60)
 

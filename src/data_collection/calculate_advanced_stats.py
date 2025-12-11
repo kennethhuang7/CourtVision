@@ -24,7 +24,7 @@ def calculate_advanced_stats():
         WHERE true_shooting_pct IS NULL
     """)
     conn.commit()
-    print(f"✓ True Shooting % calculated for {cur.rowcount} records")
+    print(f"True Shooting % calculated for {cur.rowcount} records")
     
     print("\nStep 2/3: Calculating Usage Rate...")
     cur.execute("""
@@ -57,7 +57,7 @@ def calculate_advanced_stats():
             AND pgs.usage_rate IS NULL
     """)
     conn.commit()
-    print(f"✓ Usage Rate calculated for {cur.rowcount} records")
+    print(f"Usage Rate calculated for {cur.rowcount} records")
     
     print("\nStep 3/3: Calculating Offensive & Defensive Ratings...")
     cur.execute("""
@@ -110,7 +110,7 @@ def calculate_advanced_stats():
             AND (pgs.offensive_rating IS NULL OR pgs.defensive_rating IS NULL)
     """)
     conn.commit()
-    print(f"✓ Offensive & Defensive Ratings calculated for {cur.rowcount} records")
+    print(f"Offensive & Defensive Ratings calculated for {cur.rowcount} records")
     
     cur.close()
     conn.close()

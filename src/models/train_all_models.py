@@ -6,11 +6,15 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # python src/models/train_all_models.py
 # or (if you already built features):
 # python src/models/train_all_models.py --skip-features
+# To use tuned hyperparameters:
+# python src/models/train_all_models.py --use-tuned-params
+# or (if you already built features):
+# python src/models/train_all_models.py --skip-features --use-tuned-params
 
 import subprocess
 from datetime import datetime
 
-def train_all_models(build_features_first=True):
+def train_all_models(build_features_first=True, use_tuned_params=False):
     print("="*70)
     print("TRAINING ALL MODELS")
     print("="*70)
@@ -57,8 +61,12 @@ def train_all_models(build_features_first=True):
         
         model_script = os.path.join(script_dir, script_name)
         
+        cmd = [sys.executable, model_script]
+        if use_tuned_params:
+            cmd.append('--use-tuned-params')
+        
         result = subprocess.run(
-            [sys.executable, model_script],
+            cmd,
             capture_output=True,
             text=True
         )
@@ -80,8 +88,7 @@ def train_all_models(build_features_first=True):
     print(f"Completed at: {datetime.now()}\n")
     
     for model_name, status in results.items():
-        status_symbol = "✓" if status == 'SUCCESS' else "✗"
-        print(f"{status_symbol} {model_name}: {status}")
+        print(f"{model_name}: {status}")
     
     all_success = all(status == 'SUCCESS' for status in results.values())
     
@@ -105,9 +112,14 @@ if __name__ == "__main__":
         action='store_true',
         help='Skip building features (assumes features already exist)'
     )
+    parser.add_argument(
+        '--use-tuned-params',
+        action='store_true',
+        help='Use hyperparameters from tune_hyperparameters.py'
+    )
     
     args = parser.parse_args()
     
     build_features = not args.skip_features
-    train_all_models(build_features_first=build_features)
+    train_all_models(build_features_first=build_features, use_tuned_params=args.use_tuned_params)
 
