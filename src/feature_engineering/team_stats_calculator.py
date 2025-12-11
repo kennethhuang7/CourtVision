@@ -126,7 +126,9 @@ def calculate_team_defensive_stats_as_of_date(conn, team_id, season, as_of_date)
                 pgs.field_goals_made,
                 pgs.field_goals_attempted,
                 pgs.three_pointers_made,
-                pgs.three_pointers_attempted
+                pgs.three_pointers_attempted,
+                pgs.turnovers,
+                pgs.steals
             FROM player_game_stats pgs
             JOIN games g ON pgs.game_id = g.game_id
             WHERE g.season = %s
@@ -138,6 +140,18 @@ def calculate_team_defensive_stats_as_of_date(conn, team_id, season, as_of_date)
         """, (season, as_of_date, team_id, team_id, team_id))
         
         opponent_stats = cur.fetchall()
+        
+        cur.execute("""
+            SELECT COUNT(DISTINCT g.game_id)
+            FROM games g
+            WHERE g.season = %s
+                AND (g.home_team_id = %s OR g.away_team_id = %s)
+                AND g.game_status = 'completed'
+                AND g.game_type = 'regular_season'
+                AND g.game_date < %s
+        """, (season, team_id, team_id, as_of_date))
+        
+        games_played = cur.fetchone()[0] or 0
         
         if len(opponent_stats) == 0:
             try:
@@ -160,7 +174,9 @@ def calculate_team_defensive_stats_as_of_date(conn, team_id, season, as_of_date)
                         print(f"       Fallback: Using previous season ({prev_season}) defensive stats for team {team_id}")
                         return {
                             'opp_field_goal_pct': prev_result[0],
-                            'opp_three_point_pct': prev_result[1]
+                            'opp_three_point_pct': prev_result[1],
+                            'opp_team_turnovers_per_game': 14.0,
+                            'opp_team_steals_per_game': 7.0
                         }
             except:
                 pass
@@ -176,26 +192,36 @@ def calculate_team_defensive_stats_as_of_date(conn, team_id, season, as_of_date)
                 print(f"       Fallback: Using current season ({season}) defensive stats for team {team_id} (no previous season data)")
                 return {
                     'opp_field_goal_pct': season_stats[0],
-                    'opp_three_point_pct': season_stats[1]
+                    'opp_three_point_pct': season_stats[1],
+                    'opp_team_turnovers_per_game': 14.0,
+                    'opp_team_steals_per_game': 7.0
                 }
             
             print(f"       Fallback: Using default defensive stats for team {team_id} (no data available)")
             return {
                 'opp_field_goal_pct': 45.0,
-                'opp_three_point_pct': 35.0
+                'opp_three_point_pct': 35.0,
+                'opp_team_turnovers_per_game': 14.0,
+                'opp_team_steals_per_game': 7.0
             }
         
         total_fgm = sum(row[0] or 0 for row in opponent_stats)
         total_fga = sum(row[1] or 0 for row in opponent_stats)
         total_3pm = sum(row[2] or 0 for row in opponent_stats)
         total_3pa = sum(row[3] or 0 for row in opponent_stats)
+        total_turnovers = sum(row[4] or 0 for row in opponent_stats)
+        total_steals = sum(row[5] or 0 for row in opponent_stats)
         
         opp_fg_pct = round((total_fgm / total_fga) * 100, 1) if total_fga > 0 else 0
         opp_3p_pct = round((total_3pm / total_3pa) * 100, 1) if total_3pa > 0 else 0
+        opp_turnovers_per_game = round(total_turnovers / games_played, 1) if games_played > 0 else 0
+        opp_steals_per_game = round(total_steals / games_played, 1) if games_played > 0 else 0
         
         return {
             'opp_field_goal_pct': opp_fg_pct,
-            'opp_three_point_pct': opp_3p_pct
+            'opp_three_point_pct': opp_3p_pct,
+            'opp_team_turnovers_per_game': opp_turnovers_per_game,
+            'opp_team_steals_per_game': opp_steals_per_game
         }
     finally:
         cur.close()
@@ -263,11 +289,68 @@ def calculate_position_defense_stats_as_of_date(conn, team_id, season, position,
             'opp_points_allowed_to_position': round(total_points / games_played, 1),
             'opp_rebounds_allowed_to_position': round(total_rebounds / games_played, 1),
             'opp_assists_allowed_to_position': round(total_assists / games_played, 1),
-            'opp_steals_allowed_to_position': round(total_steals / games_played, 1),
             'opp_blocks_allowed_to_position': round(total_blocks / games_played, 1),
-            'opp_turnovers_forced_to_position': round(total_turnovers / games_played, 1),
-            'opp_three_pointers_allowed_to_position': round(total_3pm / games_played, 1)
+            'opp_three_pointers_allowed_to_position': round(total_3pm / games_played, 1),
+            'opp_position_turnovers_vs_team': round(total_turnovers / games_played, 1),
+            'opp_position_steals_vs_team': round(total_steals / games_played, 1)
         }
+    finally:
+        cur.close()
+
+def calculate_opponent_team_turnover_stats_as_of_date(conn, team_id, season, position, as_of_date):
+    cur = conn.cursor()
+    
+    try:
+        cur.execute("""
+            SELECT 
+                pgs.steals,
+                pgs.turnovers,
+                p.position
+            FROM player_game_stats pgs
+            JOIN games g ON pgs.game_id = g.game_id
+            JOIN players p ON pgs.player_id = p.player_id
+            WHERE pgs.team_id = %s
+                AND g.season = %s
+                AND g.game_status = 'completed'
+                AND g.game_type = 'regular_season'
+                AND g.game_date < %s
+        """, (team_id, season, as_of_date))
+        
+        all_stats = cur.fetchall()
+        
+        position_stats = []
+        for row in all_stats:
+            player_pos = row[2]
+            if map_position_to_defense_position(player_pos) == position:
+                position_stats.append((row[0], row[1]))
+        
+        if len(position_stats) == 0:
+            return None
+        
+        cur.execute("""
+            SELECT COUNT(DISTINCT g.game_id)
+            FROM games g
+            WHERE g.season = %s
+                AND (g.home_team_id = %s OR g.away_team_id = %s)
+                AND g.game_status = 'completed'
+                AND g.game_type = 'regular_season'
+                AND g.game_date < %s
+        """, (season, team_id, team_id, as_of_date))
+        
+        games_played = cur.fetchone()[0] or 0
+        
+        if games_played == 0:
+            return None
+        
+        total_steals = sum(row[0] or 0 for row in position_stats)
+        total_turnovers = sum(row[1] or 0 for row in position_stats)
+        
+        return {
+            'opp_position_steals_overall': round(total_steals / games_played, 1),
+            'opp_position_turnovers_overall': round(total_turnovers / games_played, 1)
+        }
+    except Exception as e:
+        return None
     finally:
         cur.close()
 

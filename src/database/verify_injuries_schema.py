@@ -58,12 +58,12 @@ def verify_injuries_schema():
                 (req_type == 'timestamp without time zone' and 'timestamp' in actual_type.lower())
             )
             if type_match:
-                print(f"✓ {req_col:25} - OK")
+                print(f"[OK] {req_col:25} - OK")
             else:
-                print(f"⚠ {req_col:25} - EXISTS but type mismatch (expected {req_type}, got {actual_type})")
+                print(f"[WARN] {req_col:25} - EXISTS but type mismatch (expected {req_type}, got {actual_type})")
                 all_good = False
         else:
-            print(f"✗ {req_col:25} - MISSING")
+            print(f"[MISSING] {req_col:25} - MISSING")
             all_good = False
     
     print("\n" + "="*60)
@@ -131,9 +131,9 @@ def verify_injuries_schema():
     
     print("\n" + "="*60)
     if all_good:
-        print("✓ SCHEMA VERIFICATION PASSED - All required columns exist!")
+        print("SCHEMA VERIFICATION PASSED - All required columns exist!")
     else:
-        print("✗ SCHEMA VERIFICATION FAILED - Some columns are missing or incorrect")
+        print("SCHEMA VERIFICATION FAILED - Some columns are missing or incorrect")
         print("  Please run fix_injuries_schema.sql to fix the issues")
     print("="*60)
     

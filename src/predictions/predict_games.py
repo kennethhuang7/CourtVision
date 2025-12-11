@@ -2,14 +2,85 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from data_collection.utils import get_db_connection, ensure_connection
+from feature_engineering.team_stats_calculator import (
+    calculate_team_defensive_stats_as_of_date,
+    calculate_position_defense_stats_as_of_date,
+    calculate_opponent_team_turnover_stats_as_of_date,
+    map_position_to_defense_position
+)
+from predictions.feature_explanations import get_top_features_with_impact
 import pandas as pd
 import numpy as np
 import joblib
 from datetime import datetime, timedelta, date
+import json
 
 import warnings
 warnings.filterwarnings('ignore', message='pandas only supports SQLAlchemy')
 warnings.filterwarnings('ignore', category=FutureWarning)
+
+class EnsemblePredictor:
+    def __init__(self, models_dict, validation_maes=None):
+        self.models = models_dict
+        self.validation_maes = validation_maes or {}
+        
+    def predict_simple_average(self, features, selected_models=None):
+        if selected_models is None:
+            selected_models = list(self.models.keys())
+        
+        predictions = []
+        for model_name in selected_models:
+            if model_name in self.models:
+                pred = self.models[model_name].predict(features)
+                predictions.append(pred)
+        
+        if len(predictions) == 0:
+            raise ValueError("No valid models selected")
+        
+        weights = {m: 1.0/len(predictions) for m in selected_models}
+        
+        return np.mean(predictions, axis=0), weights
+    
+    def predict_weighted_average(self, features, selected_models=None):
+        if selected_models is None:
+            selected_models = list(self.models.keys())
+        
+        weights = {}
+        for model_name in selected_models:
+            if model_name in self.models and model_name in self.validation_maes:
+                mae = self.validation_maes[model_name]
+                weights[model_name] = 1.0 / mae
+            elif model_name in self.models:
+                weights[model_name] = 1.0
+        
+        total_weight = sum(weights.values())
+        weights = {k: v / total_weight for k, v in weights.items()}
+        
+        predictions = []
+        for model_name in selected_models:
+            if model_name in self.models:
+                pred = self.models[model_name].predict(features)
+                predictions.append(pred * weights[model_name])
+        
+        if len(predictions) == 0:
+            raise ValueError("No valid models selected")
+        
+        return np.sum(predictions, axis=0), weights
+    
+    def predict_custom(self, features, custom_weights):
+        total_weight = sum(custom_weights.values())
+        normalized_weights = {k: v / total_weight for k, v in custom_weights.items()}
+        
+        predictions = []
+        for model_name, weight in normalized_weights.items():
+            if model_name in self.models:
+                pred = self.models[model_name].predict(features)
+                predictions.append(pred * weight)
+        
+        if len(predictions) == 0:
+            raise ValueError("No valid models in custom_weights")
+        
+        return np.sum(predictions, axis=0), normalized_weights
 
 def calculate_confidence(features_df, recent_games_df, conn=None, player_id=None, target_date=None, season=None):
     score = 0
@@ -69,10 +140,12 @@ def calculate_confidence(features_df, recent_games_df, conn=None, player_id=None
         'offensive_rating_team', 'defensive_rating_team', 'pace_team',
         'offensive_rating_opp', 'defensive_rating_opp', 'pace_opp',
         'opp_field_goal_pct', 'opp_three_point_pct',
+        'opp_team_turnovers_per_game', 'opp_team_steals_per_game',
         'opp_points_allowed_to_position', 'opp_rebounds_allowed_to_position',
-        'opp_assists_allowed_to_position', 'opp_steals_allowed_to_position',
-        'opp_blocks_allowed_to_position', 'opp_turnovers_forced_to_position',
+        'opp_assists_allowed_to_position', 'opp_blocks_allowed_to_position',
         'opp_three_pointers_allowed_to_position',
+        'opp_position_turnovers_vs_team', 'opp_position_steals_vs_team',
+        'opp_position_turnovers_overall', 'opp_position_steals_overall',
         'arena_altitude', 'altitude_away'
     ]
     
@@ -240,6 +313,28 @@ def predict_upcoming_games(target_date=None, model_type='xgboost'):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(os.path.dirname(script_dir))
     models_dir = os.path.join(project_root, 'data', 'models')
+    features_path = os.path.join(project_root, 'data', 'processed', 'training_features.csv')
+    
+    league_means = {}
+    if os.path.exists(features_path):
+        training_df = pd.read_csv(features_path)
+        feature_cols = [col for col in training_df.columns if any(x in col for x in 
+                   ['_l5', '_l10', '_l20', '_weighted', 'is_', 'days_rest', 'games_played',
+                    'offensive_rating', 'defensive_rating', 'net_rating', 'pace', 'opp_', 'altitude', 'playoff',
+                    'star_teammate', 'games_without_star', 'usage_rate', 'minutes_played', 'minutes_trend',
+                    'per_36', '_pct', '_ratio', 'pts_per', 'ast_to', 'reb_rate', 'position_'])]
+        feature_cols = [col for col in feature_cols if 'team_id' not in col and 'player_id' not in col and 'game_id' not in col]
+        
+        for col in feature_cols:
+            if col in training_df.columns:
+                if 'team' in col or 'opp' in col or 'pace' in col:
+                    league_means[col] = training_df[col].mean()
+                elif col.startswith('is_') or col.startswith('position_'):
+                    league_means[col] = 0
+                elif 'trend' in col:
+                    league_means[col] = 0
+                else:
+                    league_means[col] = training_df[col].mean()
     
     models = {}
     scalers = {}
@@ -397,17 +492,74 @@ def predict_upcoming_games(target_date=None, model_type='xgboost'):
                         
                         features_ordered = features[[col for col in model_feature_names if col in features.columns]].copy()
                         
-                        if len(features_ordered.columns) != len(model_feature_names):
-                            missing = set(model_feature_names) - set(features_ordered.columns)
-                            missing = {col for col in missing if 'team_id' not in col and 'player_id' not in col and 'game_id' not in col}
-                            if missing:
-                                print(f"Warning: Missing features for {stat_name}: {missing}")
-                            for col in missing:
-                                features_ordered[col] = 0
-                            available_model_cols = [col for col in model_feature_names if col in features_ordered.columns]
-                            features_ordered = features_ordered[available_model_cols]
+                        for col in model_feature_names:
+                            if col not in features_ordered.columns:
+                                if 'team_id' not in col and 'player_id' not in col and 'game_id' not in col:
+                                    if 'team' in col or 'opp' in col or 'pace' in col:
+                                        features_ordered[col] = league_means.get(col, np.nan)
+                                    elif col.startswith('is_') or col.startswith('position_') or 'trend' in col:
+                                        features_ordered[col] = 0
+                                    else:
+                                        player_avg = league_means.get(col, np.nan)
+                                        if recent_games is not None and len(recent_games) > 0:
+                                            if col.startswith('points_'):
+                                                player_avg = recent_games['points'].mean()
+                                            elif col.startswith('rebounds_total_'):
+                                                player_avg = recent_games['rebounds_total'].mean()
+                                            elif col.startswith('assists_'):
+                                                player_avg = recent_games['assists'].mean()
+                                            elif col.startswith('steals_'):
+                                                player_avg = recent_games['steals'].mean()
+                                            elif col.startswith('blocks_'):
+                                                player_avg = recent_games['blocks'].mean()
+                                            elif col.startswith('turnovers_'):
+                                                player_avg = recent_games['turnovers'].mean()
+                                            elif col.startswith('three_pointers_made_'):
+                                                player_avg = recent_games['three_pointers_made'].mean()
+                                            elif 'minutes_played' in col and 'per_36' not in col:
+                                                player_avg = recent_games['minutes_played'].mean()
+                                            elif 'usage_rate' in col:
+                                                player_avg = recent_games['usage_rate'].mean() if 'usage_rate' in recent_games.columns else league_means.get(col, 0)
+                                            elif 'offensive_rating' in col and 'team' not in col and 'opp' not in col:
+                                                player_avg = recent_games['offensive_rating'].mean() if 'offensive_rating' in recent_games.columns else league_means.get(col, 0)
+                                            elif 'defensive_rating' in col and 'team' not in col and 'opp' not in col:
+                                                player_avg = recent_games['defensive_rating'].mean() if 'defensive_rating' in recent_games.columns else league_means.get(col, 0)
+                                        features_ordered[col] = player_avg
                         
-                        features_ordered = features_ordered.fillna(0)
+                        features_ordered = features_ordered[[col for col in model_feature_names if col in features_ordered.columns]]
+                        
+                        for col in features_ordered.columns:
+                            if features_ordered[col].isna().any():
+                                if 'team' in col or 'opp' in col or 'pace' in col:
+                                    features_ordered[col] = features_ordered[col].fillna(league_means.get(col, 0))
+                                elif col.startswith('is_') or col.startswith('position_') or 'trend' in col:
+                                    features_ordered[col] = features_ordered[col].fillna(0)
+                                else:
+                                    player_avg = league_means.get(col, 0)
+                                    if recent_games is not None and len(recent_games) > 0:
+                                        if col.startswith('points_'):
+                                            player_avg = recent_games['points'].mean()
+                                        elif col.startswith('rebounds_total_'):
+                                            player_avg = recent_games['rebounds_total'].mean()
+                                        elif col.startswith('assists_'):
+                                            player_avg = recent_games['assists'].mean()
+                                        elif col.startswith('steals_'):
+                                            player_avg = recent_games['steals'].mean()
+                                        elif col.startswith('blocks_'):
+                                            player_avg = recent_games['blocks'].mean()
+                                        elif col.startswith('turnovers_'):
+                                            player_avg = recent_games['turnovers'].mean()
+                                        elif col.startswith('three_pointers_made_'):
+                                            player_avg = recent_games['three_pointers_made'].mean()
+                                        elif 'minutes_played' in col and 'per_36' not in col:
+                                            player_avg = recent_games['minutes_played'].mean()
+                                        elif 'usage_rate' in col:
+                                            player_avg = recent_games['usage_rate'].mean() if 'usage_rate' in recent_games.columns else league_means.get(col, 0)
+                                        elif 'offensive_rating' in col and 'team' not in col and 'opp' not in col:
+                                            player_avg = recent_games['offensive_rating'].mean() if 'offensive_rating' in recent_games.columns else league_means.get(col, 0)
+                                        elif 'defensive_rating' in col and 'team' not in col and 'opp' not in col:
+                                            player_avg = recent_games['defensive_rating'].mean() if 'defensive_rating' in recent_games.columns else league_means.get(col, 0)
+                                    features_ordered[col] = features_ordered[col].fillna(player_avg)
                         
                         if scalers[stat_name] is not None:
                             features_scaled = pd.DataFrame(
@@ -431,6 +583,22 @@ def predict_upcoming_games(target_date=None, model_type='xgboost'):
                     target_date=target_date, season=season
                 )
                 
+                feature_explanations = {}
+                if isinstance(features, pd.DataFrame):
+                    features_dict = features.iloc[0].to_dict()
+                else:
+                    features_dict = features
+                
+                for stat_name in predictions.keys():
+                    top_features = get_top_features_with_impact(
+                        features_dict,
+                        model_type,
+                        stat_name,
+                        league_means,
+                        top_n=10
+                    )
+                    feature_explanations[stat_name] = top_features
+                
                 try:
                     conn, cur = ensure_connection(conn, cur)
                     
@@ -439,8 +607,9 @@ def predict_upcoming_games(target_date=None, model_type='xgboost'):
                             game_id, player_id, prediction_date,
                             predicted_points, predicted_rebounds, predicted_assists,
                             predicted_steals, predicted_blocks, predicted_turnovers,
-                            predicted_three_pointers_made, confidence_score, model_version
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            predicted_three_pointers_made, confidence_score, model_version,
+                            feature_explanations
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (player_id, game_id, model_version) DO UPDATE SET
                             predicted_points = EXCLUDED.predicted_points,
                             predicted_rebounds = EXCLUDED.predicted_rebounds,
@@ -450,7 +619,8 @@ def predict_upcoming_games(target_date=None, model_type='xgboost'):
                             predicted_turnovers = EXCLUDED.predicted_turnovers,
                             predicted_three_pointers_made = EXCLUDED.predicted_three_pointers_made,
                             confidence_score = EXCLUDED.confidence_score,
-                            prediction_date = EXCLUDED.prediction_date
+                            prediction_date = EXCLUDED.prediction_date,
+                            feature_explanations = EXCLUDED.feature_explanations
                     """, (
                         game_id,
                         player_id,
@@ -463,7 +633,8 @@ def predict_upcoming_games(target_date=None, model_type='xgboost'):
                         predictions['turnovers'],
                         predictions['three_pointers_made'],
                         confidence_score,
-                        model_version
+                        model_version,
+                        json.dumps(feature_explanations)
                     ))
                     
                     predictions_inserted += 1
@@ -484,6 +655,7 @@ def predict_upcoming_games(target_date=None, model_type='xgboost'):
                     'player_id': player_id,
                     'team_id': team_id,
                     'is_home': is_home,
+                    'feature_explanations': json.dumps(feature_explanations),
                     **predictions
                 })
     
@@ -506,11 +678,16 @@ def predict_upcoming_games(target_date=None, model_type='xgboost'):
     
     pred_df = pd.DataFrame(all_predictions)
     
+    if 'feature_explanations' in pred_df.columns:
+        pred_df_csv = pred_df.drop(columns=['feature_explanations'])
+    else:
+        pred_df_csv = pred_df
+    
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(os.path.dirname(script_dir))
     output_path = os.path.join(project_root, 'data', 'predictions', f'predictions_{target_date}.csv')
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    pred_df.to_csv(output_path, index=False)
+    pred_df_csv.to_csv(output_path, index=False)
     
     print("\n" + "="*50)
     print("PREDICTIONS COMPLETE!")
@@ -532,6 +709,21 @@ def build_features_for_player(conn, player_id, team_id, opponent_id,
             pgs.points,
             pgs.rebounds_total,
             pgs.assists,
+            pgs.steals,
+            pgs.blocks,
+            pgs.turnovers,
+            pgs.three_pointers_made,
+            pgs.minutes_played,
+            pgs.field_goals_made,
+            pgs.field_goals_attempted,
+            pgs.three_pointers_attempted,
+            pgs.free_throws_made,
+            pgs.free_throws_attempted,
+            pgs.usage_rate,
+            pgs.true_shooting_pct,
+            pgs.offensive_rating,
+            pgs.defensive_rating,
+            pgs.is_starter,
             g.game_date,
             g.game_type
         FROM player_game_stats pgs
@@ -555,9 +747,8 @@ def build_features_for_player(conn, player_id, team_id, opponent_id,
     
     for window in [5, 10, 20]:
         window_games = recent_games.head(window)
-        features[f'points_l{window}'] = window_games['points'].mean()
-        features[f'rebounds_total_l{window}'] = window_games['rebounds_total'].mean()
-        features[f'assists_l{window}'] = window_games['assists'].mean()
+        for stat in ['points', 'rebounds_total', 'assists', 'steals', 'blocks', 'turnovers', 'three_pointers_made']:
+            features[f'{stat}_l{window}'] = window_games[stat].mean() if stat in window_games.columns else np.nan
     
     decay_factor = 0.1
     for window in [5, 10, 20]:
@@ -566,13 +757,151 @@ def build_features_for_player(conn, player_id, team_id, opponent_id,
             weights = np.exp(-decay_factor * np.arange(len(window_games))[::-1])
             weights = weights / weights.sum()
             
-            features[f'points_l{window}_weighted'] = np.sum(window_games['points'].values * weights)
-            features[f'rebounds_total_l{window}_weighted'] = np.sum(window_games['rebounds_total'].values * weights)
-            features[f'assists_l{window}_weighted'] = np.sum(window_games['assists'].values * weights)
+            for stat in ['points', 'rebounds_total', 'assists', 'steals', 'blocks', 'turnovers', 'three_pointers_made']:
+                if stat in window_games.columns:
+                    features[f'{stat}_l{window}_weighted'] = np.sum(window_games[stat].values * weights)
+                else:
+                    features[f'{stat}_l{window}_weighted'] = np.nan
         else:
-            features[f'points_l{window}_weighted'] = 0
-            features[f'rebounds_total_l{window}_weighted'] = 0
-            features[f'assists_l{window}_weighted'] = 0
+            for stat in ['points', 'rebounds_total', 'assists', 'steals', 'blocks', 'turnovers', 'three_pointers_made']:
+                features[f'{stat}_l{window}_weighted'] = np.nan
+    
+    for window in [5, 10, 20]:
+        window_games = recent_games.head(window)
+        if 'minutes_played' in window_games.columns:
+            features[f'minutes_played_l{window}'] = window_games['minutes_played'].mean()
+            if len(window_games) > 0:
+                weights = np.exp(-decay_factor * np.arange(len(window_games))[::-1])
+                weights = weights / weights.sum()
+                features[f'minutes_played_l{window}_weighted'] = np.sum(window_games['minutes_played'].values * weights)
+            else:
+                features[f'minutes_played_l{window}_weighted'] = np.nan
+        else:
+            features[f'minutes_played_l{window}'] = np.nan
+            features[f'minutes_played_l{window}_weighted'] = np.nan
+    
+    if 'is_starter' in recent_games.columns:
+        recent_games['is_starter'] = recent_games['is_starter'].astype(int)
+        for window in [5, 10]:
+            window_games = recent_games.head(window)
+            features[f'is_starter_l{window}'] = window_games['is_starter'].mean() if len(window_games) > 0 else 0
+    else:
+        for window in [5, 10]:
+            features[f'is_starter_l{window}'] = 0
+    
+    if 'minutes_played' in recent_games.columns and len(recent_games) >= 3:
+        recent_minutes = recent_games.head(10)['minutes_played'].values
+        if len(recent_minutes) >= 3 and np.std(recent_minutes) > 0:
+            x = np.arange(len(recent_minutes))
+            slope = np.polyfit(x, recent_minutes, 1)[0]
+            features['minutes_trend'] = slope
+        else:
+            features['minutes_trend'] = 0.0
+    else:
+        features['minutes_trend'] = 0.0
+    
+    for window in [5, 10, 20]:
+        window_games = recent_games.head(window)
+        if 'usage_rate' in window_games.columns:
+            features[f'usage_rate_l{window}'] = window_games['usage_rate'].mean()
+            if len(window_games) > 0:
+                weights = np.exp(-decay_factor * np.arange(len(window_games))[::-1])
+                weights = weights / weights.sum()
+                features[f'usage_rate_l{window}_weighted'] = np.sum(window_games['usage_rate'].values * weights)
+            else:
+                features[f'usage_rate_l{window}_weighted'] = np.nan
+        else:
+            features[f'usage_rate_l{window}'] = np.nan
+            features[f'usage_rate_l{window}_weighted'] = np.nan
+    
+    for window in [5, 10, 20]:
+        window_games = recent_games.head(window)
+        for stat in ['offensive_rating', 'defensive_rating']:
+            if stat in window_games.columns:
+                features[f'{stat}_l{window}'] = window_games[stat].mean()
+            else:
+                features[f'{stat}_l{window}'] = np.nan
+        features[f'net_rating_l{window}'] = features[f'offensive_rating_l{window}'] - features[f'defensive_rating_l{window}']
+    
+    for window in [5, 10, 20]:
+        window_games = recent_games.head(window)
+        if len(window_games) > 0:
+            if 'field_goals_made' in window_games.columns and 'field_goals_attempted' in window_games.columns:
+                fgm_sum = window_games['field_goals_made'].sum()
+                fga_sum = window_games['field_goals_attempted'].sum()
+                features[f'fg_pct_l{window}'] = (fgm_sum / fga_sum) if fga_sum > 0 else 0
+            else:
+                features[f'fg_pct_l{window}'] = np.nan
+            
+            if 'three_pointers_made' in window_games.columns and 'three_pointers_attempted' in window_games.columns:
+                made_3p_sum = window_games['three_pointers_made'].sum()
+                att_3p_sum = window_games['three_pointers_attempted'].sum()
+                features[f'three_pct_l{window}'] = (made_3p_sum / att_3p_sum) if att_3p_sum > 0 else 0
+            else:
+                features[f'three_pct_l{window}'] = np.nan
+            
+            if 'free_throws_made' in window_games.columns and 'free_throws_attempted' in window_games.columns:
+                made_ft_sum = window_games['free_throws_made'].sum()
+                att_ft_sum = window_games['free_throws_attempted'].sum()
+                features[f'ft_pct_l{window}'] = (made_ft_sum / att_ft_sum) if att_ft_sum > 0 else 0
+            else:
+                features[f'ft_pct_l{window}'] = np.nan
+            
+            if 'true_shooting_pct' in window_games.columns:
+                features[f'true_shooting_pct_l{window}'] = window_games['true_shooting_pct'].mean()
+            else:
+                features[f'true_shooting_pct_l{window}'] = np.nan
+        else:
+            features[f'fg_pct_l{window}'] = np.nan
+            features[f'three_pct_l{window}'] = np.nan
+            features[f'ft_pct_l{window}'] = np.nan
+            features[f'true_shooting_pct_l{window}'] = np.nan
+    
+    for stat in ['points', 'rebounds_total', 'assists', 'steals', 'blocks', 'turnovers', 'three_pointers_made']:
+        for window in [5, 10, 20]:
+            window_games = recent_games.head(window)
+            if len(window_games) > 0 and stat in window_games.columns and 'minutes_played' in window_games.columns:
+                stat_sum = window_games[stat].sum()
+                min_sum = window_games['minutes_played'].sum()
+                features[f'{stat}_per_36_l{window}'] = (stat_sum / min_sum * 36) if min_sum > 0 else 0
+            else:
+                features[f'{stat}_per_36_l{window}'] = np.nan
+    
+    for window in [5, 10, 20]:
+        window_games = recent_games.head(window)
+        if len(window_games) > 0:
+            if 'assists' in window_games.columns and 'turnovers' in window_games.columns:
+                ast_sum = window_games['assists'].sum()
+                tov_sum = window_games['turnovers'].sum()
+                features[f'ast_to_ratio_l{window}'] = (ast_sum / tov_sum) if tov_sum > 0 else ast_sum
+            else:
+                features[f'ast_to_ratio_l{window}'] = np.nan
+            
+            if 'points' in window_games.columns and 'field_goals_attempted' in window_games.columns:
+                pts_sum = window_games['points'].sum()
+                fga_sum = window_games['field_goals_attempted'].sum()
+                features[f'pts_per_fga_l{window}'] = (pts_sum / fga_sum) if fga_sum > 0 else 0
+            else:
+                features[f'pts_per_fga_l{window}'] = np.nan
+            
+            if 'points' in window_games.columns and 'assists' in window_games.columns:
+                pts_sum = window_games['points'].sum()
+                ast_sum = window_games['assists'].sum()
+                features[f'pts_per_ast_l{window}'] = (pts_sum / ast_sum) if ast_sum > 0 else pts_sum
+            else:
+                features[f'pts_per_ast_l{window}'] = np.nan
+            
+            if 'rebounds_total' in window_games.columns and 'minutes_played' in window_games.columns:
+                reb_sum = window_games['rebounds_total'].sum()
+                min_sum = window_games['minutes_played'].sum()
+                features[f'reb_rate_l{window}'] = (reb_sum / (min_sum / 36)) if min_sum > 0 else 0
+            else:
+                features[f'reb_rate_l{window}'] = np.nan
+        else:
+            features[f'ast_to_ratio_l{window}'] = 0
+            features[f'pts_per_fga_l{window}'] = 0
+            features[f'pts_per_ast_l{window}'] = 0
+            features[f'reb_rate_l{window}'] = 0
     
     if game_type == 'playoff':
         playoff_games_query = f"""
@@ -620,10 +949,14 @@ def build_features_for_player(conn, player_id, team_id, opponent_id,
     
     features['is_home'] = is_home
     
-    recent_games['game_date'] = pd.to_datetime(recent_games['game_date'])
-    days_rest = (pd.to_datetime(target_date) - recent_games['game_date'].iloc[0]).days
-    features['days_rest'] = days_rest
-    features['is_back_to_back'] = 1 if days_rest == 1 else 0
+    if len(recent_games) > 0:
+        recent_games['game_date'] = pd.to_datetime(recent_games['game_date'])
+        days_rest = (pd.to_datetime(target_date) - recent_games['game_date'].iloc[0]).days
+        features['days_rest'] = days_rest
+        features['is_back_to_back'] = 1 if days_rest == 1 else 0
+    else:
+        features['days_rest'] = 3
+        features['is_back_to_back'] = 0
     
     features['games_played_season'] = len(recent_games)
     
@@ -659,6 +992,16 @@ def build_features_for_player(conn, player_id, team_id, opponent_id,
         features['opp_field_goal_pct'] = opp_defense.iloc[0]['opp_field_goal_pct']
         features['opp_three_point_pct'] = opp_defense.iloc[0]['opp_three_point_pct']
     
+    opp_defense_stats = calculate_team_defensive_stats_as_of_date(
+        conn, opponent_id, season, target_date
+    )
+    if opp_defense_stats:
+        features['opp_team_turnovers_per_game'] = opp_defense_stats.get('opp_team_turnovers_per_game', 14.0)
+        features['opp_team_steals_per_game'] = opp_defense_stats.get('opp_team_steals_per_game', 7.0)
+    else:
+        features['opp_team_turnovers_per_game'] = 14.0
+        features['opp_team_steals_per_game'] = 7.0
+    
     player_position_query = pd.read_sql(f"""
         SELECT position
         FROM players
@@ -669,20 +1012,34 @@ def build_features_for_player(conn, player_id, team_id, opponent_id,
         player_position = str(player_position_query.iloc[0]['position'] or '').upper().strip()
         if ('CENTER' in player_position or player_position == 'C') and 'GUARD' not in player_position and 'FORWARD' not in player_position:
             defense_position = 'C'
+            features['position_guard'] = 0
+            features['position_forward'] = 0
+            features['position_center'] = 1
         elif 'FORWARD' in player_position or player_position == 'F' or player_position == 'F-C':
             defense_position = 'F'
+            features['position_guard'] = 0
+            features['position_forward'] = 1
+            features['position_center'] = 0
         elif 'GUARD' in player_position or player_position == 'G' or player_position == 'G-F':
             defense_position = 'G'
+            features['position_guard'] = 1
+            features['position_forward'] = 0
+            features['position_center'] = 0
         else:
             defense_position = 'G'
+            features['position_guard'] = 1
+            features['position_forward'] = 0
+            features['position_center'] = 0
     else:
         defense_position = 'G'
+        features['position_guard'] = 1
+        features['position_forward'] = 0
+        features['position_center'] = 0
     
     pos_defense = pd.read_sql(f"""
         SELECT points_allowed_per_game,
                rebounds_allowed_per_game,
                assists_allowed_per_game,
-               steals_allowed_per_game,
                blocks_allowed_per_game,
                turnovers_forced_per_game,
                three_pointers_made_allowed_per_game
@@ -694,10 +1051,28 @@ def build_features_for_player(conn, player_id, team_id, opponent_id,
         features['opp_points_allowed_to_position'] = pos_defense.iloc[0]['points_allowed_per_game']
         features['opp_rebounds_allowed_to_position'] = pos_defense.iloc[0]['rebounds_allowed_per_game']
         features['opp_assists_allowed_to_position'] = pos_defense.iloc[0]['assists_allowed_per_game']
-        features['opp_steals_allowed_to_position'] = pos_defense.iloc[0]['steals_allowed_per_game']
         features['opp_blocks_allowed_to_position'] = pos_defense.iloc[0]['blocks_allowed_per_game']
-        features['opp_turnovers_forced_to_position'] = pos_defense.iloc[0]['turnovers_forced_per_game']
         features['opp_three_pointers_allowed_to_position'] = pos_defense.iloc[0]['three_pointers_made_allowed_per_game']
+    
+    pos_defense_stats = calculate_position_defense_stats_as_of_date(
+        conn, opponent_id, season, defense_position, target_date
+    )
+    if pos_defense_stats:
+        features['opp_position_turnovers_vs_team'] = pos_defense_stats.get('opp_position_turnovers_vs_team', 0)
+        features['opp_position_steals_vs_team'] = pos_defense_stats.get('opp_position_steals_vs_team', 0)
+    else:
+        features['opp_position_turnovers_vs_team'] = 0
+        features['opp_position_steals_vs_team'] = 0
+    
+    opp_turnover_stats = calculate_opponent_team_turnover_stats_as_of_date(
+        conn, opponent_id, season, defense_position, target_date
+    )
+    if opp_turnover_stats:
+        features['opp_position_turnovers_overall'] = opp_turnover_stats.get('opp_position_turnovers_overall', 0)
+        features['opp_position_steals_overall'] = opp_turnover_stats.get('opp_position_steals_overall', 0)
+    else:
+        features['opp_position_turnovers_overall'] = 0
+        features['opp_position_steals_overall'] = 0
     
     altitude_query = pd.read_sql(f"""
         SELECT arena_altitude
@@ -774,22 +1149,49 @@ def build_features_for_player(conn, player_id, team_id, opponent_id,
     
     column_order = [
         'is_playoff', 
-        'points_l5', 'rebounds_total_l5', 'assists_l5',
-        'points_l10', 'rebounds_total_l10', 'assists_l10',
-        'points_l20', 'rebounds_total_l20', 'assists_l20',
-        'points_l5_weighted', 'rebounds_total_l5_weighted', 'assists_l5_weighted',
-        'points_l10_weighted', 'rebounds_total_l10_weighted', 'assists_l10_weighted',
-        'points_l20_weighted', 'rebounds_total_l20_weighted', 'assists_l20_weighted',
+        'points_l5', 'rebounds_total_l5', 'assists_l5', 'steals_l5', 'blocks_l5', 'turnovers_l5', 'three_pointers_made_l5',
+        'points_l10', 'rebounds_total_l10', 'assists_l10', 'steals_l10', 'blocks_l10', 'turnovers_l10', 'three_pointers_made_l10',
+        'points_l20', 'rebounds_total_l20', 'assists_l20', 'steals_l20', 'blocks_l20', 'turnovers_l20', 'three_pointers_made_l20',
+        'points_l5_weighted', 'rebounds_total_l5_weighted', 'assists_l5_weighted', 'steals_l5_weighted', 'blocks_l5_weighted', 'turnovers_l5_weighted', 'three_pointers_made_l5_weighted',
+        'points_l10_weighted', 'rebounds_total_l10_weighted', 'assists_l10_weighted', 'steals_l10_weighted', 'blocks_l10_weighted', 'turnovers_l10_weighted', 'three_pointers_made_l10_weighted',
+        'points_l20_weighted', 'rebounds_total_l20_weighted', 'assists_l20_weighted', 'steals_l20_weighted', 'blocks_l20_weighted', 'turnovers_l20_weighted', 'three_pointers_made_l20_weighted',
+        'minutes_played_l5', 'minutes_played_l10', 'minutes_played_l20',
+        'minutes_played_l5_weighted', 'minutes_played_l10_weighted', 'minutes_played_l20_weighted',
+        'is_starter_l5', 'is_starter_l10',
+        'usage_rate_l5', 'usage_rate_l10', 'usage_rate_l20',
+        'usage_rate_l5_weighted', 'usage_rate_l10_weighted', 'usage_rate_l20_weighted',
+        'offensive_rating_l5', 'offensive_rating_l10', 'offensive_rating_l20',
+        'defensive_rating_l5', 'defensive_rating_l10', 'defensive_rating_l20',
+        'net_rating_l5', 'net_rating_l10', 'net_rating_l20',
+        'fg_pct_l5', 'fg_pct_l10', 'fg_pct_l20',
+        'three_pct_l5', 'three_pct_l10', 'three_pct_l20',
+        'ft_pct_l5', 'ft_pct_l10', 'ft_pct_l20',
+        'true_shooting_pct_l5', 'true_shooting_pct_l10', 'true_shooting_pct_l20',
+        'points_per_36_l5', 'points_per_36_l10', 'points_per_36_l20',
+        'rebounds_total_per_36_l5', 'rebounds_total_per_36_l10', 'rebounds_total_per_36_l20',
+        'assists_per_36_l5', 'assists_per_36_l10', 'assists_per_36_l20',
+        'steals_per_36_l5', 'steals_per_36_l10', 'steals_per_36_l20',
+        'blocks_per_36_l5', 'blocks_per_36_l10', 'blocks_per_36_l20',
+        'turnovers_per_36_l5', 'turnovers_per_36_l10', 'turnovers_per_36_l20',
+        'three_pointers_made_per_36_l5', 'three_pointers_made_per_36_l10', 'three_pointers_made_per_36_l20',
+        'ast_to_ratio_l5', 'ast_to_ratio_l10', 'ast_to_ratio_l20',
+        'pts_per_fga_l5', 'pts_per_fga_l10', 'pts_per_fga_l20',
+        'pts_per_ast_l5', 'pts_per_ast_l10', 'pts_per_ast_l20',
+        'reb_rate_l5', 'reb_rate_l10', 'reb_rate_l20',
+        'minutes_trend',
+        'position_guard', 'position_forward', 'position_center',
         'star_teammate_out', 'star_teammate_ppg', 'games_without_star',  
         'playoff_games_career', 'playoff_performance_boost',
         'is_home', 'days_rest', 'is_back_to_back', 'games_played_season',
         'offensive_rating_team', 'defensive_rating_team', 'pace_team',
         'offensive_rating_opp', 'defensive_rating_opp', 'pace_opp',
         'opp_field_goal_pct', 'opp_three_point_pct',
+        'opp_team_turnovers_per_game', 'opp_team_steals_per_game',
         'opp_points_allowed_to_position', 'opp_rebounds_allowed_to_position',
-        'opp_assists_allowed_to_position', 'opp_steals_allowed_to_position',
-        'opp_blocks_allowed_to_position', 'opp_turnovers_forced_to_position',
+        'opp_assists_allowed_to_position', 'opp_blocks_allowed_to_position',
         'opp_three_pointers_allowed_to_position',
+        'opp_position_turnovers_vs_team', 'opp_position_steals_vs_team',
+        'opp_position_turnovers_overall', 'opp_position_steals_overall',
         'arena_altitude', 'altitude_away'
     ]
     
