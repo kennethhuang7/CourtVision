@@ -1,0 +1,24 @@
+{
+  "random_forest": {
+    "turnovers": {
+      "best_params": {
+        "n_estimators": 250,
+        "max_depth": 10,
+        "min_samples_split": 14,
+        "min_samples_leaf": 8,
+        "max_features": 0.6729520410217402
+      },
+      "best_mae": 0.8922049806527133
+    },
+    "three_pointers_made": {
+      "best_params": {
+        "n_estimators": 103,
+        "max_depth": 8,
+        "min_samples_split": 18,
+        "min_samples_leaf": 10,
+        "max_features": 0.5069483228758193
+      },
+      "best_mae": 0.8774742472896807
+    }
+  }
+}

@@ -5,6 +5,8 @@ from utils import get_db_connection, rate_limit
 from datetime import datetime
 import requests
 import time
+from nba_api.stats.endpoints import leaguegamefinder
+import pandas as pd
 
 def collect_schedule(target_date=None):
     if target_date is None:
@@ -55,6 +57,13 @@ def collect_schedule(target_date=None):
         headers_list = game_headers['headers']
         rows = game_headers['rowSet']
         
+        if len(rows) > 0:
+            print(f"Sample game data (first game):")
+            sample_row = rows[0]
+            for header, idx in zip(headers_list, range(len(headers_list))):
+                print(f"  {header}: {sample_row[idx]}")
+            print()
+        
         if len(rows) == 0:
             print(f"No games found for {target_date}")
             print("This likely means it's an off-day for the NBA")
@@ -72,9 +81,50 @@ def collect_schedule(target_date=None):
         
         for row in rows:
             game_id = str(row[header_map['GAME_ID']])
-            home_team_id = int(row[header_map['HOME_TEAM_ID']])
-            away_team_id = int(row[header_map['VISITOR_TEAM_ID']])
+            
+            home_team_id_val = row[header_map['HOME_TEAM_ID']]
+            away_team_id_val = row[header_map['VISITOR_TEAM_ID']]
+            
             game_status_text = str(row[header_map['GAME_STATUS_TEXT']])
+            
+            if home_team_id_val is None or away_team_id_val is None:
+                if game_status_text == 'TBD':
+                    print(f"  Game {game_id} has status 'TBD' with no team IDs - NBA API hasn't populated this game yet")
+                    print(f"    This game will be collected automatically when the NBA API updates (usually closer to game time)")
+                    continue
+                else:
+                    print(f"  Game {game_id} has None team IDs but status is '{game_status_text}', trying LeagueGameFinder...")
+                    try:
+                        rate_limit()
+                        gamefinder = leaguegamefinder.LeagueGameFinder(
+                            game_id_nullable=game_id,
+                            league_id_nullable='00'
+                        )
+                        games_df = gamefinder.get_data_frames()[0]
+                        
+                        if len(games_df) >= 2:
+                            teams = games_df['TEAM_ID'].unique()
+                            if len(teams) == 2:
+                                matchup1 = games_df.iloc[0]['MATCHUP']
+                                if 'vs.' in matchup1:
+                                    home_team_id = int(games_df.iloc[0]['TEAM_ID'])
+                                    away_team_id = int(games_df.iloc[1]['TEAM_ID'])
+                                else:
+                                    home_team_id = int(games_df.iloc[1]['TEAM_ID'])
+                                    away_team_id = int(games_df.iloc[0]['TEAM_ID'])
+                                print(f"    Found teams: {away_team_id} @ {home_team_id}")
+                            else:
+                                print(f"    Could not determine teams, skipping")
+                                continue
+                        else:
+                            print(f"    LeagueGameFinder returned insufficient data, skipping")
+                            continue
+                    except Exception as e:
+                        print(f"    LeagueGameFinder failed, skipping game")
+                        continue
+            else:
+                home_team_id = int(home_team_id_val)
+                away_team_id = int(away_team_id_val)
             
             home_abbr = 'HOME'
             away_abbr = 'AWAY'
