@@ -1,4 +1,4 @@
-from nba_api.stats.endpoints import playercareerstats
+from nba_api.stats.endpoints import playercareerstats # type: ignore
 from utils import get_db_connection, rate_limit
 import sys
 import os
