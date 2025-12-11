@@ -1,3 +1,14 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# RUN THIS:
+# python src/evaluation/evaluate_models.py
+# To evaluate current models and save metrics:
+# python src/evaluation/evaluate_models.py --output data/evaluation/current_metrics.json
+# To compare two metric files:
+# python src/evaluation/evaluate_models.py --compare data/evaluation/baseline_metrics.json data/evaluation/tuned_metrics.json
+
 import pandas as pd
 import numpy as np
 import json
@@ -226,4 +237,3 @@ if __name__ == "__main__":
         compare_metrics(args.compare[0], args.compare[1])
     else:
         evaluate_all_models(output_path=args.output)
-
