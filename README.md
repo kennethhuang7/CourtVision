@@ -9,36 +9,25 @@ An ensemble-based prediction system using XGBoost, LightGBM, CatBoost, and Rando
 <details open="open">
 <summary><strong>Table of Contents</strong></summary>
 
-    <ol>
-        <li><a href="#overview">Overview</a></li>
-        <li><a href="#feature-building-process">Feature Building Process</a>
-            <ul>
-                <li><a href="#data-sources">Data Sources</a></li>
-                <li><a href="#player-performance-features">Player Performance Features</a></li>
-                <li><a href="#game-context-features">Game Context Features</a></li>
-                <li><a href="#team-and-opponent-features">Team and Opponent Features</a></li>
-                <li><a href="#imputation-strategy">Imputation Strategy</a></li>
-            </ul>
-        </li>
-        <li><a href="#model-training-process">Model Training Process</a>
-            <ul>
-                <li><a href="#target-statistics">Target Statistics</a></li>
-                <li><a href="#model-architectures">Model Architectures</a></li>
-                <li><a href="#cross-validation-strategy">Cross-Validation Strategy</a></li>
-                <li><a href="#loss-functions">Loss Functions</a></li>
-                <li><a href="#model-persistence">Model Persistence</a></li>
-            </ul>
-        </li>
-        <li><a href="#prediction-process">Prediction Process</a>
-            <ul>
-                <li><a href="#prediction-workflow">Prediction Workflow</a></li>
-                <li><a href="#ensemble-averaging">Ensemble Averaging</a></li>
-                <li><a href="#fallback-hierarchy">Fallback Hierarchy</a></li>
-                <li><a href="#confidence-scoring">Confidence Scoring</a></li>
-            </ul>
-        </li>
-        <li><a href="#complete-feature-reference">Complete Feature Reference</a></li>
-    </ol>
+1. [Overview](#overview)
+2. [Feature Building Process](#feature-building-process)
+   - [Data Sources](#data-sources)
+   - [Player Performance Features](#player-performance-features)
+   - [Game Context Features](#game-context-features)
+   - [Team and Opponent Features](#team-and-opponent-features)
+   - [Imputation Strategy](#imputation-strategy)
+3. [Model Training Process](#model-training-process)
+   - [Target Statistics](#target-statistics)
+   - [Model Architectures](#model-architectures)
+   - [Cross-Validation Strategy](#cross-validation-strategy)
+   - [Loss Functions](#loss-functions)
+   - [Model Persistence](#model-persistence)
+4. [Prediction Process](#prediction-process)
+   - [Prediction Workflow](#prediction-workflow)
+   - [Ensemble Averaging](#ensemble-averaging)
+   - [Fallback Hierarchy](#fallback-hierarchy)
+   - [Confidence Scoring](#confidence-scoring)
+5. [Complete Feature Reference](#complete-feature-reference)
 
 </details>
 
