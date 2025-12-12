@@ -9,15 +9,34 @@ from feature_engineering.team_stats_calculator import (
     map_position_to_defense_position
 )
 from predictions.feature_explanations import get_top_features_with_impact
+from predictions.confidence_scoring import (
+    calculate_confidence_score,
+    calculate_confidence_score_per_stat,
+    calculate_multi_stat_variance,
+    reset_variance_diagnostic,
+    enable_variance_diagnostic,
+    CONFIDENCE_CONFIG,
+    ConfidenceBreakdown
+)
+from predictions.confidence_helpers import (
+    load_feature_importances,
+    get_feature_groups,
+    collect_player_stats_for_variance,
+    get_available_features
+)
 import pandas as pd
 import numpy as np
 import joblib
 from datetime import datetime, timedelta, date
+from typing import Dict, List, Optional, Tuple
 import json
+import logging
 
 import warnings
 warnings.filterwarnings('ignore', message='pandas only supports SQLAlchemy')
 warnings.filterwarnings('ignore', category=FutureWarning)
+
+logger = logging.getLogger(__name__)
 
 class EnsemblePredictor:
     def __init__(self, models_dict, validation_maes=None):
@@ -275,6 +294,135 @@ def calculate_confidence(features_df, recent_games_df, conn=None, player_id=None
     
     return int(max(0, min(100, score)))
 
+
+def calculate_confidence_new(
+    predictions_by_model: Dict[str, Dict[str, float]],
+    selected_models: List[str],
+    features_df: pd.DataFrame,
+    recent_games: pd.DataFrame,
+    conn,
+    player_id: int,
+    game_id: int,
+    target_date: date,
+    season: str,
+    opponent_def_rating: float,
+    project_root: str,
+    player_name: Optional[str] = None
+) -> Tuple[int, Dict[str, Dict]]:
+
+    try:
+        feature_importances = load_feature_importances(project_root)
+        feature_groups = get_feature_groups()
+        
+        player_stats = collect_player_stats_for_variance(
+            recent_games, conn, player_id, target_date
+        )
+        
+        available_features = get_available_features(features_df)
+        
+        season_games = len(recent_games) if recent_games is not None else 0
+        career_games_query = f"""
+            SELECT COUNT(*) as career_games
+            FROM player_game_stats pgs
+            JOIN games g ON pgs.game_id = g.game_id
+            WHERE pgs.player_id = {player_id}
+            AND g.game_status = 'completed'
+            AND g.game_date < '{target_date}'
+        """
+        career_games_df = pd.read_sql(career_games_query, conn)
+        career_games = career_games_df.iloc[0]['career_games'] if len(career_games_df) > 0 else season_games
+        
+        days_since_transaction = None
+        games_with_team = season_games
+        if 'games_played_season' in features_df.columns:
+            games_with_team = int(features_df['games_played_season'].iloc[0]) if not pd.isna(features_df['games_played_season'].iloc[0]) else season_games
+        
+        transaction_query = f"""
+            SELECT transaction_date, transaction_type
+            FROM player_transactions
+            WHERE player_id = {player_id}
+            AND transaction_type IN ('trade', 'signing')
+            AND transaction_date >= %s::date - INTERVAL '30 days'
+            AND transaction_date <= %s::date
+            ORDER BY transaction_date DESC
+            LIMIT 1
+        """
+        transaction_df = pd.read_sql(transaction_query, conn, params=(target_date, target_date))
+        if len(transaction_df) > 0:
+            trans_date = transaction_df.iloc[0]['transaction_date']
+            days_since_transaction = (pd.to_datetime(target_date) - pd.to_datetime(trans_date)).days
+        
+        games_since_injury = None
+        injury_query = f"""
+            SELECT return_date, games_missed
+            FROM injuries
+            WHERE player_id = {player_id}
+            AND return_date IS NOT NULL
+            AND return_date >= %s::date - INTERVAL '60 days'
+            AND return_date <= %s::date
+            ORDER BY return_date DESC
+            LIMIT 1
+        """
+        injury_df = pd.read_sql(injury_query, conn, params=(target_date, target_date))
+        if len(injury_df) > 0:
+            return_date = injury_df.iloc[0]['return_date']
+            days_since_return = (pd.to_datetime(target_date) - pd.to_datetime(return_date)).days
+            games_since_injury = max(0, int(days_since_return / 2.5))
+        
+        is_playoff = features_df['is_playoff'].iloc[0] if 'is_playoff' in features_df.columns else False
+        is_back_to_back = features_df['is_back_to_back'].iloc[0] if 'is_back_to_back' in features_df.columns else False
+        
+        stat_breakdowns = {}
+        stat_confidences = []
+        target_stats = ['points', 'rebounds', 'assists', 'steals', 'blocks', 'turnovers', 'three_pointers_made']
+        
+        for stat_name in target_stats:
+            if stat_name not in predictions_by_model:
+                continue
+            
+            try:
+                stat_confidence, stat_breakdown = calculate_confidence_score_per_stat(
+                    stat_name=stat_name,
+                    predictions_by_model=predictions_by_model,
+                    selected_models=selected_models,
+                    player_stats=player_stats,
+                    available_features=available_features,
+                    feature_importances=feature_importances,
+                    feature_groups=feature_groups,
+                    games_this_season=season_games,
+                    career_games=career_games,
+                    days_since_transaction=days_since_transaction,
+                    games_with_team=games_with_team,
+                    opponent_def_rating=opponent_def_rating,
+                    calibrator=None,
+                    config=CONFIDENCE_CONFIG,
+                    logger=logger,
+                    games_since_injury=games_since_injury,
+                    is_playoff=bool(is_playoff),
+                    is_back_to_back=bool(is_back_to_back),
+                    player_id=player_id,
+                    game_id=game_id,
+                    player_name=player_name
+                )
+                stat_breakdowns[stat_name] = stat_breakdown.to_dict()
+                stat_confidences.append(stat_confidence)
+            except Exception as e:
+                logger.warning(f"Error calculating confidence for stat {stat_name}, player {player_id}, game {game_id}: {e}")
+                continue
+        
+        if stat_confidences:
+            overall_confidence = sum(stat_confidences) / len(stat_confidences)
+        else:
+            old_score = calculate_confidence(features_df, recent_games, conn, player_id, target_date, season)
+            return old_score, {}
+        
+        return int(round(overall_confidence)), stat_breakdowns
+        
+    except Exception as e:
+        logger.warning(f"Error calculating new confidence for player {player_id}, game {game_id}: {e}")
+        old_score = calculate_confidence(features_df, recent_games, conn, player_id, target_date, season)
+        return old_score, {}
+
 def predict_upcoming_games(target_date=None, model_type='xgboost'):
     print(f"Predicting player performance for upcoming games using {model_type}...\n")
     
@@ -459,6 +607,32 @@ def predict_upcoming_games(target_date=None, model_type='xgboost'):
             
             if len(newly_traded) > 0:
                 print(f"    Found {len(newly_traded)} newly traded players (no games with new team yet)")
+                
+                missing_transactions = []
+                for _, row in newly_traded.iterrows():
+                    player_id = row['player_id']
+                    transaction_check = f"""
+                        SELECT transaction_id, transaction_date, transaction_type
+                        FROM player_transactions
+                        WHERE player_id = {player_id}
+                            AND transaction_type IN ('trade', 'signing')
+                            AND transaction_date >= %s::date - INTERVAL '7 days'
+                            AND transaction_date <= %s::date
+                        LIMIT 1
+                    """
+                    trans_result = pd.read_sql(transaction_check, conn, params=(target_date, target_date))
+                    if len(trans_result) == 0:
+                        player_name_query = f"SELECT full_name FROM players WHERE player_id = {player_id}"
+                        player_name_result = pd.read_sql(player_name_query, conn)
+                        player_name = player_name_result.iloc[0]['full_name'] if len(player_name_result) > 0 else f"Player {player_id}"
+                        missing_transactions.append((player_id, player_name))
+                
+                if missing_transactions:
+                    print(f"    WARNING: {len(missing_transactions)} newly traded player(s) missing from transactions table:")
+                    for pid, pname in missing_transactions:
+                        print(f"      - {pname} (ID: {pid}) - No transaction record found in past 7 days")
+                    print(f"    Run detect_and_update_trades.py to update transaction records")
+                
                 players = pd.concat([players, newly_traded]).drop_duplicates(subset=['player_id'])
             
             print(f"    Found {len(players)} qualifying players (injured players excluded)")
@@ -577,11 +751,59 @@ def predict_upcoming_games(target_date=None, model_type='xgboost'):
                         print(f"Warning: Error predicting {stat_name} with {model_type}: {e}")
                         predictions[stat_name] = 0.0
                 
-                confidence_score = calculate_confidence(
-                    features, recent_games, 
-                    conn=conn, player_id=player_id, 
-                    target_date=target_date, season=season
-                )
+                predictions_by_model = {}
+                for stat_name in ['points', 'rebounds', 'assists', 'steals', 'blocks', 'turnovers', 'three_pointers_made']:
+                    if stat_name in predictions:
+                        predictions_by_model[stat_name] = {model_type: predictions[stat_name]}
+                
+                opponent_def_rating = 114.0
+                if isinstance(features, pd.DataFrame):
+                    if 'defensive_rating_opp' in features.columns:
+                        opp_dr = features['defensive_rating_opp'].iloc[0]
+                        if not pd.isna(opp_dr):
+                            opponent_def_rating = float(opp_dr)
+                elif isinstance(features, dict):
+                    if 'defensive_rating_opp' in features:
+                        opp_dr = features['defensive_rating_opp']
+                        if opp_dr is not None and not (isinstance(opp_dr, float) and np.isnan(opp_dr)):
+                            opponent_def_rating = float(opp_dr)
+                
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                project_root = os.path.dirname(os.path.dirname(script_dir))
+                
+                if isinstance(features, dict):
+                    features_df = pd.DataFrame([features])
+                else:
+                    features_df = features
+                
+                player_name_query = f"SELECT full_name FROM players WHERE player_id = {player_id}"
+                player_name_result = pd.read_sql(player_name_query, conn)
+                player_name = player_name_result.iloc[0]['full_name'] if len(player_name_result) > 0 else None
+                
+                stat_breakdowns = {}
+                try:
+                    confidence_score, stat_breakdowns = calculate_confidence_new(
+                        predictions_by_model=predictions_by_model,
+                        selected_models=[model_type],
+                        features_df=features_df,
+                        recent_games=recent_games,
+                        conn=conn,
+                        player_id=player_id,
+                        game_id=game_id,
+                        target_date=target_date,
+                        season=season,
+                        opponent_def_rating=opponent_def_rating,
+                        project_root=project_root,
+                        player_name=player_name
+                    )
+                except Exception as e:
+                    logger.warning(f"Error with new confidence system, falling back to old: {e}")
+                    confidence_score = calculate_confidence(
+                        features_df, recent_games, 
+                        conn=conn, player_id=player_id, 
+                        target_date=target_date, season=season
+                    )
+                    stat_breakdowns = {}
                 
                 feature_explanations = {}
                 if isinstance(features, pd.DataFrame):
@@ -621,6 +843,7 @@ def predict_upcoming_games(target_date=None, model_type='xgboost'):
                             confidence_score = EXCLUDED.confidence_score,
                             prediction_date = EXCLUDED.prediction_date,
                             feature_explanations = EXCLUDED.feature_explanations
+                        RETURNING prediction_id
                     """, (
                         game_id,
                         player_id,
@@ -637,7 +860,55 @@ def predict_upcoming_games(target_date=None, model_type='xgboost'):
                         json.dumps(feature_explanations)
                     ))
                     
+                    result = cur.fetchone()
+                    prediction_id = result[0] if result else None
                     predictions_inserted += 1
+                    
+                    if stat_breakdowns and prediction_id is not None:
+                        try:
+                            for stat_name, breakdown in stat_breakdowns.items():
+                                cur.execute("""
+                                    INSERT INTO confidence_components (
+                                        prediction_id, player_id, game_id, prediction_date, model_version, stat_name,
+                                        ensemble_score, variance_score, feature_score, experience_score,
+                                        transaction_score, opponent_adj, injury_adj, playoff_adj,
+                                        back_to_back_adj, raw_score, calibrated_score, n_models
+                                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                    ON CONFLICT (prediction_id, stat_name) DO UPDATE SET
+                                        ensemble_score = EXCLUDED.ensemble_score,
+                                        variance_score = EXCLUDED.variance_score,
+                                        feature_score = EXCLUDED.feature_score,
+                                        experience_score = EXCLUDED.experience_score,
+                                        transaction_score = EXCLUDED.transaction_score,
+                                        opponent_adj = EXCLUDED.opponent_adj,
+                                        injury_adj = EXCLUDED.injury_adj,
+                                        playoff_adj = EXCLUDED.playoff_adj,
+                                        back_to_back_adj = EXCLUDED.back_to_back_adj,
+                                        raw_score = EXCLUDED.raw_score,
+                                        calibrated_score = EXCLUDED.calibrated_score,
+                                        n_models = EXCLUDED.n_models
+                                """, (
+                                    prediction_id,
+                                    player_id,
+                                    game_id,
+                                    target_date,
+                                    model_version,
+                                    stat_name,
+                                    breakdown.get('ensemble_score', 0.0),
+                                    breakdown.get('variance_score', 0.0),
+                                    breakdown.get('feature_score', 0.0),
+                                    breakdown.get('experience_score', 0.0),
+                                    breakdown.get('transaction_score', 0.0),
+                                    breakdown.get('opponent_adj', 0.0),
+                                    breakdown.get('injury_adj', 0.0),
+                                    breakdown.get('playoff_adj', 0.0),
+                                    breakdown.get('back_to_back_adj', 0.0),
+                                    breakdown.get('raw_score', 0.0),
+                                    breakdown.get('calibrated_score', 0.0),
+                                    breakdown.get('n_models', 1)
+                                ))
+                        except Exception as e:
+                            logger.warning(f"Could not save confidence breakdowns for prediction {prediction_id}: {e}")
                     
                 except Exception as e:
                     print(f"Error inserting prediction for player {player_id}: {e}")
@@ -1203,6 +1474,256 @@ def build_features_for_player(conn, player_id, team_id, opponent_id,
     
     return features_df, recent_games
 
+def recalculate_all_confidence_scores(prediction_date):
+    if isinstance(prediction_date, str):
+        prediction_date = datetime.strptime(prediction_date, '%Y-%m-%d').date()
+    elif isinstance(prediction_date, date):
+        prediction_date = prediction_date
+    
+    print("\n" + "="*70)
+    print("RECALCULATING CONFIDENCE SCORES WITH ALL MODELS")
+    print("="*70)
+    print(f"Target date: {prediction_date}\n")
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(os.path.dirname(script_dir))
+        
+        date_str = prediction_date.strftime('%Y-%m-%d')
+        
+        query = f"""
+            SELECT 
+                p.player_id,
+                p.game_id,
+                p.model_version,
+                p.predicted_points,
+                p.predicted_rebounds,
+                p.predicted_assists,
+                p.predicted_steals,
+                p.predicted_blocks,
+                p.predicted_turnovers,
+                p.predicted_three_pointers_made,
+                p.prediction_id,
+                g.season,
+                g.home_team_id,
+                g.away_team_id,
+                g.game_type
+            FROM predictions p
+            JOIN games g ON p.game_id = g.game_id
+            WHERE DATE(p.prediction_date) = '{date_str}'
+                AND p.model_version IN ('xgboost', 'lightgbm', 'catboost', 'random_forest')
+            ORDER BY p.player_id, p.game_id, p.model_version
+        """
+        
+        all_predictions_df = pd.read_sql(query, conn)
+        
+        if len(all_predictions_df) == 0:
+            print("No predictions found for this date.")
+            return
+        
+        print(f"Found {len(all_predictions_df)} predictions from {all_predictions_df['model_version'].nunique()} models")
+        
+        grouped = all_predictions_df.groupby(['player_id', 'game_id'])
+        total_groups = len(grouped)
+        print(f"Processing {total_groups} unique player/game combinations...\n")
+        
+        updated_count = 0
+        error_count = 0
+        skipped_insufficient_models = 0
+        skipped_no_team = 0
+        skipped_no_features = 0
+        
+        for (player_id, game_id), group in grouped:
+            try:
+                conn, cur = ensure_connection(conn, cur)
+                
+                player_id = int(player_id)
+                game_id = int(game_id)
+                
+                if len(group) < 2:
+                    skipped_insufficient_models += 1
+                    continue
+                
+                predictions_by_model = {}
+                stat_mapping = {
+                    'predicted_points': 'points',
+                    'predicted_rebounds': 'rebounds',
+                    'predicted_assists': 'assists',
+                    'predicted_steals': 'steals',
+                    'predicted_blocks': 'blocks',
+                    'predicted_turnovers': 'turnovers',
+                    'predicted_three_pointers_made': 'three_pointers_made'
+                }
+                
+                selected_models = []
+                for _, row in group.iterrows():
+                    model_version = row['model_version']
+                    if model_version not in selected_models:
+                        selected_models.append(model_version)
+                    
+                    for db_col, stat_name in stat_mapping.items():
+                        if stat_name not in predictions_by_model:
+                            predictions_by_model[stat_name] = {}
+                        if pd.notna(row[db_col]):
+                            predictions_by_model[stat_name][model_version] = float(row[db_col])
+                
+                if len(selected_models) < 2:
+                    skipped_insufficient_models += 1
+                    continue
+                
+                first_row = group.iloc[0]
+                season = first_row['season']
+                home_team_id = first_row['home_team_id']
+                away_team_id = first_row['away_team_id']
+                game_type = first_row['game_type']
+                
+                team_id_query = f"""
+                    SELECT team_id
+                    FROM player_game_stats
+                    WHERE player_id = {player_id}
+                        AND game_id IN (
+                            SELECT game_id FROM games
+                            WHERE season = '{season}'
+                            AND game_date < '{date_str}'
+                            AND (home_team_id = {home_team_id} OR away_team_id = {away_team_id})
+                            ORDER BY game_date DESC
+                            LIMIT 1
+                        )
+                    LIMIT 1
+                """
+                team_result = pd.read_sql(team_id_query, conn)
+                if len(team_result) == 0:
+                    fallback_query = f"""
+                        SELECT team_id
+                        FROM players
+                        WHERE player_id = {player_id}
+                        AND is_active = TRUE
+                        LIMIT 1
+                    """
+                    fallback_result = pd.read_sql(fallback_query, conn)
+                    if len(fallback_result) == 0:
+                        skipped_no_team += 1
+                        continue
+                    team_id = int(fallback_result.iloc[0]['team_id'])
+                else:
+                    team_id = int(team_result.iloc[0]['team_id'])
+                opponent_id = int(away_team_id) if team_id == int(home_team_id) else int(home_team_id)
+                is_home = 1 if team_id == int(home_team_id) else 0
+                
+                features_df, recent_games = build_features_for_player(
+                    conn, player_id, team_id, opponent_id,
+                    is_home, season, prediction_date, game_type
+                )
+                
+                if features_df is None or len(features_df) == 0:
+                    skipped_no_features += 1
+                    continue
+                
+                opponent_def_rating = 114.0
+                if 'defensive_rating_opp' in features_df.columns:
+                    opp_dr = features_df['defensive_rating_opp'].iloc[0]
+                    if pd.notna(opp_dr):
+                        opponent_def_rating = float(opp_dr)
+                
+                player_name_query = f"SELECT full_name FROM players WHERE player_id = {player_id}"
+                player_name_result = pd.read_sql(player_name_query, conn)
+                player_name = player_name_result.iloc[0]['full_name'] if len(player_name_result) > 0 else None
+                
+                confidence_score, stat_breakdowns = calculate_confidence_new(
+                    predictions_by_model=predictions_by_model,
+                    selected_models=selected_models,
+                    features_df=features_df,
+                    recent_games=recent_games,
+                    conn=conn,
+                    player_id=player_id,
+                    game_id=game_id,
+                    target_date=prediction_date,
+                    season=season,
+                    opponent_def_rating=opponent_def_rating,
+                    project_root=project_root,
+                    player_name=player_name
+                )
+                
+                for _, row in group.iterrows():
+                    prediction_id = row['prediction_id']
+                    
+                    cur.execute("""
+                        UPDATE predictions
+                        SET confidence_score = %s
+                        WHERE prediction_id = %s
+                    """, (float(confidence_score), int(prediction_id)))
+                    
+                    cur.execute("""
+                        DELETE FROM confidence_components
+                        WHERE prediction_id = %s
+                    """, (int(prediction_id),))
+                    
+                    if stat_breakdowns:
+                        for stat_name, breakdown in stat_breakdowns.items():
+                            cur.execute("""
+                                INSERT INTO confidence_components (
+                                    prediction_id, player_id, game_id, prediction_date, model_version, stat_name,
+                                    ensemble_score, variance_score, feature_score, experience_score,
+                                    transaction_score, opponent_adj, injury_adj, playoff_adj,
+                                    back_to_back_adj, raw_score, calibrated_score, n_models
+                                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            """, (
+                                int(prediction_id),
+                                int(player_id),
+                                int(game_id),
+                                prediction_date,
+                                row['model_version'],
+                                stat_name,
+                                float(breakdown.get('ensemble_score', 0)),
+                                float(breakdown.get('variance_score', 0)),
+                                float(breakdown.get('feature_score', 0)),
+                                float(breakdown.get('experience_score', 0)),
+                                float(breakdown.get('transaction_score', 0)),
+                                float(breakdown.get('opponent_adj', 0)),
+                                float(breakdown.get('injury_adj', 0)),
+                                float(breakdown.get('playoff_adj', 0)),
+                                float(breakdown.get('back_to_back_adj', 0)),
+                                float(breakdown.get('raw_score', 0)),
+                                float(breakdown.get('calibrated_score', 0)),
+                                int(breakdown.get('n_models', len(selected_models)))
+                            ))
+                
+                conn.commit()
+                updated_count += 1
+                
+                if updated_count % 50 == 0:
+                    print(f"  Updated {updated_count}/{total_groups} player/game combinations...")
+                    
+            except Exception as e:
+                error_count += 1
+                logger.warning(f"Error recalculating confidence for player {player_id}, game {game_id}: {e}")
+                conn.rollback()
+                continue
+        
+        if updated_count > 0 and updated_count % 50 != 0:
+            print(f"  Updated {updated_count}/{total_groups} player/game combinations...")
+        
+        print(f"\n{'='*70}")
+        print(f"RECALCULATION COMPLETE")
+        print(f"{'='*70}")
+        print(f"Successfully updated: {updated_count}")
+        print(f"Errors: {error_count}")
+        print(f"Skipped - insufficient models (<2): {skipped_insufficient_models}")
+        print(f"Skipped - no team found: {skipped_no_team}")
+        print(f"Skipped - no features: {skipped_no_features}")
+        print(f"Total processed: {total_groups}")
+        
+    except Exception as e:
+        logger.error(f"Error in recalculate_all_confidence_scores: {e}")
+        raise
+    finally:
+        cur.close()
+        conn.close()
+
+
 def predict_all_models(target_date=None):
     if target_date is None:
         target_date = datetime.now().date()
@@ -1217,12 +1738,31 @@ def predict_all_models(target_date=None):
         except Exception as e:
             print(f"Error predicting with {model_type}: {e}")
             continue
+    
+    print("\n" + "="*70)
+    print("All models completed. Recalculating confidence scores with ensemble data...")
+    print("="*70)
+    
+    try:
+        recalculate_all_confidence_scores(target_date)
+    except Exception as e:
+        logger.error(f"Error recalculating confidence scores: {e}")
+        print(f"Warning: Confidence recalculation failed: {e}")
+        print("Predictions stored but confidence scores may not include ensemble agreement.")
 
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1:
         target_date = sys.argv[1]
-        if len(sys.argv) > 2 and sys.argv[2] == '--all':
+        if len(sys.argv) > 2 and sys.argv[2] == '--recalculate-only':
+            if len(sys.argv) > 3 and sys.argv[3] == '--diagnostic':
+                enable_variance_diagnostic()
+                reset_variance_diagnostic()
+            recalculate_all_confidence_scores(target_date)
+        elif len(sys.argv) > 2 and sys.argv[2] == '--all':
+            if len(sys.argv) > 3 and sys.argv[3] == '--diagnostic':
+                enable_variance_diagnostic()
+                reset_variance_diagnostic()
             predict_all_models(target_date)
         else:
             model_type = sys.argv[2] if len(sys.argv) > 2 else 'xgboost'

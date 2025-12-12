@@ -10,9 +10,7 @@ __pycache__/
 .env
 .env.local
 data/raw/*
-data/processed/*
 !data/raw/.gitkeep
-!data/processed/.gitkeep
 .ipynb_checkpoints/
 *.ipynb_checkpoints
 .vscode/
@@ -27,8 +25,11 @@ logs/
 *.db
 *.sqlite3
 *.h5
-*.pkl
-*.joblib
 .pytest_cache/
 .coverage
 htmlcov/
+data/processed/*
+catboost_info/
+**/catboost_info/
+*.tsv
+events.out.tfevents

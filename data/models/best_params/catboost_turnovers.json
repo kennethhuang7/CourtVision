@@ -1,8 +1,8 @@
 {
-  "iterations": 160,
-  "depth": 4,
-  "learning_rate": 0.22358340648748457,
-  "subsample": 0.7010698040970519,
-  "colsample_bylevel": 0.7882876566132577,
-  "reg_lambda": 8.728760873617972
+  "iterations": 139,
+  "depth": 5,
+  "learning_rate": 0.13876722195864902,
+  "subsample": 0.8355354212413362,
+  "colsample_bylevel": 0.8238363638911738,
+  "reg_lambda": 5.3484128717498045
 }
