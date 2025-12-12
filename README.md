@@ -1,12 +1,8 @@
-<div align="center">
-
-<h1>NBA Player Performance Prediction</h1>
+# NBA Player Performance Prediction
 
 **Machine Learning System for NBA Player Statistics Forecasting**
 
 An ensemble-based prediction system using XGBoost, LightGBM, CatBoost, and Random Forest to forecast points, rebounds, assists, steals, blocks, turnovers, and three-pointers made for upcoming NBA games.
-
-</div>
 
 ---
 
