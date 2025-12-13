@@ -75,10 +75,10 @@ def update_position_defense_stats_for_yesterday(target_date=None):
                         SUM(pgs.steals) as steals,
                         SUM(pgs.blocks) as blocks,
                         SUM(pgs.turnovers) as turnovers,
-                        SUM(pgs.three_pointers_made) as 3pm,
+                        SUM(pgs.three_pointers_made) as "3pm",
                         SUM(pgs.field_goals_made) as fgm,
                         SUM(pgs.field_goals_attempted) as fga,
-                        SUM(pgs.three_pointers_attempted) as 3pa
+                        SUM(pgs.three_pointers_attempted) as "3pa"
                     FROM player_game_stats pgs
                     JOIN games g ON pgs.game_id = g.game_id
                     JOIN players p ON pgs.player_id = p.player_id

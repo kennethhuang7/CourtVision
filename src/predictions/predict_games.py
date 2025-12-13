@@ -615,7 +615,7 @@ def predict_upcoming_games(target_date=None, model_type='xgboost'):
                         SELECT transaction_id, transaction_date, transaction_type
                         FROM player_transactions
                         WHERE player_id = {player_id}
-                            AND transaction_type IN ('trade', 'signing')
+                            AND transaction_type IN ('trade', 'signing', 'waiver')
                             AND transaction_date >= %s::date - INTERVAL '7 days'
                             AND transaction_date <= %s::date
                         LIMIT 1

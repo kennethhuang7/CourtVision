@@ -77,8 +77,8 @@ def update_team_defensive_stats_for_yesterday(target_date=None):
                     SUM(pgs.turnovers) as turnovers,
                     SUM(pgs.field_goals_made) as fgm,
                     SUM(pgs.field_goals_attempted) as fga,
-                    SUM(pgs.three_pointers_made) as 3pm,
-                    SUM(pgs.three_pointers_attempted) as 3pa,
+                    SUM(pgs.three_pointers_made) as "3pm",
+                    SUM(pgs.three_pointers_attempted) as "3pa",
                     SUM(pgs.free_throws_made) as ftm,
                     SUM(pgs.free_throws_attempted) as fta
                 FROM player_game_stats pgs
@@ -143,8 +143,8 @@ def update_team_defensive_stats_for_yesterday(target_date=None):
                 SUM(pgs.turnovers) as turnovers,
                 SUM(pgs.field_goals_made) as fgm,
                 SUM(pgs.field_goals_attempted) as fga,
-                SUM(pgs.three_pointers_made) as 3pm,
-                SUM(pgs.three_pointers_attempted) as 3pa,
+                SUM(pgs.three_pointers_made) as "3pm",
+                SUM(pgs.three_pointers_attempted) as "3pa",
                 SUM(pgs.free_throws_made) as ftm,
                 SUM(pgs.free_throws_attempted) as fta
             FROM player_game_stats pgs
