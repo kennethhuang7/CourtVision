@@ -892,8 +892,8 @@ Confidence scores (0-100) measure **prediction quality** — how favorable the c
 
 | Score Range | Interpretation | Conditions |
 |-------------|----------------|------------|
-| **85-100** | Excellent | Very consistent player, strong model agreement, complete data, experienced, stable situation |
-| **70-84** | Good | Consistent player, good model agreement, mostly complete data, some experience |
+| **80-100** | Excellent | Very consistent player, strong model agreement, complete data, experienced, stable situation |
+| **70-79** | Good | Consistent player, good model agreement, mostly complete data, some experience |
 | **55-69** | Average | Moderate consistency, acceptable model agreement, adequate data |
 | **40-54** | Below Average | Inconsistent player, models disagree, limited data, or recent changes |
 | **Below 40** | Poor | Very inconsistent, high model disagreement, missing critical data, or major uncertainty factors |
