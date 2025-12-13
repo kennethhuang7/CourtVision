@@ -817,7 +817,7 @@ def predict_upcoming_games(target_date=None, model_type='xgboost'):
                         model_type,
                         stat_name,
                         league_means,
-                        top_n=10
+                        top_n=15
                     )
                     feature_explanations[stat_name] = top_features
                 

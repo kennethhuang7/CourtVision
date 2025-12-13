@@ -775,7 +775,7 @@ python src/predictions/predict_games.py 2024-12-15 --recalculate-only --diagnost
 ┌─────────────────────────────────────────────────────────────────┐
 │  6. GENERATE CONFIDENCE SCORES & EXPLANATIONS                   │
 │     • Calculate confidence (0-100) based on variance, history   │
-│     • Generate top 10 feature impacts per statistic             │
+│     • Generate top 15 feature impacts per statistic             │
 │     • Note: Initial confidence calculated per-model             │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
@@ -956,7 +956,7 @@ Final Confidence: **74** (0-100 scale) - **Good conditions** (70-84 range)
 
 ### Feature Explanations
 
-For each prediction, the top 10 most impactful features are identified with impact symbols:
+For each prediction, the top 15 most impactful features are identified with impact symbols:
 
 | Symbol | Meaning |
 |--------|---------|

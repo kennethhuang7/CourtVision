@@ -209,7 +209,7 @@ def get_top_features_with_impact(
     model_type, 
     stat_name, 
     league_means, 
-    top_n=10
+    top_n=15
 ):
     importance_dict = load_feature_importance(model_type, stat_name)
     
