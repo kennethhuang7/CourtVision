@@ -10,7 +10,7 @@
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from data_collection.utils import get_db_connection, rate_limit
+from utils import get_db_connection, rate_limit
 from nba_api.stats.endpoints import commonplayerinfo
 from nba_api.stats.static import players as nba_players
 import pandas as pd
