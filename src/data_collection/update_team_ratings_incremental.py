@@ -41,41 +41,94 @@ def update_team_ratings_for_yesterday(target_date=None):
     
     for team_id in teams:
         cur.execute("""
-            SELECT COUNT(DISTINCT g.game_id) as games_played,
-                   SUM(CASE WHEN g.home_team_id = %s THEN 1 WHEN g.home_score > g.away_score THEN 1 
-                            WHEN g.away_team_id = %s THEN 1 WHEN g.away_score > g.home_score THEN 1 
-                            ELSE 0 END) as wins
-            FROM games g
-            WHERE g.season = %s
-                AND (g.home_team_id = %s OR g.away_team_id = %s)
-                AND g.game_status = 'completed'
-                AND g.game_type = 'regular_season'
-        """, (team_id, team_id, season, team_id, team_id))
+            SELECT games_played, wins, losses, offensive_rating, defensive_rating, pace
+            FROM team_ratings
+            WHERE team_id = %s AND season = %s
+        """, (team_id, season))
         
-        games_wins = cur.fetchone()
-        games_played = games_wins[0]
-        wins = games_wins[1]
-        losses = games_played - wins
+        existing = cur.fetchone()
+        
+        if existing:
+            old_games = existing[0] or 0
+            old_wins = existing[1] or 0
+            
+            cur.execute("""
+                SELECT 
+                    SUM(CASE WHEN g.home_team_id = %s THEN g.home_score ELSE g.away_score END) as points_for,
+                    SUM(CASE WHEN g.home_team_id = %s THEN g.away_score ELSE g.home_score END) as points_against,
+                    SUM(CASE WHEN (g.home_team_id = %s AND g.home_score > g.away_score) OR 
+                                  (g.away_team_id = %s AND g.away_score > g.home_score) THEN 1 ELSE 0 END) as wins
+                FROM games g
+                WHERE g.season = %s
+                    AND (g.home_team_id = %s OR g.away_team_id = %s)
+                    AND g.game_status = 'completed'
+                    AND g.game_type = 'regular_season'
+                    AND g.game_date < %s
+            """, (team_id, team_id, team_id, team_id, season, team_id, team_id, target_date))
+            
+            old_game_totals = cur.fetchone()
+            if old_game_totals and old_game_totals[0] is not None:
+                old_points_for = old_game_totals[0] or 0
+                old_points_against = old_game_totals[1] or 0
+                old_wins = old_game_totals[2] or 0
+            else:
+                old_points_for = 0
+                old_points_against = 0
+                old_wins = 0
+            
+            cur.execute("""
+                SELECT 
+                    SUM(pgs.field_goals_attempted) as fga,
+                    SUM(pgs.rebounds_offensive) as oreb,
+                    SUM(pgs.turnovers) as tov,
+                    SUM(pgs.free_throws_attempted) as fta
+                FROM player_game_stats pgs
+                JOIN games g ON pgs.game_id = g.game_id
+                WHERE pgs.team_id = %s
+                    AND g.season = %s
+                    AND g.game_status = 'completed'
+                    AND g.game_type = 'regular_season'
+                    AND g.game_date < %s
+            """, (team_id, season, target_date))
+            
+            old_team_stats = cur.fetchone()
+            old_fga = old_team_stats[0] or 0 if old_team_stats else 0
+            old_oreb = old_team_stats[1] or 0 if old_team_stats else 0
+            old_tov = old_team_stats[2] or 0 if old_team_stats else 0
+            old_fta = old_team_stats[3] or 0 if old_team_stats else 0
+        else:
+            old_games = 0
+            old_wins = 0
+            old_points_for = 0
+            old_points_against = 0
+            old_fga = 0
+            old_oreb = 0
+            old_tov = 0
+            old_fta = 0
         
         cur.execute("""
             SELECT 
-                SUM(CASE WHEN g.home_team_id = %s THEN g.home_score ELSE g.away_score END) as points_for,
-                SUM(CASE WHEN g.home_team_id = %s THEN g.away_score ELSE g.home_score END) as points_against,
-                COUNT(*) as game_count
+                CASE WHEN g.home_team_id = %s THEN g.home_score ELSE g.away_score END as points_for,
+                CASE WHEN g.home_team_id = %s THEN g.away_score ELSE g.home_score END as points_against,
+                CASE WHEN (g.home_team_id = %s AND g.home_score > g.away_score) OR 
+                          (g.away_team_id = %s AND g.away_score > g.home_score) THEN 1 ELSE 0 END as win
             FROM games g
             WHERE g.season = %s
                 AND (g.home_team_id = %s OR g.away_team_id = %s)
                 AND g.game_status = 'completed'
                 AND g.game_type = 'regular_season'
-        """, (team_id, team_id, season, team_id, team_id))
+                AND g.game_date = %s
+        """, (team_id, team_id, team_id, team_id, season, team_id, team_id, target_date))
         
-        result = cur.fetchone()
-        points_for = result[0] or 0
-        points_against = result[1] or 0
-        game_count = result[2] or 0
+        new_games = cur.fetchall()
         
-        if game_count == 0:
+        if len(new_games) == 0:
             continue
+        
+        new_points_for = sum(row[0] or 0 for row in new_games)
+        new_points_against = sum(row[1] or 0 for row in new_games)
+        new_wins = sum(row[2] or 0 for row in new_games)
+        new_game_count = len(new_games)
         
         cur.execute("""
             SELECT 
@@ -89,27 +142,37 @@ def update_team_ratings_for_yesterday(target_date=None):
                 AND g.season = %s
                 AND g.game_status = 'completed'
                 AND g.game_type = 'regular_season'
-        """, (team_id, season))
+                AND g.game_date = %s
+        """, (team_id, season, target_date))
         
-        team_stats = cur.fetchone()
+        new_team_stats = cur.fetchone()
         
-        if not team_stats or not team_stats[0]:
+        if not new_team_stats or not new_team_stats[0]:
             continue
         
-        fga = team_stats[0] or 0
-        oreb = team_stats[1] or 0
-        tov = team_stats[2] or 0
-        fta = team_stats[3] or 0
+        new_fga = new_team_stats[0] or 0
+        new_oreb = new_team_stats[1] or 0
+        new_tov = new_team_stats[2] or 0
+        new_fta = new_team_stats[3] or 0
         
-        possessions = fga - oreb + tov + 0.44 * fta
+        total_points_for = old_points_for + new_points_for
+        total_points_against = old_points_against + new_points_against
+        total_fga = old_fga + new_fga
+        total_oreb = old_oreb + new_oreb
+        total_tov = old_tov + new_tov
+        total_fta = old_fta + new_fta
+        total_possessions = total_fga - total_oreb + total_tov + 0.44 * total_fta
+        games_played = old_games + new_game_count
+        wins = old_wins + new_wins
+        losses = games_played - wins
         
-        if possessions == 0:
+        if total_possessions == 0:
             continue
         
-        offensive_rating = round((points_for / possessions) * 100, 1)
-        defensive_rating = round((points_against / possessions) * 100, 1)
+        offensive_rating = round((total_points_for / total_possessions) * 100, 1)
+        defensive_rating = round((total_points_against / total_possessions) * 100, 1)
         net_rating = round(offensive_rating - defensive_rating, 1)
-        pace = round(possessions / game_count, 1)
+        pace = round(total_possessions / games_played, 1)
         
         cur.execute("""
             INSERT INTO team_ratings (

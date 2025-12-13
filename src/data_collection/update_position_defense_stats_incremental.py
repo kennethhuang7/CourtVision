@@ -46,19 +46,27 @@ def update_position_defense_stats_for_yesterday(target_date=None):
     for team_id in teams:
         for position in positions:
             cur.execute("""
-                SELECT 
-                    COUNT(*) as games,
-                    AVG(game_totals.points) as avg_points,
-                    AVG(game_totals.rebounds) as avg_rebounds,
-                    AVG(game_totals.assists) as avg_assists,
-                    AVG(game_totals.steals) as avg_steals,
-                    AVG(game_totals.blocks) as avg_blocks,
-                    AVG(game_totals.turnovers) as avg_turnovers,
-                    AVG(game_totals.three_pointers_made) as avg_3pm,
-                    AVG(game_totals.field_goals_made) as avg_fgm,
-                    AVG(game_totals.field_goals_attempted) as avg_fga,
-                    AVG(game_totals.three_pointers_attempted) as avg_3pa
-                FROM (
+                SELECT games_played, points_allowed_per_game, rebounds_allowed_per_game,
+                       assists_allowed_per_game, steals_allowed_per_game, blocks_allowed_per_game,
+                       turnovers_forced_per_game, three_pointers_made_allowed_per_game, fg_pct_allowed
+                FROM position_defense_stats
+                WHERE team_id = %s AND season = %s AND position = %s
+            """, (team_id, season, position))
+            
+            existing = cur.fetchone()
+            
+            if existing:
+                old_games = existing[0] or 0
+                old_avg_points = existing[1] or 0
+                old_avg_rebounds = existing[2] or 0
+                old_avg_assists = existing[3] or 0
+                old_avg_steals = existing[4] or 0
+                old_avg_blocks = existing[5] or 0
+                old_avg_turnovers = existing[6] or 0
+                old_avg_3pm = existing[7] or 0
+                old_fg_pct = existing[8] or 0
+                
+                cur.execute("""
                     SELECT 
                         pgs.game_id,
                         SUM(pgs.points) as points,
@@ -67,10 +75,10 @@ def update_position_defense_stats_for_yesterday(target_date=None):
                         SUM(pgs.steals) as steals,
                         SUM(pgs.blocks) as blocks,
                         SUM(pgs.turnovers) as turnovers,
-                        SUM(pgs.three_pointers_made) as three_pointers_made,
-                        SUM(pgs.field_goals_made) as field_goals_made,
-                        SUM(pgs.field_goals_attempted) as field_goals_attempted,
-                        SUM(pgs.three_pointers_attempted) as three_pointers_attempted
+                        SUM(pgs.three_pointers_made) as 3pm,
+                        SUM(pgs.field_goals_made) as fgm,
+                        SUM(pgs.field_goals_attempted) as fga,
+                        SUM(pgs.three_pointers_attempted) as 3pa
                     FROM player_game_stats pgs
                     JOIN games g ON pgs.game_id = g.game_id
                     JOIN players p ON pgs.player_id = p.player_id
@@ -80,26 +88,112 @@ def update_position_defense_stats_for_yesterday(target_date=None):
                         AND pgs.team_id != %s
                         AND (g.home_team_id = %s OR g.away_team_id = %s)
                         AND p.position LIKE %s
+                        AND g.game_date < %s
                     GROUP BY pgs.game_id
-                ) as game_totals
-            """, (season, team_id, team_id, team_id, f'%{position}%'))
+                """, (season, team_id, team_id, team_id, f'%{position}%', target_date))
+                
+                old_game_stats = cur.fetchall()
+                if old_game_stats:
+                    old_total_points = sum(row[1] or 0 for row in old_game_stats)
+                    old_total_rebounds = sum(row[2] or 0 for row in old_game_stats)
+                    old_total_assists = sum(row[3] or 0 for row in old_game_stats)
+                    old_total_steals = sum(row[4] or 0 for row in old_game_stats)
+                    old_total_blocks = sum(row[5] or 0 for row in old_game_stats)
+                    old_total_turnovers = sum(row[6] or 0 for row in old_game_stats)
+                    old_total_3pm = sum(row[7] or 0 for row in old_game_stats)
+                    old_total_fgm = sum(row[8] or 0 for row in old_game_stats)
+                    old_total_fga = sum(row[9] or 0 for row in old_game_stats)
+                    old_total_3pa = sum(row[10] or 0 for row in old_game_stats)
+                    old_games = len(old_game_stats)
+                else:
+                    old_total_points = old_avg_points * old_games if old_games > 0 else 0
+                    old_total_rebounds = old_avg_rebounds * old_games if old_games > 0 else 0
+                    old_total_assists = old_avg_assists * old_games if old_games > 0 else 0
+                    old_total_steals = old_avg_steals * old_games if old_games > 0 else 0
+                    old_total_blocks = old_avg_blocks * old_games if old_games > 0 else 0
+                    old_total_turnovers = old_avg_turnovers * old_games if old_games > 0 else 0
+                    old_total_3pm = old_avg_3pm * old_games if old_games > 0 else 0
+                    old_total_fga = (old_total_points / 2) / (old_fg_pct / 100) if old_fg_pct > 0 and old_total_points > 0 else 0
+                    old_total_fgm = (old_fg_pct / 100) * old_total_fga if old_total_fga > 0 else 0
+                    old_total_3pa = old_total_3pm / 0.35 if old_total_3pm > 0 else 0
+            else:
+                old_games = 0
+                old_total_points = 0
+                old_total_rebounds = 0
+                old_total_assists = 0
+                old_total_steals = 0
+                old_total_blocks = 0
+                old_total_turnovers = 0
+                old_total_3pm = 0
+                old_total_fgm = 0
+                old_total_fga = 0
+                old_total_3pa = 0
             
-            result = cur.fetchone()
+            cur.execute("""
+                SELECT 
+                    pgs.game_id,
+                    SUM(pgs.points) as points,
+                    SUM(pgs.rebounds_total) as rebounds,
+                    SUM(pgs.assists) as assists,
+                    SUM(pgs.steals) as steals,
+                    SUM(pgs.blocks) as blocks,
+                    SUM(pgs.turnovers) as turnovers,
+                    SUM(pgs.three_pointers_made) as three_pointers_made,
+                    SUM(pgs.field_goals_made) as field_goals_made,
+                    SUM(pgs.field_goals_attempted) as field_goals_attempted,
+                    SUM(pgs.three_pointers_attempted) as three_pointers_attempted
+                FROM player_game_stats pgs
+                JOIN games g ON pgs.game_id = g.game_id
+                JOIN players p ON pgs.player_id = p.player_id
+                WHERE g.season = %s
+                    AND g.game_status = 'completed'
+                    AND g.game_type = 'regular_season'
+                    AND pgs.team_id != %s
+                    AND (g.home_team_id = %s OR g.away_team_id = %s)
+                    AND p.position LIKE %s
+                    AND g.game_date = %s
+                GROUP BY pgs.game_id
+            """, (season, team_id, team_id, team_id, f'%{position}%', target_date))
             
-            if not result or result[0] == 0:
+            new_game_stats = cur.fetchall()
+            
+            if len(new_game_stats) == 0:
                 continue
             
-            games_count = result[0] or 0
-            avg_points = round(result[1] or 0, 1) if result[1] else 0.0
-            avg_rebounds = round(result[2] or 0, 1) if result[2] else 0.0
-            avg_assists = round(result[3] or 0, 1) if result[3] else 0.0
-            avg_steals = round(result[4] or 0, 1) if result[4] else 0.0
-            avg_blocks = round(result[5] or 0, 1) if result[5] else 0.0
-            avg_turnovers = round(result[6] or 0, 1) if result[6] else 0.0
-            avg_3pm = result[7] or 0
-            avg_fgm = result[8] or 0
-            avg_fga = result[9] or 0
-            avg_3pa = result[10] or 0
+            new_total_points = sum(row[1] or 0 for row in new_game_stats)
+            new_total_rebounds = sum(row[2] or 0 for row in new_game_stats)
+            new_total_assists = sum(row[3] or 0 for row in new_game_stats)
+            new_total_steals = sum(row[4] or 0 for row in new_game_stats)
+            new_total_blocks = sum(row[5] or 0 for row in new_game_stats)
+            new_total_turnovers = sum(row[6] or 0 for row in new_game_stats)
+            new_total_3pm = sum(row[7] or 0 for row in new_game_stats)
+            new_total_fgm = sum(row[8] or 0 for row in new_game_stats)
+            new_total_fga = sum(row[9] or 0 for row in new_game_stats)
+            new_total_3pa = sum(row[10] or 0 for row in new_game_stats)
+            new_games = len(new_game_stats)
+            
+            total_points = old_total_points + new_total_points
+            total_rebounds = old_total_rebounds + new_total_rebounds
+            total_assists = old_total_assists + new_total_assists
+            total_steals = old_total_steals + new_total_steals
+            total_blocks = old_total_blocks + new_total_blocks
+            total_turnovers = old_total_turnovers + new_total_turnovers
+            total_3pm = old_total_3pm + new_total_3pm
+            total_fgm = old_total_fgm + new_total_fgm
+            total_fga = old_total_fga + new_total_fga
+            total_3pa = old_total_3pa + new_total_3pa
+            games_count = old_games + new_games
+            
+            avg_points = round(total_points / games_count, 1) if games_count > 0 else 0.0
+            avg_rebounds = round(total_rebounds / games_count, 1) if games_count > 0 else 0.0
+            avg_assists = round(total_assists / games_count, 1) if games_count > 0 else 0.0
+            avg_steals = round(total_steals / games_count, 1) if games_count > 0 else 0.0
+            avg_blocks = round(total_blocks / games_count, 1) if games_count > 0 else 0.0
+            avg_turnovers = round(total_turnovers / games_count, 1) if games_count > 0 else 0.0
+            avg_3pm = total_3pm / games_count if games_count > 0 else 0
+            avg_fgm = total_fgm / games_count if games_count > 0 else 0
+            avg_fga = total_fga / games_count if games_count > 0 else 0
+            avg_3pa = total_3pa / games_count if games_count > 0 else 0
             
             opp_fg_pct = round((avg_fgm / avg_fga) * 100, 1) if avg_fga > 0 else 0
             opp_3p_pct = round((avg_3pm / avg_3pa) * 100, 1) if avg_3pa > 0 else 0

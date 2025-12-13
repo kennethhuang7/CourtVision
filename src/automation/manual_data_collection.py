@@ -24,7 +24,6 @@ def run_manual_collection():
     
     steps = [
         ("Collect yesterday's games", os.path.join(project_root, "src", "data_collection", "update_yesterday_games.py"), yesterday),
-        ("Update career stats", os.path.join(project_root, "src", "data_collection", "update_career_stats_incremental.py"), yesterday),
         ("Update team ratings", os.path.join(project_root, "src", "data_collection", "update_team_ratings_incremental.py"), yesterday),
         ("Update team defensive stats", os.path.join(project_root, "src", "data_collection", "update_team_defensive_stats_incremental.py"), yesterday),
         ("Update position defense", os.path.join(project_root, "src", "data_collection", "update_position_defense_stats_incremental.py"), yesterday),

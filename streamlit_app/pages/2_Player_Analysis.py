@@ -330,19 +330,10 @@ def get_player_info(player_id):
             p.full_name,
             p.position,
             t.full_name as team_name,
-            t.abbreviation as team_abbr,
-            pcs.career_games,
-            pcs.career_points,
-            pcs.career_rebounds,
-            pcs.career_assists,
-            pcs.career_steals,
-            pcs.career_blocks
+            t.abbreviation as team_abbr
         FROM players p
         LEFT JOIN teams t ON p.team_id = t.team_id
-        LEFT JOIN player_career_stats pcs ON p.player_id = pcs.player_id
         WHERE p.player_id = %s
-        ORDER BY pcs.updated_date DESC NULLS LAST
-        LIMIT 1
     """
     
     result = pd.read_sql(query, conn, params=(player_id_int,))
@@ -351,6 +342,47 @@ def get_player_info(player_id):
     if len(result) > 0:
         return result.iloc[0].to_dict()
     return None
+
+def get_career_stats(player_id):
+    conn = get_db_connection()
+    player_id_int = int(player_id)
+    
+    query = """
+        SELECT 
+            COUNT(*) as career_games,
+            SUM(pgs.points) as career_points,
+            SUM(pgs.rebounds_total) as career_rebounds,
+            SUM(pgs.assists) as career_assists,
+            SUM(pgs.steals) as career_steals,
+            SUM(pgs.blocks) as career_blocks
+        FROM player_game_stats pgs
+        JOIN games g ON pgs.game_id = g.game_id
+        WHERE pgs.player_id = %s
+        AND g.game_status = 'completed'
+        AND pgs.minutes_played > 0
+    """
+    
+    result = pd.read_sql(query, conn, params=(player_id_int,))
+    conn.close()
+    
+    if len(result) > 0:
+        row = result.iloc[0]
+        return {
+            'career_games': int(row['career_games'] or 0),
+            'career_points': int(row['career_points'] or 0),
+            'career_rebounds': int(row['career_rebounds'] or 0),
+            'career_assists': int(row['career_assists'] or 0),
+            'career_steals': int(row['career_steals'] or 0),
+            'career_blocks': int(row['career_blocks'] or 0)
+        }
+    return {
+        'career_games': 0,
+        'career_points': 0,
+        'career_rebounds': 0,
+        'career_assists': 0,
+        'career_steals': 0,
+        'career_blocks': 0
+    }
 
 def get_season_averages(player_id, season='2025-26'):
     conn = get_db_connection()
@@ -1025,26 +1057,6 @@ def main():
 </div>
 </div>"""
             
-            career_html = ""
-            if player_info.get('career_games') and player_info.get('career_games', 0) > 0:
-                career_ppg = player_info.get('career_points', 0) / player_info.get('career_games', 1)
-                career_rpg = player_info.get('career_rebounds', 0) / player_info.get('career_games', 1)
-                career_apg = player_info.get('career_assists', 0) / player_info.get('career_games', 1)
-                career_spg = player_info.get('career_steals', 0) / player_info.get('career_games', 1)
-                career_bpg = player_info.get('career_blocks', 0) / player_info.get('career_games', 1)
-                
-                career_html = f"""<div class="stats-section">
-<div class="stats-section-title">Career Averages</div>
-<div class="stats-grid">
-<div class="stat-item">PTS: <strong>{career_ppg:.1f}</strong></div>
-<div class="stat-item">REB: <strong>{career_rpg:.1f}</strong></div>
-<div class="stat-item">AST: <strong>{career_apg:.1f}</strong></div>
-<div class="stat-item">STL: <strong>{career_spg:.1f}</strong></div>
-<div class="stat-item">BLK: <strong>{career_bpg:.1f}</strong></div>
-<div class="stat-item">GP: <strong>{int(player_info.get('career_games', 0))}</strong></div>
-</div>
-</div>"""
-            
             full_html = f"""<div class="player-info-card">
 <div class="player-header">
 <img src="{photo_url}" class="player-photo-large" onerror="this.src='https://cdn.nba.com/headshots/nba/latest/1040x760/fallback.png'">
@@ -1054,9 +1066,54 @@ def main():
 </div>
 </div>
 {season_html}
-{career_html}
 </div>"""
             st.markdown(full_html, unsafe_allow_html=True)
+            
+            career_placeholder = st.empty()
+            with career_placeholder.container():
+                st.markdown("""<div class="stats-section">
+<div class="stats-section-title">Career Averages</div>
+<div class="stats-grid">
+<div class="stat-item">PTS: <strong>...</strong></div>
+<div class="stat-item">REB: <strong>...</strong></div>
+<div class="stat-item">AST: <strong>...</strong></div>
+<div class="stat-item">STL: <strong>...</strong></div>
+<div class="stat-item">BLK: <strong>...</strong></div>
+<div class="stat-item">GP: <strong>...</strong></div>
+</div>
+</div>""", unsafe_allow_html=True)
+            
+            with st.spinner("Calculating career stats..."):
+                career_stats = get_career_stats(player_id)
+            
+            career_html = ""
+            if career_stats.get('career_games', 0) > 0:
+                career_ppg = career_stats.get('career_points', 0) / career_stats.get('career_games', 1)
+                career_rpg = career_stats.get('career_rebounds', 0) / career_stats.get('career_games', 1)
+                career_apg = career_stats.get('career_assists', 0) / career_stats.get('career_games', 1)
+                career_spg = career_stats.get('career_steals', 0) / career_stats.get('career_games', 1)
+                career_bpg = career_stats.get('career_blocks', 0) / career_stats.get('career_games', 1)
+                
+                career_html = f"""<div class="stats-section">
+<div class="stats-section-title">Career Averages</div>
+<div class="stats-grid">
+<div class="stat-item">PTS: <strong>{career_ppg:.1f}</strong></div>
+<div class="stat-item">REB: <strong>{career_rpg:.1f}</strong></div>
+<div class="stat-item">AST: <strong>{career_apg:.1f}</strong></div>
+<div class="stat-item">STL: <strong>{career_spg:.1f}</strong></div>
+<div class="stat-item">BLK: <strong>{career_bpg:.1f}</strong></div>
+<div class="stat-item">GP: <strong>{int(career_stats.get('career_games', 0))}</strong></div>
+</div>
+</div>"""
+            else:
+                career_html = """<div class="stats-section">
+<div class="stats-section-title">Career Averages</div>
+<div class="stats-grid">
+<div class="stat-item">No career data available</div>
+</div>
+</div>"""
+            
+            career_placeholder.markdown(career_html, unsafe_allow_html=True)
     
     with col_options:
         st.markdown("<div style='color: #d4af37; font-weight: 600; margin-bottom: 0.5rem;'>Time Window</div>", unsafe_allow_html=True)

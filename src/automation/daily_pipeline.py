@@ -34,18 +34,7 @@ def run_daily_pipeline():
         print("Run: python src/automation/manual_data_collection.py")
         sys.exit(1)
     
-    print("\nSTEP 2: Update career stats (players who played yesterday)")
-    print("-"*50)
-    result = subprocess.run([
-        sys.executable,
-        '../data_collection/update_career_stats_incremental.py',
-        str(yesterday)
-    ], capture_output=True, text=True)
-    print(result.stdout)
-    if result.stderr:
-        print("ERROR:", result.stderr)
-    
-    print("\nSTEP 3: Update team ratings (teams that played yesterday)")
+    print("\nSTEP 2: Update team ratings (teams that played yesterday)")
     print("-"*50)
     result = subprocess.run([
         sys.executable,
@@ -56,7 +45,7 @@ def run_daily_pipeline():
     if result.stderr:
         print("ERROR:", result.stderr)
     
-    print("\nSTEP 4: Update team defensive stats (teams that played yesterday)")
+    print("\nSTEP 3: Update team defensive stats (teams that played yesterday)")
     print("-"*50)
     result = subprocess.run([
         sys.executable,
@@ -67,7 +56,7 @@ def run_daily_pipeline():
     if result.stderr:
         print("ERROR:", result.stderr)
     
-    print("\nSTEP 5: Update position defense stats (teams that played yesterday)")
+    print("\nSTEP 4: Update position defense stats (teams that played yesterday)")
     print("-"*50)
     result = subprocess.run([
         sys.executable,
@@ -78,7 +67,7 @@ def run_daily_pipeline():
     if result.stderr:
         print("ERROR:", result.stderr)
     
-    print("\nSTEP 6: Scrape current injuries")
+    print("\nSTEP 5: Scrape current injuries")
     print("-"*50)
     result = subprocess.run([
         sys.executable,
@@ -88,7 +77,7 @@ def run_daily_pipeline():
     if result.stderr:
         print("ERROR:", result.stderr)
     
-    print("\nSTEP 7: Mark recovered players")
+    print("\nSTEP 6: Mark recovered players")
     print("-"*50)
     result = subprocess.run([
         sys.executable,
@@ -99,7 +88,7 @@ def run_daily_pipeline():
     if result.stderr:
         print("ERROR:", result.stderr)
     
-    print("\nSTEP 8: Detect and update player transactions (trades, signings, waivers)")
+    print("\nSTEP 7: Detect and update player transactions (trades, signings, waivers)")
     print("-"*50)
     result = subprocess.run([
         sys.executable,
@@ -110,7 +99,7 @@ def run_daily_pipeline():
     if result.stderr:
         print("ERROR:", result.stderr)
     
-    print("\nSTEP 8b: Update player teams from recent game data (backup)")
+    print("\nSTEP 7b: Update player teams from recent game data (backup)")
     print("-"*50)
     result = subprocess.run([
         sys.executable,
@@ -122,7 +111,7 @@ def run_daily_pipeline():
     if result.stderr:
         print("ERROR:", result.stderr)
     
-    print("\nSTEP 9: Collect today's schedule")
+    print("\nSTEP 8: Collect today's schedule")
     print("-"*50)
     result = subprocess.run([
         sys.executable,
@@ -133,7 +122,7 @@ def run_daily_pipeline():
     if result.stderr:
         print("ERROR:", result.stderr)
     
-    print("\nSTEP 10: Generate predictions for today (all models)")
+    print("\nSTEP 9: Generate predictions for today (all models)")
     print("-"*50)
     result = subprocess.run([
         sys.executable,
@@ -145,7 +134,7 @@ def run_daily_pipeline():
     if result.stderr:
         print("ERROR:", result.stderr)
     
-    print("\nSTEP 11: Evaluate yesterday's predictions")
+    print("\nSTEP 10: Evaluate yesterday's predictions")
     print("-"*50)
     result = subprocess.run([
         sys.executable,
