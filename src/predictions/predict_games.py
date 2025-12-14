@@ -1607,9 +1607,17 @@ def recalculate_all_confidence_scores(prediction_date):
                     if len(fallback_result) == 0:
                         skipped_no_team += 1
                         continue
-                    team_id = int(fallback_result.iloc[0]['team_id'])
+                    team_id_val = fallback_result.iloc[0]['team_id']
+                    if pd.isna(team_id_val) or team_id_val is None:
+                        skipped_no_team += 1
+                        continue
+                    team_id = int(team_id_val)
                 else:
-                    team_id = int(team_result.iloc[0]['team_id'])
+                    team_id_val = team_result.iloc[0]['team_id']
+                    if pd.isna(team_id_val) or team_id_val is None:
+                        skipped_no_team += 1
+                        continue
+                    team_id = int(team_id_val)
                 opponent_id = int(away_team_id) if team_id == int(home_team_id) else int(home_team_id)
                 is_home = 1 if team_id == int(home_team_id) else 0
                 
