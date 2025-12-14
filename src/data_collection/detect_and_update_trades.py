@@ -441,6 +441,8 @@ def detect_and_update_transactions(check_date=None, update_all_players=False):
                                 else:
                                     raise
                         else:
+                            print(f"\n  SIGNING: {player_name} (ID: {player_id})")
+                            print(f"    [INFO] Signing already recorded in last 7 days")
                             skipped_already_recorded += 1
                         
                         if current_team_id != api_team_id:
@@ -450,6 +452,10 @@ def detect_and_update_transactions(check_date=None, update_all_players=False):
                             conn.commit()
                         elif not existing_signing:
                             conn.commit()
+                    else:
+                        print(f"\n  SIGNING: {player_name} (ID: {player_id})")
+                        print(f"    [INFO] NBA API shows no team_id (may be free agent or not active)")
+                        skipped_not_in_nba_api += 1
                 
                 elif trans_type == 'trade':
                     if api_team_id is not None and current_team_id != api_team_id:
@@ -913,13 +919,21 @@ def update_player_team_from_recent_games(check_date=None):
             AND g.game_status = 'completed'
             AND g.game_date >= %s::date - INTERVAL '60 days'
             ORDER BY p.player_id, g.game_date DESC
+        ),
+        waived_players AS (
+            SELECT DISTINCT player_id
+            FROM player_transactions
+            WHERE transaction_type = 'waiver'
+                AND to_team_id IS NULL
+                AND transaction_date >= %s::date - INTERVAL '90 days'
         )
         SELECT rt.player_id, p.full_name, p.team_id as current_team_id, rt.recent_team_id
         FROM recent_team rt
         JOIN players p ON rt.player_id = p.player_id
         WHERE rt.recent_team_id IS NOT NULL
         AND (p.team_id IS NULL OR p.team_id != rt.recent_team_id)
-    """, (check_date,))
+        AND rt.player_id NOT IN (SELECT player_id FROM waived_players)
+    """, (check_date, check_date))
     
     updates = cur.fetchall()
     
