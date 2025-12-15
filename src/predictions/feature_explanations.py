@@ -59,10 +59,16 @@ def get_feature_description(feature_name):
         'minutes_played_l5': 'Recent minutes (last 5 games)',
         'minutes_played_l10': 'Recent minutes (last 10 games)',
         'minutes_played_l20': 'Recent minutes (last 20 games)',
+        'minutes_played_l5_weighted': 'Recent minutes trend (last 5 games, weighted)',
+        'minutes_played_l10_weighted': 'Recent minutes trend (last 10 games, weighted)',
+        'minutes_played_l20_weighted': 'Recent minutes trend (last 20 games, weighted)',
         'minutes_trend': 'Minutes trend (increasing/decreasing)',
         'usage_rate_l5': 'Recent usage rate (last 5 games)',
         'usage_rate_l10': 'Recent usage rate (last 10 games)',
         'usage_rate_l20': 'Recent usage rate (last 20 games)',
+        'usage_rate_l5_weighted': 'Usage rate trend (last 5 games, weighted)',
+        'usage_rate_l10_weighted': 'Usage rate trend (last 10 games, weighted)',
+        'usage_rate_l20_weighted': 'Usage rate trend (last 20 games, weighted)',
         'offensive_rating_l5': 'Recent offensive rating (last 5 games)',
         'offensive_rating_l10': 'Recent offensive rating (last 10 games)',
         'offensive_rating_l20': 'Recent offensive rating (last 20 games)',
@@ -72,36 +78,53 @@ def get_feature_description(feature_name):
         'net_rating_l5': 'Recent net rating (last 5 games)',
         'net_rating_l10': 'Recent net rating (last 10 games)',
         'net_rating_l20': 'Recent net rating (last 20 games)',
-        'field_goal_pct_l5': 'Recent field goal percentage (last 5 games)',
-        'field_goal_pct_l10': 'Recent field goal percentage (last 10 games)',
-        'field_goal_pct_l20': 'Recent field goal percentage (last 20 games)',
-        'three_point_pct_l5': 'Recent three-point percentage (last 5 games)',
-        'three_point_pct_l10': 'Recent three-point percentage (last 10 games)',
-        'three_point_pct_l20': 'Recent three-point percentage (last 20 games)',
-        'free_throw_pct_l5': 'Recent free throw percentage (last 5 games)',
-        'free_throw_pct_l10': 'Recent free throw percentage (last 10 games)',
-        'free_throw_pct_l20': 'Recent free throw percentage (last 20 games)',
+        'fg_pct_l5': 'Recent field goal percentage (last 5 games)',
+        'fg_pct_l10': 'Recent field goal percentage (last 10 games)',
+        'fg_pct_l20': 'Recent field goal percentage (last 20 games)',
+        'three_pct_l5': 'Recent three-point percentage (last 5 games)',
+        'three_pct_l10': 'Recent three-point percentage (last 10 games)',
+        'three_pct_l20': 'Recent three-point percentage (last 20 games)',
+        'ft_pct_l5': 'Recent free throw percentage (last 5 games)',
+        'ft_pct_l10': 'Recent free throw percentage (last 10 games)',
+        'ft_pct_l20': 'Recent free throw percentage (last 20 games)',
         'true_shooting_pct_l5': 'Recent true shooting percentage (last 5 games)',
         'true_shooting_pct_l10': 'Recent true shooting percentage (last 10 games)',
         'true_shooting_pct_l20': 'Recent true shooting percentage (last 20 games)',
         'points_per_36_l5': 'Recent scoring rate per 36 minutes (last 5 games)',
         'points_per_36_l10': 'Recent scoring rate per 36 minutes (last 10 games)',
         'points_per_36_l20': 'Recent scoring rate per 36 minutes (last 20 games)',
-        'rebounds_per_36_l5': 'Recent rebounding rate per 36 minutes (last 5 games)',
-        'rebounds_per_36_l10': 'Recent rebounding rate per 36 minutes (last 10 games)',
-        'rebounds_per_36_l20': 'Recent rebounding rate per 36 minutes (last 20 games)',
+        'rebounds_total_per_36_l5': 'Recent rebounding rate per 36 minutes (last 5 games)',
+        'rebounds_total_per_36_l10': 'Recent rebounding rate per 36 minutes (last 10 games)',
+        'rebounds_total_per_36_l20': 'Recent rebounding rate per 36 minutes (last 20 games)',
         'assists_per_36_l5': 'Recent assists rate per 36 minutes (last 5 games)',
         'assists_per_36_l10': 'Recent assists rate per 36 minutes (last 10 games)',
         'assists_per_36_l20': 'Recent assists rate per 36 minutes (last 20 games)',
-        'assist_to_turnover_ratio_l5': 'Recent assist-to-turnover ratio (last 5 games)',
-        'assist_to_turnover_ratio_l10': 'Recent assist-to-turnover ratio (last 10 games)',
-        'assist_to_turnover_ratio_l20': 'Recent assist-to-turnover ratio (last 20 games)',
-        'points_per_assist_l5': 'Recent points per assist (last 5 games)',
-        'points_per_assist_l10': 'Recent points per assist (last 10 games)',
-        'points_per_assist_l20': 'Recent points per assist (last 20 games)',
-        'rebound_rate_l5': 'Recent rebound rate (last 5 games)',
-        'rebound_rate_l10': 'Recent rebound rate (last 10 games)',
-        'rebound_rate_l20': 'Recent rebound rate (last 20 games)',
+        'steals_per_36_l5': 'Recent steals rate per 36 minutes (last 5 games)',
+        'steals_per_36_l10': 'Recent steals rate per 36 minutes (last 10 games)',
+        'steals_per_36_l20': 'Recent steals rate per 36 minutes (last 20 games)',
+        'blocks_per_36_l5': 'Recent blocks rate per 36 minutes (last 5 games)',
+        'blocks_per_36_l10': 'Recent blocks rate per 36 minutes (last 10 games)',
+        'blocks_per_36_l20': 'Recent blocks rate per 36 minutes (last 20 games)',
+        'turnovers_per_36_l5': 'Recent turnovers rate per 36 minutes (last 5 games)',
+        'turnovers_per_36_l10': 'Recent turnovers rate per 36 minutes (last 10 games)',
+        'turnovers_per_36_l20': 'Recent turnovers rate per 36 minutes (last 20 games)',
+        'three_pointers_made_per_36_l5': 'Recent three-pointers rate per 36 minutes (last 5 games)',
+        'three_pointers_made_per_36_l10': 'Recent three-pointers rate per 36 minutes (last 10 games)',
+        'three_pointers_made_per_36_l20': 'Recent three-pointers rate per 36 minutes (last 20 games)',
+        'ast_to_ratio_l5': 'Recent assist-to-turnover ratio (last 5 games)',
+        'ast_to_ratio_l10': 'Recent assist-to-turnover ratio (last 10 games)',
+        'ast_to_ratio_l20': 'Recent assist-to-turnover ratio (last 20 games)',
+        'pts_per_fga_l5': 'Recent points per field goal attempt (last 5 games)',
+        'pts_per_fga_l10': 'Recent points per field goal attempt (last 10 games)',
+        'pts_per_fga_l20': 'Recent points per field goal attempt (last 20 games)',
+        'pts_per_ast_l5': 'Recent points per assist (last 5 games)',
+        'pts_per_ast_l10': 'Recent points per assist (last 10 games)',
+        'pts_per_ast_l20': 'Recent points per assist (last 20 games)',
+        'reb_rate_l5': 'Recent rebound rate (last 5 games)',
+        'reb_rate_l10': 'Recent rebound rate (last 10 games)',
+        'reb_rate_l20': 'Recent rebound rate (last 20 games)',
+        'is_starter_l5': 'Starting status (last 5 games)',
+        'is_starter_l10': 'Starting status (last 10 games)',
         'is_home': 'Home game',
         'is_playoff': 'Playoff game',
         'days_rest': 'Days of rest',
@@ -283,7 +306,71 @@ def get_top_features_with_impact(
         if feat_std == 0:
             deviation_std = 0
         else:
-            deviation_std = (feat_value - league_mean) / feat_std
+            if feat_name in ['star_teammate_out', 'is_back_to_back']:
+                if feat_name == 'star_teammate_out':
+                    if feat_value == 0:
+                        deviation_std = 1.5
+                    else:
+                        deviation_std = -1.5
+                elif feat_name == 'is_back_to_back':
+                    if feat_value == 0:
+                        deviation_std = 0.5
+                    else:
+                        deviation_std = -1.5
+            elif feat_name == 'star_teammate_ppg':
+                if feat_value == 0.0:
+                    deviation_std = 1.5
+                else:
+                    deviation_std = -1.5
+            elif feat_name == 'games_without_star':
+                if feat_value == 0:
+                    deviation_std = 1.5
+                else:
+                    deviation_std = -1.5
+            elif feat_name == 'is_heavy_schedule':
+                if feat_value == 0:
+                    deviation_std = 0.5
+                else:
+                    deviation_std = -1.5
+            elif feat_name == 'post_asb_bounce':
+                if feat_value == 0:
+                    deviation_std = 0.0
+                else:
+                    deviation_std = 1.0
+            elif feat_name in ['west_to_east', 'east_to_west']:
+                if feat_value == 0:
+                    deviation_std = 0.5
+                else:
+                    deviation_std = -1.5
+            elif feat_name == 'altitude_away':
+                if feat_value == 0:
+                    deviation_std = 0.5
+                else:
+                    deviation_std = -1.5
+            elif feat_name == 'arena_altitude':
+                if feat_value is None or pd.isna(feat_value):
+                    deviation_std = 0.0
+                elif feat_value > 3000:
+                    deviation_std = -1.5
+                else:
+                    deviation_std = 0.0
+            elif feat_name in ['opp_field_goal_pct', 'opp_three_point_pct']:
+                league_mean = feature_league_means.get(feat_name, 0.45)
+                if feat_value > league_mean:
+                    deviation_std = 1.5
+                elif feat_value < league_mean:
+                    deviation_std = -1.5
+                else:
+                    deviation_std = 0.0
+            elif feat_name == 'days_since_asb':
+                if feat_value < 0:
+                    deviation_std = 0.0
+                elif feat_value > 0 and feat_value <= 14:
+                    deviation_std = 1.0
+                else:
+                    deviation_std = 0.0
+            else:
+                deviation_std = (feat_value - league_mean) / feat_std
         
         tier_type, tier_symbol = calculate_impact_tier(
             importance, 
@@ -333,6 +420,88 @@ def get_top_features_with_impact(
                 context = " - extra rest"
             else:
                 context = " - normal rest"
+        
+        if feat_name == 'star_teammate_out':
+            if feat_value == 0:
+                context = " - star teammate healthy"
+            else:
+                context = " - star teammate injured"
+        
+        if feat_name == 'games_without_star':
+            if feat_value == 0:
+                context = " - star teammate healthy"
+            else:
+                context = f" - {int(feat_value)} games without star"
+        
+        if feat_name == 'star_teammate_ppg':
+            if feat_value == 0.0:
+                context = " - star teammate healthy"
+            else:
+                context = f" - star teammate ({feat_value:.1f} PPG) injured"
+        
+        if feat_name == 'is_heavy_schedule':
+            if feat_value == 0:
+                context = " - normal schedule"
+            else:
+                context = " - heavy schedule (fatigue)"
+        
+        if feat_name == 'post_asb_bounce':
+            if feat_value == 0:
+                context = " - not in post-ASB bounce period"
+            else:
+                context = " - post All-Star break bounce period"
+        
+        if feat_name == 'west_to_east':
+            if feat_value == 0:
+                context = " - not traveling west to east"
+            else:
+                context = " - traveling west to east (jet lag)"
+        
+        if feat_name == 'east_to_west':
+            if feat_value == 0:
+                context = " - not traveling east to west"
+            else:
+                context = " - traveling east to west (jet lag)"
+        
+        if feat_name == 'altitude_away':
+            if feat_value == 0:
+                context = " - normal altitude"
+            else:
+                context = " - high altitude away game"
+        
+        if feat_name == 'arena_altitude':
+            if feat_value is None or pd.isna(feat_value):
+                context = " - altitude not available"
+            elif feat_value > 3000:
+                context = f" - high altitude ({int(feat_value)} ft)"
+            else:
+                context = f" - normal altitude ({int(feat_value)} ft)"
+        
+        if feat_name == 'opp_field_goal_pct':
+            if feat_value > 0.46:
+                context = " - weak opponent defense (favorable)"
+            elif feat_value < 0.44:
+                context = " - strong opponent defense (tough matchup)"
+            else:
+                context = " - average opponent defense"
+        
+        if feat_name == 'opp_three_point_pct':
+            if feat_value > 0.36:
+                context = " - weak opponent 3PT defense (favorable)"
+            elif feat_value < 0.34:
+                context = " - strong opponent 3PT defense (tough matchup)"
+            else:
+                context = " - average opponent 3PT defense"
+        
+        if feat_name == 'days_since_asb':
+            if feat_value < 0:
+                context = f" - {int(abs(feat_value))} days before All-Star break"
+            elif feat_value > 0 and feat_value <= 14:
+                context = " - post All-Star break bounce period"
+            elif feat_value > 14:
+                context = f" - {int(feat_value)} days after All-Star break"
+            else:
+                context = " - All-Star break period"
         
         top_features.append({
             'feature_name': feat_name,
