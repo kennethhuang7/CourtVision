@@ -1076,9 +1076,16 @@ def build_features_for_player(conn, player_id, team_id, opponent_id,
         if 'usage_rate' in window_games.columns:
             features[f'usage_rate_l{window}'] = window_games['usage_rate'].mean()
             if len(window_games) > 0:
-                weights = np.exp(-decay_factor * np.arange(len(window_games))[::-1])
-                weights = weights / weights.sum()
-                features[f'usage_rate_l{window}_weighted'] = np.sum(window_games['usage_rate'].values * weights)
+                usage_rates = window_games['usage_rate'].values
+                valid_mask = ~pd.isna(usage_rates)
+                if valid_mask.sum() > 0:
+                    valid_rates = usage_rates[valid_mask]
+                    valid_indices = np.where(valid_mask)[0]
+                    weights = np.exp(-decay_factor * np.arange(len(valid_indices))[::-1])
+                    weights = weights / weights.sum()
+                    features[f'usage_rate_l{window}_weighted'] = np.sum(valid_rates * weights)
+                else:
+                    features[f'usage_rate_l{window}_weighted'] = np.nan
             else:
                 features[f'usage_rate_l{window}_weighted'] = np.nan
         else:
@@ -1231,6 +1238,118 @@ def build_features_for_player(conn, player_id, team_id, opponent_id,
     
     features['games_played_season'] = len(recent_games)
     
+    if len(recent_games) > 0:
+        recent_games['game_date'] = pd.to_datetime(recent_games['game_date'])
+        target_dt = pd.to_datetime(target_date)
+        days_diff = (target_dt - recent_games['game_date']).dt.days
+        features['games_in_last_3_days'] = (days_diff <= 3).sum()
+        features['games_in_last_7_days'] = (days_diff <= 7).sum()
+    else:
+        features['games_in_last_3_days'] = 0
+        features['games_in_last_7_days'] = 0
+    
+    features['is_heavy_schedule'] = 1 if features.get('games_in_last_7_days', 0) >= 4 else 0
+    features['is_well_rested'] = 1 if features.get('days_rest', 0) >= 3 else 0
+    
+    if len(recent_games) > 1:
+        recent_games_sorted = recent_games.sort_values('game_date', ascending=False)
+        game_dates = pd.to_datetime(recent_games_sorted['game_date'])
+        consecutive = 0
+        for i in range(len(game_dates) - 1):
+            days_diff = (game_dates.iloc[i] - game_dates.iloc[i + 1]).days
+            if days_diff <= 2:
+                consecutive += 1
+            else:
+                break
+        features['consecutive_games'] = consecutive
+    else:
+        features['consecutive_games'] = 0
+    
+    season_start_query = f"""
+        SELECT MIN(game_date) as season_start
+        FROM games
+        WHERE season = '{season}'
+        AND game_status = 'completed'
+    """
+    season_start_df = pd.read_sql(season_start_query, conn)
+    if len(season_start_df) > 0 and season_start_df.iloc[0]['season_start']:
+        season_start = pd.to_datetime(season_start_df.iloc[0]['season_start'])
+        target_dt = pd.to_datetime(target_date)
+        days_elapsed = (target_dt - season_start).days
+        features['season_progress'] = min(1.0, max(0.0, days_elapsed / 180.0))
+    else:
+        features['season_progress'] = 0.5
+    
+    games_played = features.get('games_played_season', 0)
+    features['is_early_season'] = 1 if games_played <= 20 else 0
+    features['is_mid_season'] = 1 if 20 < games_played <= 60 else 0
+    features['is_late_season'] = 1 if games_played > 60 else 0
+    
+    team_games_query = f"""
+        SELECT COUNT(*) as team_games
+        FROM games
+        WHERE season = '{season}'
+        AND game_status = 'completed'
+        AND (home_team_id = {team_id} OR away_team_id = {team_id})
+        AND game_date < '{target_date}'
+    """
+    team_games_df = pd.read_sql(team_games_query, conn)
+    team_games_played = team_games_df.iloc[0]['team_games'] if len(team_games_df) > 0 else 0
+    features['games_remaining'] = max(0, 82 - team_games_played)
+    
+    teams_tz = pd.read_sql("""
+        SELECT team_id, timezone
+        FROM teams
+        WHERE timezone IS NOT NULL
+    """, conn)
+    
+    tz_to_offset = {
+        'America/New_York': -5,
+        'America/Chicago': -6,
+        'America/Denver': -7,
+        'America/Los_Angeles': -8,
+        'America/Phoenix': -7,
+        'America/Anchorage': -9,
+        'Pacific/Honolulu': -10,
+        'America/Toronto': -5
+    }
+    
+    teams_tz['tz_offset'] = teams_tz['timezone'].map(tz_to_offset).fillna(-6)
+    
+    team_tz_row = teams_tz[teams_tz['team_id'] == team_id]
+    opp_tz_row = teams_tz[teams_tz['team_id'] == opponent_id]
+    
+    tz_offset_team = team_tz_row.iloc[0]['tz_offset'] if len(team_tz_row) > 0 else -6
+    tz_offset_opp = opp_tz_row.iloc[0]['tz_offset'] if len(opp_tz_row) > 0 else -6
+    
+    features['tz_difference'] = tz_offset_opp - tz_offset_team
+    features['west_to_east'] = 1 if (is_home == 0 and features['tz_difference'] > 0) else 0
+    features['east_to_west'] = 1 if (is_home == 0 and features['tz_difference'] < 0) else 0
+    
+    all_star_breaks = {
+        '2020-21': '2021-03-07',
+        '2021-22': '2022-02-20',
+        '2022-23': '2023-02-19',
+        '2023-24': '2024-02-18',
+        '2024-25': '2025-02-16',
+        '2025-26': '2026-02-15'
+    }
+    
+    asb_date_str = all_star_breaks.get(season)
+    if asb_date_str:
+        asb_date = pd.to_datetime(asb_date_str, errors='coerce')
+        target_dt = pd.to_datetime(target_date)
+        if pd.notna(asb_date):
+            days_since_asb = (target_dt - asb_date).days
+            features['days_since_asb'] = max(-365, min(365, days_since_asb))
+            features['post_asb_bounce'] = 1 if (0 < days_since_asb <= 14) else 0
+        else:
+            features['days_since_asb'] = 0
+            features['post_asb_bounce'] = 0
+    else:
+        features['days_since_asb'] = 0
+        features['post_asb_bounce'] = 0
+    
     team_ratings = pd.read_sql(f"""
         SELECT offensive_rating, defensive_rating, pace
         FROM team_ratings
@@ -1353,9 +1472,15 @@ def build_features_for_player(conn, player_id, team_id, opponent_id,
     
     if len(altitude_query) > 0:
         altitude = altitude_query.iloc[0]['arena_altitude']
-        if altitude:
+        if altitude and pd.notna(altitude):
             features['arena_altitude'] = altitude
             features['altitude_away'] = 1 if (is_home == 0 and altitude > 3000) else 0
+        else:
+            features['arena_altitude'] = None
+            features['altitude_away'] = 0
+    else:
+        features['arena_altitude'] = None
+        features['altitude_away'] = 0
     
     star_query = f"""
         SELECT DISTINCT pgs2.player_id, AVG(pgs2.points) as ppg
@@ -1414,7 +1539,7 @@ def build_features_for_player(conn, player_id, team_id, opponent_id,
                 features['star_teammate_out'] = 1
                 features['star_teammate_ppg'] = float(star_ppg)
                 features['games_without_star'] = games_without
-                break
+            break
     
     features_df = pd.DataFrame([features])
     
@@ -1454,6 +1579,11 @@ def build_features_for_player(conn, player_id, team_id, opponent_id,
         'star_teammate_out', 'star_teammate_ppg', 'games_without_star',  
         'playoff_games_career', 'playoff_performance_boost',
         'is_home', 'days_rest', 'is_back_to_back', 'games_played_season',
+        'games_in_last_3_days', 'games_in_last_7_days',
+        'is_heavy_schedule', 'is_well_rested', 'consecutive_games',
+        'season_progress', 'is_early_season', 'is_mid_season', 'is_late_season', 'games_remaining',
+        'tz_difference', 'west_to_east', 'east_to_west',
+        'days_since_asb', 'post_asb_bounce',
         'offensive_rating_team', 'defensive_rating_team', 'pace_team',
         'offensive_rating_opp', 'defensive_rating_opp', 'pace_opp',
         'opp_field_goal_pct', 'opp_three_point_pct',
