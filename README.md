@@ -11,7 +11,8 @@ An ensemble-based prediction system using XGBoost, LightGBM, CatBoost, and Rando
 
 1. [Overview](#overview)
 2. [REST API Access](#rest-api-access)
-   - [Getting Started](#getting-started)
+   - [Quick Start Guide](#quick-start-guide)
+   - [Getting Started (Detailed Setup)](#getting-started-detailed-setup)
    - [Available Endpoints](#available-endpoints)
    - [Table Schemas](#table-schemas)
    - [Looking Up IDs](#looking-up-ids)
@@ -81,38 +82,177 @@ This system predicts NBA player statistics for upcoming games by:
 
 ## REST API Access
 
-This project provides a **read-only REST API** that allows you to access NBA player predictions for your own applications, websites, or analysis tools. You can query predictions for specific dates, players, or games, and retrieve detailed confidence score breakdowns.
+This project provides a **read-only REST API** that allows you to access NBA player performance predictions for your own applications, websites, or analysis tools. The API uses machine learning models to predict how NBA players will perform in upcoming games, along with confidence scores indicating prediction reliability.
+
+### What Are Predictions?
+
+**Predictions** are forecasts of player statistics for upcoming NBA games. The system predicts **7 key statistics**:
+- **Points** - Expected points scored
+- **Rebounds** - Expected total rebounds (offensive + defensive)
+- **Assists** - Expected assists
+- **Steals** - Expected steals
+- **Blocks** - Expected blocks
+- **Turnovers** - Expected turnovers committed
+- **Three-pointers made** - Expected three-point field goals made
+
+**Important: Multiple Predictions Per Player/Game**
+
+Each player/game combination typically has **4 predictions** - one from each machine learning model:
+- `xgboost` - XGBoost gradient boosting model
+- `lightgbm` - LightGBM gradient boosting model
+- `catboost` - CatBoost gradient boosting model
+- `random_forest` - Random Forest ensemble model
+
+**Why multiple models?** Using multiple models improves accuracy. For best results, **average the predictions from all 4 models** (called "ensemble averaging" or "voting ensemble"). The workflow examples below show how to do this.
+
+Each prediction includes:
+- **Predicted statistics** - What that specific model expects the player to achieve
+- **Confidence score (0-100)** - How reliable the prediction is (higher = more reliable)
+- **Model version** - Which ML model generated this prediction
+- **Game context** - Links to game information, opponent, player details, etc.
+
+**When Are Predictions Available?**
+- Predictions are generated for games with status `'scheduled'` in the `games` table
+- Multiple predictions may exist for the same player/game (one per model)
+- After games complete, actual statistics are populated for comparison
+- Predictions are updated daily as new games are scheduled
 
 **API Overview:**
 - **Base URL**: `https://ooxcscccfhtawrjopkob.supabase.co/rest/v1/`
 - **Authentication**: Supabase `anon` key (read-only access)
-- **Response Format**: JSON arrays
+- **Response Format**: JSON arrays (empty array `[]` means no results found)
 - **Built on**: PostgREST (PostgreSQL REST API)
 - **Security**: Row Level Security (RLS) enabled on all tables; read-only access for public queries via `anon` key
 
 **What You Can Access:**
-The REST API provides read-only access to predictions, confidence scores, player information, team information, and game schedules. You can query predictions by date, player, team, or game, filter by confidence score, and retrieve detailed confidence breakdowns.
+- **Predictions** - ML forecasts for upcoming games with confidence scores
+- **Confidence Components** - Detailed breakdowns of why confidence scores are high/low
+- **Reference Data** - Player info, team info, game schedules
+- **Historical Stats** - Complete game-by-game statistics from past seasons
+- **Analytics Data** - Team ratings, defensive stats, injury reports, transactions
+- **Advanced Metrics** - Position-specific defense, teammate impact analysis
+
+You can query predictions by date, player, team, or game, filter by confidence score, retrieve detailed confidence breakdowns, and access comprehensive historical and analytical data.
 
 **What You Cannot Do:**
-- Write/modify predictions (read-only access)
-- Access internal data tables (only specific tables are exposed)
-- Query raw game statistics or training data (only processed predictions are available)
+- Write, modify, or delete any data (read-only access via API - SELECT queries only)
+- Access internal ML feature engineering tables or model training data (only processed predictions and public NBA statistics are exposed)
+- Bypass Row Level Security policies (all queries respect RLS restrictions)
+- Modify database schema, table structure, or RLS policies
+- Access user-specific data tables (user data requires authentication and proper permissions)
 
-### Getting Started
+### Quick Start Guide
+
+**Step 1: Get Your Credentials**
 
 **API Base URL:**
 ```
 https://ooxcscccfhtawrjopkob.supabase.co/rest/v1/
 ```
 
-**API Key (anon key):**
+**API Key (anon key) - Use this for all requests:**
 ```
 ***REMOVED***
 ```
 
+**Step 2: Choose Your Method**
+
+You can use the API in three ways:
+
+1. **Supabase Client Library (Recommended)** - Handles authentication, URL encoding, and connection pooling automatically
+2. **HTTP Client** - Use any HTTP client (fetch, axios, requests, etc.) with manual headers
+3. **cURL** - For testing or simple scripts
+
+**Step 3: Make Your First Request**
+
+**Example using cURL (works immediately, no installation needed):**
+```bash
+curl -H "apikey: ***REMOVED***" \
+     -H "Authorization: Bearer ***REMOVED***" \
+     "https://ooxcscccfhtawrjopkob.supabase.co/rest/v1/predictions?prediction_date=eq.2024-12-15&limit=5"
+```
+
+**What you'll get:** This returns the first 5 predictions for December 15, 2024. Remember: if a player has predictions, you'll likely see 4 predictions for them (one per model). To get the best single prediction, average all 4 together.
+
+**Expected Response Format:**
+```json
+[
+  {
+    "prediction_id": 12345,
+    "player_id": 2544,
+    "game_id": "0022401234",
+    "predicted_points": 25.5,
+    "predicted_rebounds": 8.2,
+    "predicted_assists": 6.1,
+    "confidence_score": 85,
+    "model_version": "xgboost"
+  },
+  {
+    "prediction_id": 12346,
+    "player_id": 2544,
+    "game_id": "0022401234",
+    "predicted_points": 26.1,
+    "predicted_rebounds": 8.0,
+    "predicted_assists": 6.3,
+    "confidence_score": 85,
+    "model_version": "lightgbm"
+  }
+]
+```
+
+---
+
+### Getting Started (Detailed Setup)
+
+**Setting Up:**
+
+**Option 1: Using Supabase Client Library (Recommended)**
+
+```bash
+# JavaScript/TypeScript
+npm install @supabase/supabase-js
+# or
+yarn add @supabase/supabase-js
+
+# Python
+pip install supabase
+```
+
+**Option 2: Using HTTP Client** - Use any HTTP client (fetch, axios, requests, etc.) with the headers below
+
+**Option 3: Using cURL** - For testing or simple scripts
+
+**Authentication Headers (Required for all requests):**
+
 Include both headers in every request:
-- `apikey`: Your API key
-- `Authorization`: `Bearer [your-api-key]`
+- `apikey`: Your API key (the anon key shown above)
+- `Authorization`: `Bearer [your-api-key]` (same key as apikey)
+
+**Example Headers:**
+```javascript
+headers: {
+  'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+  'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+}
+```
+
+**Important Notes:**
+- Both headers use the same API key value
+- All responses are JSON arrays - an empty array `[]` means no results matched your query
+- All requests are GET requests (read-only API)
+- Date format: Use `YYYY-MM-DD` (e.g., `2024-12-15`) for date fields
+
+**Understanding Query Parameters:**
+
+The API uses PostgREST query syntax. Common operators you'll see in examples:
+- `eq.` = equals (e.g., `player_id=eq.2544`)
+- `gte.` = greater than or equal (e.g., `confidence_score=gte.80`)
+- `ilike.*text*` = case-insensitive pattern match with wildcards (e.g., `full_name=ilike.*LeBron*`)
+- `select=` = choose which columns to return (e.g., `select=player_id,full_name`)
+- `order=` = sort results (e.g., `order=predicted_points.desc`)
+- `limit=` = maximum number of results (e.g., `limit=10`)
+
+See the "PostgREST Query Syntax" section below for complete reference.
 
 ### Available Endpoints
 
@@ -123,6 +263,13 @@ Include both headers in every request:
 | `/players` | Player information (ID, name, team, position) |
 | `/teams` | Team information (ID, name, abbreviation) |
 | `/games` | Game information (ID, date, teams, status) |
+| `/player_game_stats` | Historical game statistics for all players |
+| `/injuries` | Player injury information and status |
+| `/player_transactions` | Player trades, signings, and transactions |
+| `/team_ratings` | Team performance ratings (offensive, defensive, net rating, pace) |
+| `/team_defensive_stats` | Team-level defensive statistics |
+| `/position_defense_stats` | Position-specific defensive statistics |
+| `/teammate_dependency` | Teammate impact analysis data |
 
 ### Table Schemas
 
@@ -158,6 +305,13 @@ Contains ML model predictions for player statistics in upcoming games.
 | `feature_explanations` | JSONB | Top 15 feature impacts (JSON format) |
 
 **Unique Constraint:** `(player_id, game_id, model_version)` - One prediction per player/game/model combination.
+
+**Important Notes:**
+- Each player/game typically has **4 predictions** (one per model: xgboost, lightgbm, catboost, random_forest)
+- For best accuracy, **average predictions across all 4 models** (see "Typical Workflow" section for examples)
+- Predictions are generated for **upcoming scheduled games** only
+- After games complete, `actual_points`, `actual_rebounds`, etc. are populated for accuracy comparison
+- The `confidence_score` (0-100) indicates prediction reliability, not the predicted value
 
 </details>
 
@@ -242,7 +396,284 @@ Reference table for looking up game IDs and game information.
 
 </details>
 
+<details>
+<summary><strong>player_game_stats Table</strong></summary>
+
+Contains historical game-by-game statistics for all NBA players.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `stat_id` | INTEGER | Primary key |
+| `player_id` | INTEGER | NBA player ID (references `players` table) |
+| `game_id` | VARCHAR(10) | Game identifier (references `games` table) |
+| `team_id` | INTEGER | Team ID for the game |
+| `is_starter` | BOOLEAN | Whether player started the game |
+| `minutes_played` | DECIMAL(5,2) | Minutes played |
+| `points` | INTEGER | Points scored |
+| `rebounds_offensive` | INTEGER | Offensive rebounds |
+| `rebounds_defensive` | INTEGER | Defensive rebounds |
+| `rebounds_total` | INTEGER | Total rebounds |
+| `assists` | INTEGER | Assists |
+| `steals` | INTEGER | Steals |
+| `blocks` | INTEGER | Blocks |
+| `turnovers` | INTEGER | Turnovers |
+| `personal_fouls` | INTEGER | Personal fouls |
+| `field_goals_made` | INTEGER | Field goals made |
+| `field_goals_attempted` | INTEGER | Field goals attempted |
+| `three_pointers_made` | INTEGER | Three-pointers made |
+| `three_pointers_attempted` | INTEGER | Three-pointers attempted |
+| `free_throws_made` | INTEGER | Free throws made |
+| `free_throws_attempted` | INTEGER | Free throws attempted |
+| `plus_minus` | INTEGER | Plus/minus rating |
+| `usage_rate` | DECIMAL(6,1) | Usage rate percentage |
+| `true_shooting_pct` | DECIMAL(6,1) | True shooting percentage |
+| `offensive_rating` | DECIMAL(8,1) | Offensive rating |
+| `defensive_rating` | DECIMAL(8,1) | Defensive rating |
+| `created_at` | TIMESTAMP | Record creation timestamp |
+
+**Unique Constraint:** `(player_id, game_id)` - One stat record per player per game.
+
+**Note:** Contains historical data for completed games only. Use `game_status = 'completed'` when joining with `games` table.
+
+</details>
+
+<details>
+<summary><strong>injuries Table</strong></summary>
+
+Contains player injury information and status updates.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `injury_id` | INTEGER | Primary key |
+| `player_id` | INTEGER | NBA player ID (references `players` table) |
+| `report_date` | DATE | Date injury was reported |
+| `injury_status` | VARCHAR(50) | Status: 'Out', 'Questionable', 'Probable', 'Doubtful', etc. |
+| `injury_description` | TEXT | Description of the injury |
+| `return_date` | DATE | Expected or actual return date |
+| `games_missed` | INTEGER | Number of games missed |
+| `source` | VARCHAR(100) | Source of injury information |
+| `created_at` | TIMESTAMP | Record creation timestamp |
+| `updated_at` | TIMESTAMP | Last update timestamp |
+
+</details>
+
+<details>
+<summary><strong>player_transactions Table</strong></summary>
+
+Contains player transactions including trades, signings, and waivers.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `transaction_id` | INTEGER | Primary key |
+| `player_id` | INTEGER | NBA player ID (references `players` table) |
+| `from_team_id` | INTEGER | Previous team ID (references `teams` table) |
+| `to_team_id` | INTEGER | New team ID (references `teams` table) |
+| `transaction_type` | VARCHAR(20) | Type: 'trade', 'signing', 'waiver', etc. |
+| `transaction_date` | DATE | Date of transaction |
+| `season` | VARCHAR(7) | Season (e.g., '2024-25') |
+| `source` | VARCHAR(50) | Source of transaction information |
+| `confidence_score` | INTEGER | Confidence in transaction accuracy |
+| `created_at` | TIMESTAMP | Record creation timestamp |
+
+</details>
+
+<details>
+<summary><strong>team_ratings Table</strong></summary>
+
+Contains team performance ratings and metrics.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `rating_id` | INTEGER | Primary key |
+| `team_id` | INTEGER | Team ID (references `teams` table) |
+| `season` | VARCHAR(7) | Season (e.g., '2024-25') |
+| `rating_date` | DATE | Date of rating calculation |
+| `elo_rating` | DECIMAL(8,2) | Elo rating |
+| `offensive_rating` | DECIMAL(6,2) | Points per 100 possessions |
+| `defensive_rating` | DECIMAL(6,2) | Points allowed per 100 possessions |
+| `net_rating` | DECIMAL(6,2) | Net rating (offensive - defensive) |
+| `win_pct` | DECIMAL(5,3) | Win percentage |
+| `games_played` | INTEGER | Games played |
+| `wins` | INTEGER | Wins |
+| `losses` | INTEGER | Losses |
+| `pace` | DECIMAL(6,1) | Possessions per game |
+| `created_at` | TIMESTAMP | Record creation timestamp |
+
+**Unique Constraint:** `(team_id, season)` - One rating record per team per season.
+
+</details>
+
+<details>
+<summary><strong>team_defensive_stats Table</strong></summary>
+
+Contains team-level defensive statistics and metrics.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `stat_id` | INTEGER | Primary key |
+| `team_id` | INTEGER | Team ID (references `teams` table) |
+| `season` | VARCHAR(7) | Season (e.g., '2024-25') |
+| `stat_date` | DATE | Date of stat calculation |
+| `games_played` | INTEGER | Games played |
+| `opp_points_per_game` | DECIMAL(6,2) | Opponent points per game |
+| `opp_rebounds_per_game` | DECIMAL(6,2) | Opponent rebounds per game |
+| `opp_assists_per_game` | DECIMAL(6,2) | Opponent assists per game |
+| `opp_steals_per_game` | DECIMAL(6,2) | Opponent steals per game |
+| `opp_blocks_per_game` | DECIMAL(6,2) | Opponent blocks per game |
+| `opp_turnovers_per_game` | DECIMAL(6,2) | Turnovers forced per game |
+| `opp_fg_pct` | DECIMAL(5,3) | Opponent field goal percentage allowed |
+| `opp_three_pt_pct` | DECIMAL(5,3) | Opponent three-point percentage allowed |
+| `defensive_rating` | DECIMAL(6,2) | Defensive rating |
+| `defensive_rebound_pct` | DECIMAL(5,3) | Defensive rebound percentage |
+| `opponent_offensive_rebound_pct` | DECIMAL(5,3) | Opponent offensive rebound percentage |
+| `rim_fg_pct_allowed` | DECIMAL(5,3) | Rim field goal percentage allowed |
+| `three_pt_fg_pct_allowed` | DECIMAL(5,3) | Three-point field goal percentage allowed |
+| `mid_range_fg_pct_allowed` | DECIMAL(5,3) | Mid-range field goal percentage allowed |
+| `opp_field_goal_pct` | DECIMAL(5,1) | Opponent field goal percentage (alternative format) |
+| `opp_three_point_pct` | DECIMAL(5,1) | Opponent three-point percentage (alternative format) |
+| `opp_two_point_pct` | DECIMAL(5,1) | Opponent two-point percentage |
+| `opp_free_throw_pct` | DECIMAL(5,1) | Opponent free throw percentage |
+| `opp_three_point_attempts_pg` | DECIMAL(6,1) | Opponent three-point attempts per game |
+| `opp_free_throw_attempts_pg` | DECIMAL(6,1) | Opponent free throw attempts per game |
+| `opp_free_throw_rate` | DECIMAL(5,3) | Opponent free throw rate (FTA per FGA) |
+| `created_at` | TIMESTAMP | Record creation timestamp |
+
+**Unique Constraint:** `(team_id, season, stat_date)` - One record per team per season per date.
+
+**Note:** Both `opp_fg_pct`/`opp_three_pt_pct` (DECIMAL(5,3)) and `opp_field_goal_pct`/`opp_three_point_pct` (DECIMAL(5,1)) exist - the (5,1) versions are percentage format (e.g., 45.5 for 45.5%), while (5,3) are decimal format (e.g., 0.455 for 45.5%).
+
+</details>
+
+<details>
+<summary><strong>position_defense_stats Table</strong></summary>
+
+Contains position-specific defensive statistics showing how teams defend against different positions.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `pos_stat_id` | INTEGER | Primary key |
+| `team_id` | INTEGER | Team ID (references `teams` table) |
+| `season` | VARCHAR(7) | Season (e.g., '2024-25') |
+| `position` | VARCHAR(50) | Position: 'Guard', 'Forward', 'Center' |
+| `points_allowed_per_game` | DECIMAL(6,2) | Points allowed to this position per game |
+| `rebounds_allowed_per_game` | DECIMAL(6,2) | Rebounds allowed to this position per game |
+| `assists_allowed_per_game` | DECIMAL(6,2) | Assists allowed to this position per game |
+| `fg_pct_allowed` | DECIMAL(5,3) | Field goal percentage allowed to this position (decimal format, e.g., 0.455 for 45.5%) |
+| `games_played` | INTEGER | Games played |
+| `opp_points_per_game` | DECIMAL(6,1) | Opponent points per game |
+| `opp_field_goal_pct` | DECIMAL(5,1) | Opponent field goal percentage (percentage format, e.g., 45.5 for 45.5%) |
+| `opp_three_point_pct` | DECIMAL(5,1) | Opponent three-point percentage (percentage format, e.g., 35.0 for 35.0%) |
+| `steals_allowed_per_game` | DECIMAL(6,2) | Steals allowed to this position per game |
+| `blocks_allowed_per_game` | DECIMAL(6,2) | Blocks allowed to this position per game |
+| `turnovers_forced_per_game` | DECIMAL(6,2) | Turnovers forced from this position per game |
+| `three_pointers_made_allowed_per_game` | DECIMAL(6,2) | Three-pointers made allowed to this position per game |
+| `created_at` | TIMESTAMP | Record creation timestamp |
+
+**Unique Constraint:** `(team_id, season, position)` - One record per team per season per position.
+
+</details>
+
+<details>
+<summary><strong>teammate_dependency Table</strong></summary>
+
+Contains analysis of how player performance is affected by teammates.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `dependency_id` | INTEGER | Primary key |
+| `player_id` | INTEGER | Player ID (references `players` table) |
+| `teammate_id` | INTEGER | Teammate ID (references `players` table) |
+| `season` | VARCHAR(10) | Season (e.g., '2024-25') |
+| `games_with_teammate` | INTEGER | Games played with teammate |
+| `games_without_teammate` | INTEGER | Games played without teammate |
+| `ppg_with` | DECIMAL(5,2) | Points per game with teammate |
+| `ppg_without` | DECIMAL(5,2) | Points per game without teammate |
+| `rpg_with` | DECIMAL(5,2) | Rebounds per game with teammate |
+| `rpg_without` | DECIMAL(5,2) | Rebounds per game without teammate |
+| `apg_with` | DECIMAL(5,2) | Assists per game with teammate |
+| `apg_without` | DECIMAL(5,2) | Assists per game without teammate |
+| `ppg_boost` | DECIMAL(5,2) | Points per game boost (with - without) |
+| `rpg_boost` | DECIMAL(5,2) | Rebounds per game boost (with - without) |
+| `apg_boost` | DECIMAL(5,2) | Assists per game boost (with - without) |
+| `created_at` | TIMESTAMP | Record creation timestamp |
+
+**Unique Constraint:** `(player_id, teammate_id, season)` - One record per player/teammate/season combination.
+
+</details>
+
 ---
+
+### Typical Workflow
+
+**Common workflow for using predictions:**
+
+1. **Find a player** - Look up player ID by name
+2. **Find upcoming games** - Get game IDs for a specific date or team
+3. **Get predictions** - Query predictions for that player/game combination
+4. **Get confidence details** (optional) - Retrieve detailed confidence breakdown
+5. **Compare with historical stats** (optional) - Get player's recent performance for context
+
+**Example Complete Workflow:**
+
+```python
+import requests
+
+API_BASE = "https://ooxcscccfhtawrjopkob.supabase.co/rest/v1"
+API_KEY = "***REMOVED***"
+headers = {
+    "apikey": API_KEY,
+    "Authorization": f"Bearer {API_KEY}"
+}
+
+# Step 1: Find player
+player_response = requests.get(
+    f"{API_BASE}/players",
+    headers=headers,
+    params={"full_name": "ilike.*LeBron*", "select": "player_id,full_name,team_id"}
+)
+player = player_response.json()[0]  # First match
+player_id = player["player_id"]
+
+# Step 2: Get today's games for this player's team
+from datetime import datetime
+today = datetime.now().strftime("%Y-%m-%d")
+games_response = requests.get(
+    f"{API_BASE}/games",
+    headers=headers,
+    params={
+        "game_date": f"eq.{today}",
+        "or": f"(home_team_id.eq.{player['team_id']},away_team_id.eq.{player['team_id']})",
+        "select": "game_id,home_team_id,away_team_id"
+    }
+)
+game = games_response.json()[0] if games_response.json() else None
+
+if game:
+    # Step 3: Get predictions for this player/game
+    predictions_response = requests.get(
+        f"{API_BASE}/predictions",
+        headers=headers,
+        params={
+            "player_id": f"eq.{player_id}",
+            "game_id": f"eq.{game['game_id']}",
+            "select": "prediction_id,predicted_points,predicted_rebounds,predicted_assists,confidence_score,model_version"
+        }
+    )
+    predictions = predictions_response.json()
+    
+    # Step 4: Calculate ensemble average (average across all models)
+    if predictions:
+        avg_points = sum(p["predicted_points"] for p in predictions) / len(predictions)
+        avg_rebounds = sum(p["predicted_rebounds"] for p in predictions) / len(predictions)
+        avg_assists = sum(p["predicted_assists"] for p in predictions) / len(predictions)
+        avg_confidence = sum(p["confidence_score"] for p in predictions) / len(predictions)
+        
+        print(f"Prediction for {player['full_name']}:")
+        print(f"  Points: {avg_points:.1f}")
+        print(f"  Rebounds: {avg_rebounds:.1f}")
+        print(f"  Assists: {avg_assists:.1f}")
+        print(f"  Confidence: {avg_confidence:.0f}/100")
+```
 
 ### Looking Up IDs
 
@@ -407,24 +838,107 @@ Supabase uses PostgREST, which supports powerful filtering:
 
 ### Code Examples
 
-**API Base URL:**
-```
-https://ooxcscccfhtawrjopkob.supabase.co/rest/v1/
+> **Note:** Credentials (API Base URL and API Key) are shown at the top of this document in the Quick Start Guide section.
+
+#### JavaScript/TypeScript (Supabase Client - Recommended)
+
+**Installation:**
+```bash
+npm install @supabase/supabase-js
+# or
+yarn add @supabase/supabase-js
 ```
 
-**API Key (anon key):**
-```
-***REMOVED***
+**Setup:**
+```javascript
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = 'https://ooxcscccfhtawrjopkob.supabase.co'
+const supabaseAnonKey = '***REMOVED***'
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey)
 ```
 
-#### JavaScript/TypeScript
+**Example Functions:**
+```javascript
+// Find player by name
+async function findPlayerByName(name) {
+  const { data, error } = await supabase
+    .from('players')
+    .select('player_id, full_name, team_id')
+    .ilike('full_name', `%${name}%`)
+  return data
+}
+
+// Get predictions for a specific date
+async function getPredictionsForDate(date) {
+  const { data, error } = await supabase
+    .from('predictions')
+    .select('*')
+    .eq('prediction_date', date)
+    .order('predicted_points', { ascending: false })
+  return data
+}
+
+// Get predictions for a specific player on a date
+async function getPlayerPredictionsForDate(playerId, date) {
+  const { data, error } = await supabase
+    .from('predictions')
+    .select('*')
+    .eq('player_id', playerId)
+    .eq('prediction_date', date)
+  return data
+}
+
+// Get high confidence predictions
+async function getHighConfidencePredictionsForDate(date) {
+  const { data, error } = await supabase
+    .from('predictions')
+    .select('*')
+    .eq('prediction_date', date)
+    .gte('confidence_score', 80)
+    .order('predicted_points', { ascending: false })
+  return data
+}
+
+// Get historical game stats for a player
+async function getPlayerGameStats(playerId, limit = 20) {
+  const { data, error } = await supabase
+    .from('player_game_stats')
+    .select(`
+      *,
+      games!inner(game_date, game_status, home_team_id, away_team_id)
+    `)
+    .eq('player_id', playerId)
+    .eq('games.game_status', 'completed')
+    .order('games.game_date', { ascending: false })
+    .limit(limit)
+  return data
+}
+
+// Get current injuries
+async function getCurrentInjuries(status = 'Out') {
+  const { data, error } = await supabase
+    .from('injuries')
+    .select(`
+      *,
+      players!inner(full_name, team_id)
+    `)
+    .eq('injury_status', status)
+    .gte('report_date', new Date().toISOString().split('T')[0])
+  return data
+}
+```
+
+#### JavaScript/TypeScript (Using fetch - Alternative)
+
+If you prefer using native `fetch` instead of the Supabase client:
 
 ```javascript
 const SUPABASE_URL = 'https://ooxcscccfhtawrjopkob.supabase.co';
 const SUPABASE_ANON_KEY = '***REMOVED***';
 
 async function findPlayerByName(name) {
-  const encodedName = encodeURIComponent(name);
   const url = new URL(`${SUPABASE_URL}/rest/v1/players`);
   url.searchParams.set('full_name', `ilike.*${name}*`);
   url.searchParams.set('select', 'player_id,full_name,team_id');
@@ -436,63 +950,56 @@ async function findPlayerByName(name) {
   });
   return await response.json();
 }
-
-async function getPredictionsForDate(date) {
-  const response = await fetch(
-    `${SUPABASE_URL}/rest/v1/predictions?prediction_date=eq.${date}&order=predicted_points.desc`,
-    {
-      headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-      }
-    }
-  );
-  return await response.json();
-}
-
-async function getPlayerPredictionsForDate(playerId, date) {
-  const response = await fetch(
-    `${SUPABASE_URL}/rest/v1/predictions?player_id=eq.${playerId}&prediction_date=eq.${date}`,
-    {
-      headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-      }
-    }
-  );
-  return await response.json();
-}
-
-async function getHighConfidencePredictionsForDate(date) {
-  const response = await fetch(
-    `${SUPABASE_URL}/rest/v1/predictions?prediction_date=eq.${date}&confidence_score=gte.80&order=predicted_points.desc`,
-    {
-      headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-      }
-    }
-  );
-  return await response.json();
-}
 ```
 
-#### Python
+#### Python (Supabase Client - Recommended)
 
+**Installation:**
+```bash
+pip install supabase
+```
+
+**Setup:**
 ```python
-import requests
-from datetime import datetime
-from urllib.parse import quote
+from supabase import create_client, Client
 
 SUPABASE_URL = 'https://ooxcscccfhtawrjopkob.supabase.co'
 SUPABASE_ANON_KEY = '***REMOVED***'
 
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+```
+
+**Example Functions:**
+```python
+# Find player by name
+def find_player_by_name(name):
+    response = supabase.table('players').select('player_id,full_name,team_id').ilike('full_name', f'%{name}%').execute()
+    return response.data
+
+# Get predictions for a date
+def get_predictions_for_date(date):
+    response = supabase.table('predictions').select('*').eq('prediction_date', date).order('predicted_points', desc=True).execute()
+    return response.data
+```
+
+#### Python (Using requests - Alternative)
+
+If you prefer using `requests` library:
+
+```python
+import requests
+from datetime import datetime
+
+SUPABASE_URL = 'https://ooxcscccfhtawrjopkob.supabase.co'
+SUPABASE_ANON_KEY = '***REMOVED***'
+
+headers = {
+    'apikey': SUPABASE_ANON_KEY,
+    'Authorization': f'Bearer {SUPABASE_ANON_KEY}'
+}
+
 def find_player_by_name(name):
     url = f'{SUPABASE_URL}/rest/v1/players'
-    headers = {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': f'Bearer {SUPABASE_ANON_KEY}'
-    }
     # Note: requests automatically URL-encodes the value, including special characters
     # The * wildcards in PostgREST patterns are preserved
     params = {
@@ -530,11 +1037,19 @@ def get_player_predictions_for_date(player_id, date):
 
 def get_confidence_components(prediction_id):
     url = f'{SUPABASE_URL}/rest/v1/confidence_components'
-    headers = {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': f'Bearer {SUPABASE_ANON_KEY}'
-    }
     params = {'prediction_id': f'eq.{prediction_id}'}
+    response = requests.get(url, headers=headers, params=params)
+    return response.json()
+
+def get_player_game_stats(player_id, limit=20):
+    url = f'{SUPABASE_URL}/rest/v1/player_game_stats'
+    params = {
+        'player_id': f'eq.{player_id}',
+        'select': '*,games!inner(game_date,game_status)',
+        'games.game_status': 'eq.completed',
+        'order': 'games.game_date.desc',
+        'limit': limit
+    }
     response = requests.get(url, headers=headers, params=params)
     return response.json()
 
@@ -795,20 +1310,91 @@ predictions = safe_api_call(url, headers, params)
 
 ---
 
+### Understanding API Responses
+
+**Response Format:**
+- All successful requests return JSON arrays: `[{...}, {...}]`
+- Empty array `[]` means no results matched your query (not an error)
+- Each object in the array represents one database record
+
+**Common Response Patterns:**
+
+1. **Single prediction:**
+```json
+[{
+  "prediction_id": 12345,
+  "player_id": 2544,
+  "game_id": "0022401234",
+  "predicted_points": 25.5,
+  "predicted_rebounds": 8.2,
+  "confidence_score": 85,
+  "model_version": "xgboost"
+}]
+```
+
+2. **Multiple predictions (same player, different models):**
+```json
+[
+  {"prediction_id": 12345, "predicted_points": 25.5, "model_version": "xgboost", "confidence_score": 85},
+  {"prediction_id": 12346, "predicted_points": 26.1, "model_version": "lightgbm", "confidence_score": 85},
+  {"prediction_id": 12347, "predicted_points": 24.8, "model_version": "catboost", "confidence_score": 85},
+  {"prediction_id": 12348, "predicted_points": 25.9, "model_version": "random_forest", "confidence_score": 85}
+]
+```
+
+3. **Empty result:**
+```json
+[]
+```
+
+**Error Responses:**
+- **429 Too Many Requests**: Rate limited - wait and retry
+- **404 Not Found**: Invalid endpoint or table name
+- **400 Bad Request**: Invalid query syntax - check PostgREST documentation
+- **401 Unauthorized**: Missing or invalid API key
+
+### Understanding Table Relationships
+
+**Key Relationships:**
+- `predictions.player_id` → `players.player_id` (get player name, team, position)
+- `predictions.game_id` → `games.game_id` (get game date, opponent teams)
+- `predictions.prediction_id` → `confidence_components.prediction_id` (get detailed confidence breakdown)
+- `player_game_stats.player_id` → `players.player_id` (historical stats for a player)
+- `player_game_stats.game_id` → `games.game_id` (which game the stats are from)
+
+**Example: Get prediction with player and game details**
+```python
+# Use PostgREST joins (via select parameter)
+url = f"{API_BASE}/predictions"
+params = {
+    "prediction_id": "eq.12345",
+    "select": "*,players(full_name,team_id),games(game_date,home_team_id,away_team_id)"
+}
+response = requests.get(url, headers=headers, params=params)
+```
+
 ### Interpreting Prediction Quality
 
-**Confidence Scores:**
-- **80-100**: Excellent conditions - use these predictions with high confidence for fantasy/betting decisions
+**Confidence Scores (0-100):**
+- **80-100**: Excellent conditions - very reliable predictions, suitable for high-stakes decisions
 - **70-79**: Good conditions - reliable predictions, suitable for most use cases
-- **55-69**: Average conditions - use with caution, consider context (injuries, trades, etc.)
-- **40-54**: Below average - high uncertainty, may want to avoid for critical decisions
-- **Below 40**: Poor conditions - very unreliable, predictions may be significantly off
+- **55-69**: Average conditions - use with caution, consider context (injuries, trades, recent performance changes)
+- **40-54**: Below average - high uncertainty, predictions may be less accurate
+- **Below 40**: Poor conditions - very unreliable, avoid for critical decisions
+
+**What Confidence Scores Mean:**
+The confidence score indicates **prediction reliability**, not probability of accuracy. Factors affecting confidence:
+- **Player consistency** - How consistent the player's performance has been (consistent players = higher confidence)
+- **Data completeness** - Whether we have all necessary historical data
+- **Recent changes** - Trades, injuries, or significant role changes reduce confidence
+- **Model agreement** - When multiple models agree, confidence is higher
 
 **Understanding Model Versions:**
-Each prediction includes a `model_version` field. For best results, average predictions across all 4 models (XGBoost, LightGBM, CatBoost, Random Forest). The ensemble average typically performs better than any single model.
+
+> **Note:** For details on the 4-model system and ensemble averaging, see "What Are Predictions?" at the top of this document.
 
 **Checking Prediction Accuracy:**
-After games complete, you can compare predictions to actuals:
+After games complete, compare predictions to actual results:
 - Query predictions with `actual_points IS NOT NULL` to get completed games
 - Compare `predicted_points` vs `actual_points` to see accuracy
 - The `prediction_error` field stores the absolute difference
@@ -827,29 +1413,31 @@ response = requests.get(url, headers=headers, params=params)
 accurate_predictions = response.json()
 ```
 
-</details>
+**Example: Compare ensemble vs individual models**
+```python
+# After games complete, compare ensemble accuracy to individual models
+url = f"{API_BASE}/predictions"
+params = {
+    "actual_points": "not.is.null",
+    "prediction_date": "eq.2024-12-15",
+    "select": "player_id,model_version,predicted_points,actual_points,prediction_error"
+}
+response = requests.get(url, headers=headers, params=params)
+predictions = response.json()
 
-<details>
-<summary><strong>Model Versions and Predictions</strong></summary>
+# Group by model and calculate average error
+from collections import defaultdict
+model_errors = defaultdict(list)
+for pred in predictions:
+    model_errors[pred["model_version"]].append(pred["prediction_error"])
 
-**Model Versions**: Each prediction includes a `model_version` field indicating which ML model generated it:
-- `xgboost` - XGBoost gradient boosting
-- `lightgbm` - LightGBM gradient boosting  
-- `catboost` - CatBoost gradient boosting
-- `random_forest` - Random Forest ensemble
+for model, errors in model_errors.items():
+    print(f"{model}: Avg Error = {sum(errors)/len(errors):.2f}")
 
-**Multiple Predictions**: For each player/game combination, you may see multiple predictions (one per model). To get ensemble predictions, you can average the predictions from different models, or filter by a specific `model_version`.
+# Compare to ensemble average (manual calculation)
+# This demonstrates why averaging all 4 models typically performs better
+```
 
-</details>
-
-<details>
-<summary><strong>Confidence Scores</strong></summary>
-
-**Confidence Scores**: Range from 0-100, where higher scores indicate more reliable predictions. Scores ≥80 are considered high confidence.
-
-The confidence score represents the reliability of the prediction environment, not the probability of accuracy. A score of 90 means "excellent conditions: consistent player, models agree, good data, no recent trade" while a score of 40 means "risky conditions: inconsistent player, models disagree, limited data."
-
-</details>
 
 ### Additional Resources
 
