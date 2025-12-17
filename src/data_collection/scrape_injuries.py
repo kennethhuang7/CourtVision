@@ -158,6 +158,45 @@ def scrape_injuries():
                         injuries_updated += 1
                     else:
                         cur.execute("""
+                            SELECT injury_id, report_date
+                            FROM injuries
+                            WHERE player_id = %s
+                            AND injury_status IN ('Out', 'Day-To-Day', 'Questionable')
+                            AND report_date < %s
+                            AND (return_date IS NULL OR return_date > %s)
+                        """, (player_id, today, today))
+                        
+                        old_injuries = cur.fetchall()
+                        
+                        for old_injury_id, old_report_date in old_injuries:
+                            cur.execute("""
+                                SELECT COUNT(DISTINCT g.game_date)
+                                FROM games g
+                                WHERE g.game_date >= %s
+                                AND g.game_date < %s
+                                AND g.game_status = 'completed'
+                                AND (g.home_team_id IN (SELECT team_id FROM players WHERE player_id = %s)
+                                     OR g.away_team_id IN (SELECT team_id FROM players WHERE player_id = %s))
+                                AND NOT EXISTS (
+                                    SELECT 1 FROM player_game_stats pgs2
+                                    WHERE pgs2.game_id = g.game_id
+                                    AND pgs2.player_id = %s
+                                    AND pgs2.minutes_played > 0
+                                )
+                            """, (old_report_date, today, player_id, player_id, player_id))
+                            
+                            games_missed = cur.fetchone()[0]
+                            
+                            cur.execute("""
+                                UPDATE injuries SET
+                                    injury_status = 'Healthy',
+                                    return_date = %s,
+                                    games_missed = %s,
+                                    updated_at = CURRENT_TIMESTAMP
+                                WHERE injury_id = %s
+                            """, (today, games_missed, old_injury_id))
+                        
+                        cur.execute("""
                             INSERT INTO injuries (
                                 player_id, report_date, injury_status, 
                                 injury_description, source
