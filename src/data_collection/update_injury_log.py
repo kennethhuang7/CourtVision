@@ -173,7 +173,7 @@ def scrape_espn_injuries(conn, cur, today):
                         SELECT injury_id, report_date FROM injuries
                         WHERE player_id = %s 
                         AND return_date IS NULL
-                        AND injury_status IN ('Out', 'Day-To-Day', 'Questionable')
+                        AND injury_status != 'Healthy'
                         ORDER BY report_date DESC, injury_id DESC
                         LIMIT 1
                     """, (player_id,))
@@ -190,7 +190,49 @@ def scrape_espn_injuries(conn, cur, today):
                             WHERE injury_id = %s
                         """, (status, comment, injury_id))
                         injuries_updated += 1
+                        
+                        cur.execute("""
+                            SELECT injury_id, report_date
+                            FROM injuries
+                            WHERE player_id = %s
+                            AND return_date IS NULL
+                            AND injury_status != 'Healthy'
+                            AND injury_id != %s
+                        """, (player_id, injury_id))
+                        
+                        old_injuries = cur.fetchall()
+                        for old_injury_id, old_report_date in old_injuries:
+                            games_missed = calculate_games_missed(conn, cur, player_id, old_report_date, today)
+                            cur.execute("""
+                                UPDATE injuries SET
+                                    injury_status = 'Healthy',
+                                    return_date = %s,
+                                    games_missed = %s,
+                                    updated_at = CURRENT_TIMESTAMP
+                                WHERE injury_id = %s
+                            """, (today, games_missed, old_injury_id))
                     else:
+                        cur.execute("""
+                            SELECT injury_id, report_date
+                            FROM injuries
+                            WHERE player_id = %s
+                            AND return_date IS NULL
+                            AND injury_status != 'Healthy'
+                            AND report_date < %s
+                        """, (player_id, today))
+                        
+                        old_injuries = cur.fetchall()
+                        for old_injury_id, old_report_date in old_injuries:
+                            games_missed = calculate_games_missed(conn, cur, player_id, old_report_date, today)
+                            cur.execute("""
+                                UPDATE injuries SET
+                                    injury_status = 'Healthy',
+                                    return_date = %s,
+                                    games_missed = %s,
+                                    updated_at = CURRENT_TIMESTAMP
+                                WHERE injury_id = %s
+                            """, (today, games_missed, old_injury_id))
+                        
                         cur.execute("""
                             INSERT INTO injuries (
                                 player_id, report_date, injury_status, 
