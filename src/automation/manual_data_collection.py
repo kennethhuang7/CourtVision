@@ -61,6 +61,20 @@ def run_manual_collection():
         
         if result.stderr:
             print("ERRORS:", result.stderr)
+        
+        if step_name == "Collect today's schedule" and (result.returncode != 0 or "Error collecting schedule" in result.stdout or "timeout" in result.stderr.lower() or "Read timed out" in result.stderr):
+            print("\n" + "="*50)
+            print("Schedule collection via API failed, trying HTML scraper fallback...")
+            print("="*50)
+            html_scraper = os.path.join(project_root, "src", "data_collection", "collect_schedule_html.py")
+            fallback_result = subprocess.run([
+                sys.executable,
+                html_scraper,
+                str(date_arg)
+            ], capture_output=True, text=True, encoding='utf-8', errors='replace')
+            print(fallback_result.stdout)
+            if fallback_result.stderr:
+                print("FALLBACK ERRORS:", fallback_result.stderr)
     
     print("\n" + "="*50)
     print("COLLECTION COMPLETE!")
