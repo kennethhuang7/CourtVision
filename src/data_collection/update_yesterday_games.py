@@ -28,6 +28,151 @@ def add_missing_player(cur, player_id, player_name):
             ON CONFLICT (player_id) DO NOTHING
         """, (player_id, player_name))
 
+def merge_predictions_to_real_game_id(cur, conn, real_game_id, target_date, home_team_id, away_team_id):
+    cur.execute("""
+        SELECT DISTINCT game_id
+        FROM games
+        WHERE game_date = %s
+        AND home_team_id = %s
+        AND away_team_id = %s
+        AND game_id != %s
+    """, (target_date, home_team_id, away_team_id, real_game_id))
+    
+    old_game_ids = [row[0] for row in cur.fetchall()]
+    
+    if not old_game_ids:
+        return 0
+    
+    total_updated = 0
+    
+    for old_game_id in old_game_ids:
+        cur.execute("""
+            SELECT COUNT(*) FROM predictions
+            WHERE game_id = %s
+        """, (old_game_id,))
+        pred_count = cur.fetchone()[0]
+        
+        cur.execute("""
+            UPDATE player_game_stats
+            SET game_id = %s
+            WHERE game_id = %s
+            AND NOT EXISTS (
+                SELECT 1 FROM player_game_stats pgs2
+                WHERE pgs2.player_id = player_game_stats.player_id
+                AND pgs2.game_id = %s
+            )
+        """, (real_game_id, old_game_id, real_game_id))
+        
+        stats_merged = cur.rowcount
+        if stats_merged > 0:
+            print(f"    Merged {stats_merged} player_game_stats records from {old_game_id} to {real_game_id}")
+            conn.commit()
+        
+        if pred_count == 0:
+            cur.execute("""
+                SELECT COUNT(*) FROM player_game_stats WHERE game_id = %s
+            """, (old_game_id,))
+            stats_count = cur.fetchone()[0]
+            if stats_count == 0:
+                try:
+                    cur.execute("DELETE FROM games WHERE game_id = %s", (old_game_id,))
+                    conn.commit()
+                    print(f"    Deleted duplicate game {old_game_id} (no predictions or stats)")
+                except Exception:
+                    conn.rollback()
+            continue
+        
+        cur.execute("""
+            UPDATE predictions
+            SET game_id = %s
+            WHERE game_id = %s
+            AND NOT EXISTS (
+                SELECT 1 FROM predictions p2
+                WHERE p2.player_id = predictions.player_id
+                AND p2.game_id = %s
+                AND p2.model_version = predictions.model_version
+            )
+        """, (real_game_id, old_game_id, real_game_id))
+        
+        updated = cur.rowcount
+        total_updated += updated
+        
+        if updated > 0:
+            try:
+                cur.execute("""
+                    UPDATE confidence_components
+                    SET game_id = %s
+                    WHERE game_id = %s
+                """, (real_game_id, old_game_id))
+            except Exception:
+                pass
+            
+            conn.commit()
+        
+        cur.execute("""
+            DELETE FROM predictions
+            WHERE game_id = %s
+            AND EXISTS (
+                SELECT 1 FROM predictions p2
+                WHERE p2.player_id = predictions.player_id
+                AND p2.game_id = %s
+                AND p2.model_version = predictions.model_version
+            )
+        """, (old_game_id, real_game_id))
+        
+        cur.execute("""
+            DELETE FROM player_game_stats
+            WHERE game_id = %s
+            AND EXISTS (
+                SELECT 1 FROM player_game_stats pgs2
+                WHERE pgs2.player_id = player_game_stats.player_id
+                AND pgs2.game_id = %s
+            )
+        """, (old_game_id, real_game_id))
+        
+        cur.execute("""
+            SELECT COUNT(*) FROM predictions WHERE game_id = %s
+        """, (old_game_id,))
+        remaining_preds = cur.fetchone()[0]
+        
+        cur.execute("""
+            SELECT COUNT(*) FROM player_game_stats WHERE game_id = %s
+        """, (old_game_id,))
+        remaining_stats = cur.fetchone()[0]
+        
+        if remaining_preds == 0 and remaining_stats == 0:
+            try:
+                cur.execute("DELETE FROM games WHERE game_id = %s", (old_game_id,))
+                conn.commit()
+                print(f"    Merged predictions from {old_game_id} to {real_game_id} and deleted duplicate game")
+            except Exception as e:
+                conn.rollback()
+                cur.execute("""
+                    SELECT game_status, home_score, away_score
+                    FROM games
+                    WHERE game_id = %s
+                """, (real_game_id,))
+                real_game_data = cur.fetchone()
+                if real_game_data:
+                    real_status, real_home_score, real_away_score = real_game_data
+                    cur.execute("""
+                        UPDATE games
+                        SET game_status = %s,
+                            home_score = %s,
+                            away_score = %s
+                        WHERE game_id = %s
+                    """, (real_status, real_home_score, real_away_score, old_game_id))
+                    conn.commit()
+                    print(f"    Merged {updated} predictions from {old_game_id} to {real_game_id}")
+                    print(f"    Updated duplicate game {old_game_id} status to match real game (could not delete - referenced in user_picks)")
+                else:
+                    print(f"    Merged {updated} predictions from {old_game_id} to {real_game_id}")
+                    print(f"    Note: Could not delete duplicate game {old_game_id} (may be referenced in user_picks or other tables)")
+        elif updated > 0:
+            print(f"    Merged {updated} predictions from {old_game_id} to {real_game_id}")
+    
+    return total_updated
+
 def update_yesterday_games(target_date=None):
     if target_date is None:
         target_date = (datetime.now() - timedelta(days=1)).date()
@@ -156,6 +301,10 @@ def update_yesterday_games(target_date=None):
                     game_status = 'completed'
                 WHERE game_id = %s
             """, (int(home_score), int(away_score), game_id))
+        
+        merged_count = merge_predictions_to_real_game_id(cur, conn, game_id, target_date, int(home_team_id), int(away_team_id))
+        if merged_count > 0:
+            print(f"  Merged {merged_count} predictions to real game ID")
         
         for _, player in player_stats.iterrows():
             player_id = int(player['personId'])
