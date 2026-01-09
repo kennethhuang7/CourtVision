@@ -104,9 +104,14 @@ def merge_predictions_to_real_game_id(cur, conn, real_game_id, target_date, home
                     SET game_id = %s
                     WHERE game_id = %s
                 """, (real_game_id, old_game_id))
-            except Exception:
-                pass
-            
+                conf_updated = cur.rowcount
+                if conf_updated == 0:
+                    print(f"    WARNING: No confidence_components updated for game {old_game_id}")
+                else:
+                    print(f"    Updated {conf_updated} confidence_components from {old_game_id} to {real_game_id}")
+            except Exception as e:
+                print(f"    ERROR: Failed to update confidence_components from {old_game_id} to {real_game_id}: {e}")
+
             conn.commit()
         
         cur.execute("""
