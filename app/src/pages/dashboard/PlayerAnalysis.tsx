@@ -17,7 +17,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { formatUserDate } from '@/lib/dateUtils';
 import { supabase } from '@/lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine, Cell, Rectangle } from 'recharts';
-import { Shield, Users, Clock, Trophy, Zap, TrendingUp, TrendingDown, Brain, ChevronDown, GripVertical, Calendar, HelpCircle, Image, Save } from 'lucide-react';
+import { Shield, Users, Clock, Trophy, Zap, TrendingUp, TrendingDown, Brain, ChevronDown, GripVertical, Calendar, HelpCircle, Image, Save, RefreshCw, AlertCircle } from 'lucide-react';
 import { ExportImageModal, ExportOptions } from '@/components/analysis/ExportImageModal';
 import { ExportLayout } from '@/components/analysis/ExportLayout';
 import { toPng } from 'html-to-image';
@@ -415,7 +415,7 @@ export default function PlayerAnalysis() {
     fetchGameInfo();
   }, [selectedGameObj?.id, player?.id]);
 
-  const { data: historicalGames = [], isLoading: isLoadingHistoricalGames } = usePlayerHistoricalGames(player?.id || null, 50, selectedDate);
+  const { data: historicalGames = [], isLoading: isLoadingHistoricalGames, isError: isErrorHistoricalGames, error: errorHistoricalGames } = usePlayerHistoricalGames(player?.id || null, 50, selectedDate);
   const savePickMutation = useSavePick();
 
   
@@ -437,11 +437,34 @@ export default function PlayerAnalysis() {
         exportTheme = options.theme;
       }
 
-      
-      const resolvedOptions = { ...options, theme: exportTheme };
-      setCurrentExportOptions(resolvedOptions);
 
-      
+      const resolvedOptions = { ...options, theme: exportTheme };
+
+
+      let playerPhotoBase64: string | undefined = undefined;
+      if (options.includePlayerInfo && player.photoUrl) {
+        try {
+          if (player.photoUrl.includes('cdn.nba.com') || player.photoUrl.includes('ak-static.cms.nba.com')) {
+            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(player.photoUrl)}`;
+            const response = await fetch(proxyUrl);
+            if (response.ok) {
+              const blob = await response.blob();
+              playerPhotoBase64 = await new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(blob);
+              });
+              logger.info('Successfully converted player photo to base64 for export');
+            }
+          }
+        } catch (error) {
+          logger.warn('Failed to preload player photo, will use fallback', error as Error);
+        }
+      }
+
+      setCurrentExportOptions({ ...resolvedOptions, playerPhotoBase64 });
+
+
       await new Promise(resolve => setTimeout(resolve, 100));
 
       
@@ -494,16 +517,19 @@ export default function PlayerAnalysis() {
 
       images.forEach((img) => {
         const src = img.src;
-        
+
         if (src && !src.startsWith('data:') && !src.startsWith(window.location.origin)) {
           const conversionPromise = (async () => {
             try {
-              
-              const fetchUrl = src.includes('cdn.nba.com')
-                ? `https://ak-static.cms.nba.com/wp-content/uploads/headshots/nba/latest/260x190/${selectedPlayerData.player_id}.png`
-                : src;
+
+              let fetchUrl = src;
+              if (src.includes('cdn.nba.com') || src.includes('ak-static.cms.nba.com')) {
+                fetchUrl = `https://corsproxy.io/?${encodeURIComponent(src)}`;
+              }
 
               const response = await fetch(fetchUrl);
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
               const blob = await response.blob();
               const base64 = await new Promise<string>((resolve) => {
                 const reader = new FileReader();
@@ -511,26 +537,30 @@ export default function PlayerAnalysis() {
                 reader.readAsDataURL(blob);
               });
               img.src = base64;
-              
+
             } catch (error) {
-              
-              
-              img.style.display = 'none';
+              logger.warn('Failed to convert image to base64, triggering onError fallback', { src, error });
+
+              img.dispatchEvent(new Event('error'));
             }
           })();
           imageConversions.push(conversionPromise);
         }
       });
 
-      
+
+
       await Promise.all(imageConversions);
 
-      
+
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+
       const actualHeight = container.scrollHeight;
 
-      
 
-      
+
+
       const dataUrl = await toPng(container, {
         quality: 1,
         pixelRatio: resolvedOptions.quality,
@@ -1749,6 +1779,25 @@ export default function PlayerAnalysis() {
                     <p className="text-sm">Loading historical games...</p>
                   </div>
                 </div>
+              ) : isErrorHistoricalGames ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center max-w-md p-6 rounded-xl border border-border bg-card">
+                    <AlertCircle className="mx-auto h-10 w-10 text-muted-foreground mb-3 shrink-0" />
+                    <h3 className="text-base font-semibold text-foreground mb-2">Error loading historical games</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {errorHistoricalGames?.message || 'There was a problem fetching historical data. Please try again.'}
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.location.reload()}
+                      className="gap-2"
+                    >
+                      <RefreshCw className="h-4 w-4 shrink-0" />
+                      Try Again
+                    </Button>
+                  </div>
+                </div>
               ) : (
                 <>
               <style>{`
@@ -1861,12 +1910,16 @@ export default function PlayerAnalysis() {
             </div>
           </div>
 
-          
+
+
           <GameLogTable
             games={filteredGames}
             selectedStat={selectedStat}
             lineValue={lineValue}
             overUnder={overUnder}
+            isLoading={isLoadingHistoricalGames}
+            isError={isErrorHistoricalGames}
+            error={errorHistoricalGames}
           />
         </div>
       </div>
@@ -1885,7 +1938,7 @@ export default function PlayerAnalysis() {
           <ExportLayout
             playerName={currentExportOptions.includePlayerInfo ? player.name : undefined}
             teamName={currentExportOptions.includePlayerInfo ? player.team : undefined}
-            playerPhoto={currentExportOptions.includePlayerInfo ? player.photoUrl : undefined}
+            playerPhoto={currentExportOptions.includePlayerInfo ? ((currentExportOptions as any).playerPhotoBase64 || player.photoUrl) : undefined}
             stat={currentExportOptions.includePlayerInfo ? statOptions.find(s => s.value === selectedStat)?.label : undefined}
             lineValue={currentExportOptions.includePlayerInfo ? lineValue : undefined}
             prediction={currentExportOptions.includePlayerInfo ? overUnder : undefined}

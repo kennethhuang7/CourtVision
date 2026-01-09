@@ -83,25 +83,24 @@ export function CacheProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        
+
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Health check timeout')), 5000)
         );
 
-        
+
         const queryPromise = supabase
-          .from('predictions')
-          .select('*', { count: 'exact', head: true })
-          .limit(0);
+          .from('teams')
+          .select('team_id', { head: true })
+          .limit(1);
 
         const { error } = await Promise.race([queryPromise, timeoutPromise]) as any;
 
         if (isMounted) {
           if (error) {
-            
-            setIsOnline(true);
+            logger.info('Health check returned error - marking as offline', error);
+            setIsOnline(false);
           } else {
-            
             setIsOnline(true);
           }
           setLastHealthCheck(Date.now());
@@ -117,11 +116,11 @@ export function CacheProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    
+
     performHealthCheck();
 
-    
-    const interval = setInterval(performHealthCheck, 180000);
+
+    const interval = setInterval(performHealthCheck, 300000);
 
     return () => {
       isMounted = false;
@@ -217,11 +216,11 @@ export function CacheProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  
+
   useEffect(() => {
     const interval = setInterval(() => {
       refreshStats();
-    }, 30000);
+    }, 180000);
 
     return () => clearInterval(interval);
   }, [refreshStats]);

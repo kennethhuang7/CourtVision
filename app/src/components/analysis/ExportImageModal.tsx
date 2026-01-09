@@ -75,11 +75,11 @@ export function ExportImageModal({
         return;
       }
 
-      
-      if (exportData.playerPhoto.includes('cdn.nba.com')) {
+
+      if (exportData.playerPhoto.includes('cdn.nba.com') || exportData.playerPhoto.includes('ak-static.cms.nba.com')) {
         setIsLoadingPhoto(true);
         try {
-          const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+          const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(exportData.playerPhoto)}`;
           const response = await fetch(proxyUrl);
           const blob = await response.blob();
           const base64 = await new Promise<string>((resolve) => {
@@ -95,7 +95,7 @@ export function ExportImageModal({
           setIsLoadingPhoto(false);
         }
       } else {
-        
+
         setPlayerPhotoBase64(exportData.playerPhoto);
         setIsLoadingPhoto(false);
       }
@@ -213,7 +213,7 @@ export function ExportImageModal({
                     <ExportLayout
                       playerName={options.includePlayerInfo ? exportData.playerName : undefined}
                       teamName={options.includePlayerInfo ? exportData.teamName : undefined}
-                      playerPhoto={options.includePlayerInfo && !isLoadingPhoto ? playerPhotoBase64 : undefined}
+                      playerPhoto={options.includePlayerInfo && !isLoadingPhoto ? (playerPhotoBase64 || exportData.playerPhoto) : undefined}
                       stat={options.includePlayerInfo ? exportData.stat : undefined}
                       lineValue={options.includePlayerInfo ? exportData.lineValue : undefined}
                       prediction={options.includePlayerInfo ? exportData.prediction : undefined}
