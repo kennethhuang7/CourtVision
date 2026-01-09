@@ -1709,10 +1709,9 @@ def recalculate_all_confidence_scores(prediction_date):
         for (player_id, game_id), group in grouped:
             try:
                 conn, cur = ensure_connection(conn, cur)
-                
+
                 player_id = int(player_id)
-                game_id = int(game_id)
-                
+
                 if len(group) < 2:
                     skipped_insufficient_models += 1
                     continue
@@ -1851,7 +1850,7 @@ def recalculate_all_confidence_scores(prediction_date):
                             """, (
                                 int(prediction_id),
                                 int(player_id),
-                                int(game_id),
+                                game_id,
                                 prediction_date,
                                 row['model_version'],
                                 stat_name,
