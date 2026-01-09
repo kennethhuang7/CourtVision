@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
+import { cleanupLocalStorage } from '@/lib/localStorageCleanup';
 
 interface User {
   id: string;
@@ -72,7 +73,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (session?.user && isMounted) {
           setUser(mapUser(session.user));
 
-          
+
+          cleanupLocalStorage(session.user.id);
+
+
           if (rememberMe === 'false') {
             const sessionKeys = Object.keys(localStorage).filter(key =>
               key.startsWith('sb-') && key.includes('-auth-token')
@@ -131,15 +135,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (data.session && data.user) {
-        
+
+        cleanupLocalStorage(data.user.id);
+
+
         if (rememberMe) {
-          
+
           localStorage.setItem('courtvision-remember-me', 'true');
         } else {
-          
+
           localStorage.setItem('courtvision-remember-me', 'false');
 
-          
+
           const sessionKeys = Object.keys(localStorage).filter(key =>
             key.startsWith('sb-') && key.includes('-auth-token')
           );

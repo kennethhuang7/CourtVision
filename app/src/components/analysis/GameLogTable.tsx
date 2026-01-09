@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { CheckCircle2, XCircle, ChevronDown } from 'lucide-react';
+import { CheckCircle2, XCircle, ChevronDown, AlertCircle } from 'lucide-react';
 import { HistoricalGame } from '@/types/nba';
 import { formatTableDate } from '@/lib/dateUtils';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -13,6 +13,9 @@ interface GameLogTableProps {
   selectedStat: string;
   lineValue: number;
   overUnder: 'over' | 'under';
+  isLoading?: boolean;
+  isError?: boolean;
+  error?: Error | null;
 }
 
 const statLabels: Record<string, string> = {
@@ -27,7 +30,7 @@ const statLabels: Record<string, string> = {
 
 const INITIAL_DISPLAY_LIMIT = 20;
 
-export function GameLogTable({ games, selectedStat, lineValue, overUnder }: GameLogTableProps) {
+export function GameLogTable({ games, selectedStat, lineValue, overUnder, isLoading, isError, error }: GameLogTableProps) {
   const { dateFormat } = useTheme();
   const [showAll, setShowAll] = useState(false);
 
@@ -42,7 +45,7 @@ export function GameLogTable({ games, selectedStat, lineValue, overUnder }: Game
     <div className="stat-card overflow-hidden">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
         <h3 className="font-semibold text-foreground">
-          Games Played {showAll ? `(${games.length})` : hasMore ? `(Showing ${INITIAL_DISPLAY_LIMIT} of ${games.length})` : `(${games.length})`}
+          {isLoading ? 'Games Played (Loading...)' : showAll ? `Games Played (${games.length})` : hasMore ? `Games Played (Showing ${INITIAL_DISPLAY_LIMIT} of ${games.length})` : `Games Played (${games.length})`}
         </h3>
       </div>
 
@@ -59,7 +62,28 @@ export function GameLogTable({ games, selectedStat, lineValue, overUnder }: Game
             </TableRow>
           </TableHeader>
           <TableBody>
-            {displayedGames.length > 0 ? (
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                    <p className="text-sm text-muted-foreground">Loading games...</p>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : isError ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8">
+                  <div className="flex flex-col items-center gap-2">
+                    <AlertCircle className="h-8 w-8 text-muted-foreground mb-1" />
+                    <p className="text-sm font-medium text-foreground">Failed to load games</p>
+                    <p className="text-xs text-muted-foreground max-w-md">
+                      {error?.message || 'There was a problem fetching historical data. Please wait a moment and refresh.'}
+                    </p>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : displayedGames.length > 0 ? (
               displayedGames.map((game) => {
                 const statValue = game.stats[selectedStat as keyof typeof game.stats] || 0;
                 const hit = isHit(statValue);

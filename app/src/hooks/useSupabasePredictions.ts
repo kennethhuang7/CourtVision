@@ -310,7 +310,7 @@ export function useSupabasePredictions(selectedDate: Date, selectedModels: Model
           team: playerTeam?.full_name ?? '',
           teamAbbr: playerTeam?.abbreviation ?? '',
           position: playerRow.position ?? '',
-          photoUrl: `https://ak-static.cms.nba.com/wp-content/uploads/headshots/nba/latest/260x190/${p.player_id}.png`,
+          photoUrl: `https://ak-static.cms.nba.com/wp-content/uploads/headshots/nba/latest/260x190/${playerRow.player_id}.png`,
         };
 
         
