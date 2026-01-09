@@ -33,3 +33,9 @@ catboost_info/
 **/catboost_info/
 *.tsv
 events.out.tfevents
+app/node_modules/
+app/dist/
+app/dist-electron/
+app/.env.local
+app/.env
+streamlit/.streamlit/secrets.toml
