@@ -2,12 +2,23 @@ import requests
 from datetime import datetime, timedelta
 import json
 import sys
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # RUN THIS:
 # python src/database/test_api.py
+# Make sure SUPABASE_URL and SUPABASE_KEY are set in your .env file
 
-API_BASE_URL = "https://ooxcscccfhtawrjopkob.supabase.co/rest/v1"
-API_KEY = "***REMOVED***"
+API_BASE_URL = os.getenv('SUPABASE_URL', 'https://ooxcscccfhtawrjopkob.supabase.co/rest/v1')
+API_KEY = os.getenv('SUPABASE_KEY')
+
+if not API_KEY:
+    print("Error: SUPABASE_KEY environment variable not set")
+    print("Please add SUPABASE_KEY to your .env file")
+    sys.exit(1)
 
 headers = {
     "apikey": API_KEY,
