@@ -118,7 +118,7 @@ export function Sidebar() {
               <NavLink
                 key={item.name}
                 to={item.href}
-                className={cn(
+                className={() => cn(
                   'nav-link group',
                   isActive && 'active'
                 )}

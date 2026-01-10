@@ -12,8 +12,9 @@ interface ModelPerformanceData {
 
 interface TimeSeriesDataPoint {
   date: string;
+  fullDate?: string;
   error: number;
-  predictions?: number; 
+  predictions?: number;
 }
 
 interface ScatterDataPoint {
@@ -487,26 +488,27 @@ export function useModelPerformance(
         }
       }
 
-      
-      
-      
+
+
+
       const timeSeriesData: TimeSeriesDataPoint[] = Array.from(dateMap.entries())
         .map(([dateStr, data]) => {
-          
+
           const [year, month, day] = dateStr.split('-').map(Number);
-          const dateObj = new Date(year, month - 1, day); 
+          const dateObj = new Date(year, month - 1, day);
           const avgError = data.predictionErrors.length > 0
             ? data.predictionErrors.reduce((sum, e) => sum + e, 0) / data.predictionErrors.length
             : 0;
-          
-          
+
+
           const preciseError = Number(avgError);
-          
-          
+
+
           return {
             date: dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-            dateSort: dateObj.getTime(), 
-            error: preciseError, 
+            fullDate: dateStr,
+            dateSort: dateObj.getTime(),
+            error: preciseError,
             predictions: data.count,
           };
         })

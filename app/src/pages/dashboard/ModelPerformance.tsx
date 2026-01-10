@@ -225,23 +225,24 @@ export default function ModelPerformance() {
 
   
   const groupTimeSeriesData = (
-    data: Array<{ date: string; predictions?: number; [key: string]: any }>,
+    data: Array<{ date: string; fullDate?: string; predictions?: number; [key: string]: any }>,
     groupBy: string
-  ): Array<{ date: string; predictions?: number; [key: string]: number }> => {
+  ): Array<{ date: string; fullDate?: string; predictions?: number; [key: string]: number }> => {
     if (groupBy === 'daily') {
       return data;
     }
 
-    
+
     const groupedMap = new Map<string, {
       displayDate: string;
       sortKey: string;
       values: Record<string, { sum: number; count: number }>;
-      predictions: number; 
+      predictions: number;
     }>();
 
     data.forEach(point => {
-      const date = new Date(point.date);
+      const dateStr = point.fullDate || point.date;
+      const date = new Date(dateStr);
       let groupKey: string;
       let displayDate: string;
       let sortKey: string;
@@ -393,16 +394,20 @@ export default function ModelPerformance() {
       });
     });
 
-    
+
     const combinedTimeSeries = Array.from(timeSeriesMap.entries())
       .map(([date, data]) => ({
         date,
         ...data,
       }))
       .sort((a, b) => {
-        
-        const dateA = new Date(a.date);
-        const dateB = new Date(b.date);
+
+        const dateStrA = a.fullDate || a.date;
+        const dateStrB = b.fullDate || b.date;
+
+
+        const dateA = dateStrA.includes('-') ? new Date(dateStrA) : new Date(dateStrA);
+        const dateB = dateStrB.includes('-') ? new Date(dateStrB) : new Date(dateStrB);
         return dateA.getTime() - dateB.getTime();
       });
 
