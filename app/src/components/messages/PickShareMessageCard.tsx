@@ -182,7 +182,7 @@ export function PickShareMessageCard({ metadata, isOwn }: PickShareMessageCardPr
   }, [metadata.player_id, metadata.game_id]);
 
   const playerPhotoUrl = metadata.player_id
-    ? `https://ak-static.cms.nba.com/wp-content/uploads/headshots/nba/latest/260x190/${pick.player_id}.png`
+    ? `https://ak-static.cms.nba.com/wp-content/uploads/headshots/nba/latest/260x190/${metadata.player_id}.png`
     : null;
 
   const statLabel = metadata.stat_name

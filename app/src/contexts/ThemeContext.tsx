@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
+import { logger } from '@/lib/logger';
 
 export type ThemeMode = 'light' | 'dark' | 'midnight' | 'amoled' | 'sync';
 export type UIDensity = 'compact' | 'default' | 'spacious';
@@ -25,33 +26,63 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<ThemeMode>(() => {
-    const stored = localStorage.getItem('app-theme');
-    return (stored as ThemeMode) || 'dark';
+    try {
+      const stored = localStorage.getItem('app-theme');
+      return (stored as ThemeMode) || 'dark';
+    } catch (e) {
+      logger.warn('Error loading theme from localStorage', { error: e });
+      return 'dark';
+    }
   });
 
   const [density, setDensity] = useState<UIDensity>(() => {
-    const stored = localStorage.getItem('app-density');
-    return (stored as UIDensity) || 'default';
+    try {
+      const stored = localStorage.getItem('app-density');
+      return (stored as UIDensity) || 'default';
+    } catch (e) {
+      logger.warn('Error loading density from localStorage', { error: e });
+      return 'default';
+    }
   });
 
   const [fontScale, setFontScale] = useState<number>(() => {
-    const stored = localStorage.getItem('app-font-scale');
-    return stored ? parseInt(stored) : 16;
+    try {
+      const stored = localStorage.getItem('app-font-scale');
+      return stored ? parseInt(stored) : 16;
+    } catch (e) {
+      logger.warn('Error loading fontScale from localStorage', { error: e });
+      return 16;
+    }
   });
 
   const [zoomLevel, setZoomLevel] = useState<number>(() => {
-    const stored = localStorage.getItem('app-zoom-level');
-    return stored ? parseInt(stored) : 100;
+    try {
+      const stored = localStorage.getItem('app-zoom-level');
+      return stored ? parseInt(stored) : 100;
+    } catch (e) {
+      logger.warn('Error loading zoomLevel from localStorage', { error: e });
+      return 100;
+    }
   });
 
   const [dateFormat, setDateFormat] = useState<DateFormat>(() => {
-    const stored = localStorage.getItem('app-date-format');
-    return (stored as DateFormat) || 'MM/DD/YYYY';
+    try {
+      const stored = localStorage.getItem('app-date-format');
+      return (stored as DateFormat) || 'MM/DD/YYYY';
+    } catch (e) {
+      logger.warn('Error loading dateFormat from localStorage', { error: e });
+      return 'MM/DD/YYYY';
+    }
   });
 
   const [timeFormat, setTimeFormat] = useState<TimeFormat>(() => {
-    const stored = localStorage.getItem('app-time-format');
-    return (stored as TimeFormat) || '12h';
+    try {
+      const stored = localStorage.getItem('app-time-format');
+      return (stored as TimeFormat) || '12h';
+    } catch (e) {
+      logger.warn('Error loading timeFormat from localStorage', { error: e });
+      return '12h';
+    }
   });
 
   const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(() => {
@@ -79,7 +110,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const root = document.documentElement;
     root.classList.remove('light', 'dark', 'midnight', 'amoled');
     root.classList.add(resolvedTheme);
-    localStorage.setItem('app-theme', theme);
+    try {
+      localStorage.setItem('app-theme', theme);
+    } catch (e) {
+      logger.warn('Error saving theme to localStorage', { error: e });
+    }
   }, [theme, resolvedTheme]);
 
   
@@ -87,31 +122,51 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const root = document.documentElement;
     root.classList.remove('density-compact', 'density-default', 'density-spacious');
     root.classList.add(`density-${density}`);
-    localStorage.setItem('app-density', density);
+    try {
+      localStorage.setItem('app-density', density);
+    } catch (e) {
+      logger.warn('Error saving density to localStorage', { error: e });
+    }
   }, [density]);
 
   
   useEffect(() => {
     const scale = fontScale / 16;
     document.documentElement.style.setProperty('--font-scale', `${scale}`);
-    localStorage.setItem('app-font-scale', fontScale.toString());
+    try {
+      localStorage.setItem('app-font-scale', fontScale.toString());
+    } catch (e) {
+      logger.warn('Error saving fontScale to localStorage', { error: e });
+    }
   }, [fontScale]);
 
   
   useEffect(() => {
     const zoomValue = `${zoomLevel}%`;
     document.documentElement.style.setProperty('--zoom-level', zoomValue);
-    localStorage.setItem('app-zoom-level', zoomLevel.toString());
+    try {
+      localStorage.setItem('app-zoom-level', zoomLevel.toString());
+    } catch (e) {
+      logger.warn('Error saving zoomLevel to localStorage', { error: e });
+    }
   }, [zoomLevel]);
 
   
   useEffect(() => {
-    localStorage.setItem('app-date-format', dateFormat);
+    try {
+      localStorage.setItem('app-date-format', dateFormat);
+    } catch (e) {
+      logger.warn('Error saving dateFormat to localStorage', { error: e });
+    }
   }, [dateFormat]);
 
   
   useEffect(() => {
-    localStorage.setItem('app-time-format', timeFormat);
+    try {
+      localStorage.setItem('app-time-format', timeFormat);
+    } catch (e) {
+      logger.warn('Error saving timeFormat to localStorage', { error: e });
+    }
   }, [timeFormat]);
 
   
