@@ -65,9 +65,9 @@ export default function Settings() {
   const { theme, setTheme, density, setDensity, fontScale, setFontScale, zoomLevel, setZoomLevel, dateFormat, setDateFormat, timeFormat, setTimeFormat } = useTheme();
   const { settings: notificationSettings, updateSettings: updateNotificationSettings, requestDesktopPermission, hasDesktopPermission, previewSound } = useNotifications();
   const { isEnabled: doNotDisturb, enable, disable } = useDoNotDisturb();
-  const { retentionDays, setRetentionDays, storageUsage, cacheCounts, clearCache, refreshStats, getAllCacheEntries, deleteCacheEntries } = useCache();
+  const { retentionDays, setRetentionDays, modelPerfRetentionDays, setModelPerfRetentionDays, storageUsage, cacheCounts, clearCache, refreshStats, getAllCacheEntries, deleteCacheEntries, getAllModelPerformanceEntries, deleteModelPerformanceEntries } = useCache();
 
-  
+
   const [cacheModalOpen, setCacheModalOpen] = useState(false);
   const [cacheEntries, setCacheEntries] = useState<Array<{
     date: string;
@@ -75,6 +75,14 @@ export default function Settings() {
     size: number;
     cachedAt: number;
     models?: string;
+  }>>([]);
+  const [modelPerfEntries, setModelPerfEntries] = useState<Array<{
+    cacheKey: string;
+    timePeriod: string;
+    stat: string;
+    models: string[];
+    size: number;
+    cachedAt: number;
   }>>([]);
 
   
@@ -2316,7 +2324,7 @@ export default function Settings() {
           >
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Cache Retention Period</Label>
+                <Label>Prediction Cache Retention</Label>
                 <Select
                   value={String(retentionDays)}
                   onValueChange={handleRetentionChange}
@@ -2334,7 +2342,29 @@ export default function Settings() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Historical predictions (2+ days old) are cached locally. Recent data is always fetched fresh.
+                  Predictions are cached locally. Recent games are updated automatically in the background when viewed.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Model Performance Cache</Label>
+                <Select
+                  value={modelPerfRetentionDays === 'off' ? 'off' : 'on'}
+                  onValueChange={(value) => {
+                    const days = value === 'off' ? 'off' : 30;
+                    setModelPerfRetentionDays(days);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="on">On - Cache all queries</SelectItem>
+                    <SelectItem value="off">Off - No caching</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  When enabled, model performance queries are cached for faster loading. Cached data updates automatically when viewed.
                 </p>
               </div>
 
@@ -2345,7 +2375,11 @@ export default function Settings() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Cached Predictions</span>
-                  <span className="text-sm text-muted-foreground">{cacheCounts.predictions} days</span>
+                  <span className="text-sm text-muted-foreground">{cacheCounts.predictions} items</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Cached Model Performance</span>
+                  <span className="text-sm text-muted-foreground">{cacheCounts.modelPerformance} items</span>
                 </div>
               </div>
 
@@ -2355,8 +2389,12 @@ export default function Settings() {
                   variant="outline"
                   onClick={async () => {
                     try {
-                      const entries = await getAllCacheEntries();
-                      setCacheEntries(entries);
+                      const [predEntries, mpEntries] = await Promise.all([
+                        getAllCacheEntries(),
+                        getAllModelPerformanceEntries()
+                      ]);
+                      setCacheEntries(predEntries);
+                      setModelPerfEntries(mpEntries);
                       setCacheModalOpen(true);
                     } catch (error) {
                       toast.error('Failed to load cache data');
@@ -2407,10 +2445,9 @@ export default function Settings() {
                 <div>
                   <p className="font-medium mb-1">How caching works:</p>
                   <ul className="space-y-1 text-xs">
-                    <li>• Today's predictions are always fetched fresh</li>
-                    <li>• Yesterday's predictions are fetched fresh (still updating)</li>
-                    <li>• Predictions 2+ days old are cached locally</li>
-                    <li>• Model performance data is always fetched fresh</li>
+                    <li>• All predictions are cached when viewed</li>
+                    <li>• Recent games update automatically in the background</li>
+                    <li>• Works offline using cached data</li>
                   </ul>
                 </div>
               </div>
@@ -2716,10 +2753,16 @@ export default function Settings() {
         open={cacheModalOpen}
         onOpenChange={setCacheModalOpen}
         entries={cacheEntries}
+        modelPerformanceEntries={modelPerfEntries}
         onDelete={deleteCacheEntries}
+        onDeleteModelPerformance={deleteModelPerformanceEntries}
         onRefresh={async () => {
-          const entries = await getAllCacheEntries();
-          setCacheEntries(entries);
+          const [predEntries, mpEntries] = await Promise.all([
+            getAllCacheEntries(),
+            getAllModelPerformanceEntries()
+          ]);
+          setCacheEntries(predEntries);
+          setModelPerfEntries(mpEntries);
         }}
       />
     </div>

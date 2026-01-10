@@ -10,7 +10,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { AlertCircle, TrendingDown, Activity, Loader2, Palette } from 'lucide-react';
+import { AlertCircle, TrendingDown, Activity, Loader2, Palette, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useEnsemble, type ModelId } from '@/contexts/EnsembleContext';
 import { useModelPerformance } from '@/hooks/useModelPerformance';
@@ -63,17 +63,17 @@ export default function ModelPerformance() {
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
-        
-        
-        const filtered = parsed.filter((m: ModelId | 'ensemble') => 
+
+
+        const filtered = parsed.filter((m: ModelId | 'ensemble') =>
           m !== 'ensemble' || selectedModels.length > 0
         );
         return filtered.length > 0 ? filtered : (selectedModels.length > 0 ? ['ensemble'] : []);
       } catch {
-        
+
       }
     }
-    return selectedModels.length > 0 ? ['ensemble', ...selectedModels] : [];
+    return selectedModels.length > 0 ? ['ensemble'] : [];
   });
   
   
@@ -170,22 +170,40 @@ export default function ModelPerformance() {
   { value: 'threePointers', label: 'Three Pointers' },
 ];
 
-  
-  
-  const xgboostQuery = useModelPerformance(timePeriod, selectedStatForTimeSeries, ['xgboost']);
-  const lightgbmQuery = useModelPerformance(timePeriod, selectedStatForTimeSeries, ['lightgbm']);
-  const randomForestQuery = useModelPerformance(timePeriod, selectedStatForTimeSeries, ['random_forest']);
-  const catboostQuery = useModelPerformance(timePeriod, selectedStatForTimeSeries, ['catboost']);
-  
-  const ensembleQuery = useModelPerformance(timePeriod, selectedStatForTimeSeries, selectedModels);
-  
-  
-  
-  const xgboostAllStatsQuery = useModelPerformance(timePeriod, 'points', ['xgboost']); 
-  const lightgbmAllStatsQuery = useModelPerformance(timePeriod, 'points', ['lightgbm']);
-  const randomForestAllStatsQuery = useModelPerformance(timePeriod, 'points', ['random_forest']);
-  const catboostAllStatsQuery = useModelPerformance(timePeriod, 'points', ['catboost']);
-  const ensembleAllStatsQuery = useModelPerformance(timePeriod, 'points', selectedModels);
+
+
+  const xgboostQuery = useModelPerformance(
+    timePeriod,
+    selectedStatForTimeSeries,
+    ['xgboost'],
+    { enabled: modelsToCompare.includes('xgboost') }
+  );
+  const lightgbmQuery = useModelPerformance(
+    timePeriod,
+    selectedStatForTimeSeries,
+    ['lightgbm'],
+    { enabled: modelsToCompare.includes('lightgbm') }
+  );
+  const randomForestQuery = useModelPerformance(
+    timePeriod,
+    selectedStatForTimeSeries,
+    ['random_forest'],
+    { enabled: modelsToCompare.includes('random_forest') }
+  );
+  const catboostQuery = useModelPerformance(
+    timePeriod,
+    selectedStatForTimeSeries,
+    ['catboost'],
+    { enabled: modelsToCompare.includes('catboost') }
+  );
+
+  const ensembleQuery = useModelPerformance(
+    timePeriod,
+    selectedStatForTimeSeries,
+    selectedModels,
+    { enabled: modelsToCompare.includes('ensemble' as any) }
+  );
+
 
   const allQueries = {
     ensemble: ensembleQuery,
@@ -194,15 +212,9 @@ export default function ModelPerformance() {
     random_forest: randomForestQuery,
     catboost: catboostQuery,
   };
-  
-  
-  const allStatsQueries = {
-    ensemble: ensembleAllStatsQuery,
-    xgboost: xgboostAllStatsQuery,
-    lightgbm: lightgbmAllStatsQuery,
-    random_forest: randomForestAllStatsQuery,
-    catboost: catboostAllStatsQuery,
-  };
+
+
+  const allStatsQueries = allQueries;
 
   
   const performanceQueries = modelsToCompare.map(model => ({
@@ -509,11 +521,44 @@ export default function ModelPerformance() {
     </div>
   );
 
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+
+  useEffect(() => {
+    setLastUpdated(new Date());
+  }, [combinedData]);
+
+  const getTimeAgo = (date: Date) => {
+    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+    if (seconds < 60) return 'just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h ago`;
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="min-w-0">
-        <h1 className="text-3xl font-bold text-foreground leading-tight truncate">Model Performance</h1>
-        <p className="text-muted-foreground leading-tight truncate">Analyze prediction accuracy and model metrics</p>
+      <div className="min-w-0 flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-3xl font-bold text-foreground leading-tight truncate">Model Performance</h1>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-muted-foreground text-sm leading-tight truncate">Analyze prediction accuracy and model metrics</p>
+            <span className="text-xs text-muted-foreground whitespace-nowrap">• Updated {getTimeAgo(lastUpdated)}</span>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            ensembleQuery.refetch();
+            performanceQueries.forEach(q => q.query.refetch());
+            setLastUpdated(new Date());
+          }}
+          className="flex-shrink-0"
+        >
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh
+        </Button>
       </div>
 
       <div className="stat-card">

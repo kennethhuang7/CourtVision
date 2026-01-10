@@ -3,6 +3,8 @@ import { supabase } from '@/lib/supabase';
 import type { ModelId } from '@/contexts/EnsembleContext';
 import { getRefreshIntervalMs } from './useAutoRefresh';
 import { logger } from '@/lib/logger';
+import { cacheManager } from '@/lib/cache';
+import { useCache } from '@/contexts/CacheContext';
 
 interface ModelPerformanceData {
   stat: string;
@@ -52,19 +54,33 @@ const VALID_MODEL_IDS: ModelId[] = ['xgboost', 'lightgbm', 'catboost', 'random_f
 export function useModelPerformance(
   timePeriod: string,
   selectedStat: string,
-  selectedModels: ModelId[]
+  selectedModels: ModelId[],
+  options?: { enabled?: boolean }
 ) {
+  const { modelPerfRetentionDays } = useCache();
+
   return useQuery<ModelPerformanceResult, Error>({
     queryKey: ['model-performance', timePeriod, selectedStat, selectedModels.slice().sort()],
+    enabled: options?.enabled !== false,
     queryFn: async () => {
       try {
-      
+
       const validatedTimePeriod = VALID_TIME_PERIODS.includes(timePeriod) ? timePeriod : 'all';
       const validatedStat = VALID_STATS.includes(selectedStat) ? selectedStat : 'points';
       const validatedModels = selectedModels.filter(model => VALID_MODEL_IDS.includes(model));
-      
+
       if (validatedModels.length === 0) {
         throw new Error('No valid models selected');
+      }
+
+      const cacheKey = `${validatedTimePeriod}|${validatedStat}|${validatedModels.join(',')}`;
+
+      if (modelPerfRetentionDays !== 'off') {
+        const cachedData = await cacheManager.getModelPerformance(cacheKey);
+        if (cachedData) {
+          logger.info(`Using cached model performance for ${cacheKey}`);
+          return cachedData as ModelPerformanceResult;
+        }
       }
 
       
@@ -573,12 +589,18 @@ export function useModelPerformance(
           frequency: errorBins.get(error) || 0,
         }));
 
-      return {
+      const result = {
         overallMetrics,
         timeSeriesData,
         scatterData: limitedScatterData,
         errorDistribution,
       };
+
+      if (modelPerfRetentionDays !== 'off') {
+        await cacheManager.saveModelPerformance(cacheKey, result);
+      }
+
+      return result;
       } catch (error) {
         logger.error('Error in useModelPerformance', error as Error, {
           timePeriod,

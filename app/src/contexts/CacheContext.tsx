@@ -4,13 +4,17 @@ import { logger } from '../lib/logger';
 import { supabase } from '../lib/supabase';
 
 const CACHE_RETENTION_KEY = 'courtvision-cache-retention';
+const MODEL_PERF_RETENTION_KEY = 'courtvision-model-perf-retention';
 const DEFAULT_RETENTION: CacheRetentionDays = 30;
+const DEFAULT_MODEL_PERF_RETENTION: CacheRetentionDays = 30;
 
 interface CacheContextType {
   retentionDays: CacheRetentionDays;
   setRetentionDays: (days: CacheRetentionDays) => void;
+  modelPerfRetentionDays: CacheRetentionDays;
+  setModelPerfRetentionDays: (days: CacheRetentionDays) => void;
   storageUsage: { totalBytes: number; itemCount: number; formattedSize: string };
-  cacheCounts: { predictions: number };
+  cacheCounts: { predictions: number; modelPerformance: number };
   isOnline: boolean;
   clearCache: () => Promise<void>;
   refreshStats: () => Promise<void>;
@@ -23,6 +27,15 @@ interface CacheContextType {
     models?: string;
   }>>;
   deleteCacheEntries: (keys: string[]) => Promise<void>;
+  getAllModelPerformanceEntries: () => Promise<Array<{
+    cacheKey: string;
+    timePeriod: string;
+    stat: string;
+    models: string[];
+    size: number;
+    cachedAt: number;
+  }>>;
+  deleteModelPerformanceEntries: (cacheKeys: string[]) => Promise<void>;
 }
 
 const CacheContext = createContext<CacheContextType | undefined>(undefined);
@@ -31,16 +44,27 @@ export function CacheProvider({ children }: { children: ReactNode }) {
   const [retentionDays, setRetentionDaysState] = useState<CacheRetentionDays>(() => {
     if (typeof window === 'undefined') return DEFAULT_RETENTION;
     const stored = localStorage.getItem(CACHE_RETENTION_KEY);
-    if (stored === 'all') return 'all';
+    if (stored === 'all' || stored === 'off') return stored;
     const parsed = parseInt(stored || '', 10);
-    if ([7, 14, 30, 60, 90].includes(parsed)) {
+    if ([7, 14, 30, 60, 90, 180].includes(parsed)) {
       return parsed as CacheRetentionDays;
     }
     return DEFAULT_RETENTION;
   });
 
+  const [modelPerfRetentionDays, setModelPerfRetentionDaysState] = useState<CacheRetentionDays>(() => {
+    if (typeof window === 'undefined') return DEFAULT_MODEL_PERF_RETENTION;
+    const stored = localStorage.getItem(MODEL_PERF_RETENTION_KEY);
+    if (stored === 'all' || stored === 'off') return stored;
+    const parsed = parseInt(stored || '', 10);
+    if ([7, 14, 30, 60, 90, 180].includes(parsed)) {
+      return parsed as CacheRetentionDays;
+    }
+    return DEFAULT_MODEL_PERF_RETENTION;
+  });
+
   const [storageUsage, setStorageUsage] = useState({ totalBytes: 0, itemCount: 0, formattedSize: '0 B' });
-  const [cacheCounts, setCacheCounts] = useState({ predictions: 0 });
+  const [cacheCounts, setCacheCounts] = useState({ predictions: 0, modelPerformance: 0 });
   const [isOnline, setIsOnline] = useState(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [isInitialized, setIsInitialized] = useState(false);
   const [lastHealthCheck, setLastHealthCheck] = useState<number>(Date.now());
@@ -152,15 +176,29 @@ export function CacheProvider({ children }: { children: ReactNode }) {
         localStorage.setItem(CACHE_RETENTION_KEY, String(days));
       }
 
-      
       await cacheManager.cleanup(days);
 
-      
       await refreshStats();
 
       logger.info(`Cache retention updated to: ${days} days`);
     } catch (error) {
       logger.error('Failed to update retention days', error as Error);
+    }
+  }, [refreshStats]);
+
+  const setModelPerfRetentionDays = useCallback(async (days: CacheRetentionDays) => {
+    try {
+      setModelPerfRetentionDaysState(days);
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(MODEL_PERF_RETENTION_KEY, String(days));
+      }
+
+      await refreshStats();
+
+      logger.info(`Model performance cache retention updated to: ${days}`);
+    } catch (error) {
+      logger.error('Failed to update model performance retention days', error as Error);
     }
   }, [refreshStats]);
 
@@ -181,7 +219,7 @@ export function CacheProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  
+
   const deleteCacheEntries = useCallback(async (keys: string[]) => {
     try {
       await cacheManager.deleteEntries(keys);
@@ -189,6 +227,28 @@ export function CacheProvider({ children }: { children: ReactNode }) {
       logger.info(`Deleted ${keys.length} cache entries`);
     } catch (error) {
       logger.error('Failed to delete cache entries', error as Error);
+      throw error;
+    }
+  }, [refreshStats]);
+
+
+  const getAllModelPerformanceEntries = useCallback(async () => {
+    try {
+      return await cacheManager.getAllModelPerformanceEntries();
+    } catch (error) {
+      logger.error('Failed to get model performance cache entries', error as Error);
+      return [];
+    }
+  }, []);
+
+
+  const deleteModelPerformanceEntries = useCallback(async (cacheKeys: string[]) => {
+    try {
+      await cacheManager.deleteModelPerformanceEntries(cacheKeys);
+      await refreshStats();
+      logger.info(`Deleted ${cacheKeys.length} model performance cache entries`);
+    } catch (error) {
+      logger.error('Failed to delete model performance cache entries', error as Error);
       throw error;
     }
   }, [refreshStats]);
@@ -225,11 +285,13 @@ export function CacheProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(interval);
   }, [refreshStats]);
 
-  
+
   const value = useMemo(
     () => ({
       retentionDays,
       setRetentionDays,
+      modelPerfRetentionDays,
+      setModelPerfRetentionDays,
       storageUsage,
       cacheCounts,
       isOnline,
@@ -238,8 +300,10 @@ export function CacheProvider({ children }: { children: ReactNode }) {
       isInitialized,
       getAllCacheEntries,
       deleteCacheEntries,
+      getAllModelPerformanceEntries,
+      deleteModelPerformanceEntries,
     }),
-    [retentionDays, setRetentionDays, storageUsage, cacheCounts, isOnline, clearCache, refreshStats, isInitialized, getAllCacheEntries, deleteCacheEntries]
+    [retentionDays, setRetentionDays, modelPerfRetentionDays, setModelPerfRetentionDays, storageUsage, cacheCounts, isOnline, clearCache, refreshStats, isInitialized, getAllCacheEntries, deleteCacheEntries, getAllModelPerformanceEntries, deleteModelPerformanceEntries]
   );
 
   return <CacheContext.Provider value={value}>{children}</CacheContext.Provider>;
