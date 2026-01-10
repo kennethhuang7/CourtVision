@@ -41,6 +41,8 @@ import { useCache } from '@/contexts/CacheContext';
 import type { CacheRetentionDays } from '@/lib/cache';
 import { ImageCropper } from '@/components/ui/image-cropper';
 import { FriendsListModal } from '@/components/friends/FriendsListModal';
+import { getSkinTonePreference, setSkinTonePreference } from '@/lib/emojiUtils';
+import type { SkinTone } from '@/lib/emojiData';
 import { CacheManagementModal } from '@/components/settings/CacheManagementModal';
 import { DeviceManagement } from '@/components/settings/DeviceManagement';
 import { ExportDataSection } from '@/components/settings/ExportDataSection';
@@ -85,9 +87,11 @@ export default function Settings() {
     cachedAt: number;
   }>>([]);
 
-  
+
   const [retentionConfirmOpen, setRetentionConfirmOpen] = useState(false);
   const [pendingRetentionDays, setPendingRetentionDays] = useState<CacheRetentionDays | null>(null);
+  const [clearCacheConfirmOpen, setClearCacheConfirmOpen] = useState(false);
+  const [skinTone, setSkinTone] = useState<SkinTone>(() => getSkinTonePreference());
   
   
   const { data: profile, isLoading: isLoadingProfile } = useUserProfile();
@@ -2046,6 +2050,65 @@ export default function Settings() {
             </div>
           </SettingsSection>
 
+          <SettingsSection title="Messaging" description="Customize your messaging experience.">
+            <div className="space-y-2">
+              <Label>Default Emoji Skin Tone</Label>
+              <Select
+                value={skinTone}
+                onValueChange={(value) => {
+                  const newTone = value as SkinTone;
+                  setSkinTone(newTone);
+                  setSkinTonePreference(newTone);
+                }}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">👍</span>
+                      <span>Default</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="light">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">👍🏻</span>
+                      <span>Tone 1</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="mediumLight">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">👍🏼</span>
+                      <span>Tone 2</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="medium">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">👍🏽</span>
+                      <span>Tone 3</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="mediumDark">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">👍🏾</span>
+                      <span>Tone 4</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="dark">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">👍🏿</span>
+                      <span>Tone 5</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Choose your preferred default skin tone for emojis. You can also select skin tones individually when picking emojis.
+              </p>
+            </div>
+          </SettingsSection>
+
           <Button variant="hero" onClick={handleSavePreferences} className="gap-2">
             <Save className="h-4 w-4" />
             Save Display Settings
@@ -2408,15 +2471,7 @@ export default function Settings() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={async () => {
-                    const result = await clearCache();
-
-                    if (result.wasEmpty) {
-                      toast.info('Cache is already empty');
-                    } else {
-                      toast.success(`Cache cleared: ${result.deletedCount} ${result.deletedCount === 1 ? 'item' : 'items'} deleted`);
-                    }
-                  }}
+                  onClick={() => setClearCacheConfirmOpen(true)}
                   className="gap-2"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -2466,6 +2521,34 @@ export default function Settings() {
               <AlertDialogFooter>
                 <AlertDialogCancel onClick={cancelRetentionChange}>Cancel</AlertDialogCancel>
                 <AlertDialogAction onClick={confirmRetentionChange}>Delete and Apply</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          <AlertDialog open={clearCacheConfirmOpen} onOpenChange={setClearCacheConfirmOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Clear All Cache?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will delete all cached predictions and model performance data. You'll need to re-download data when viewing predictions again. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={async () => {
+                    setClearCacheConfirmOpen(false);
+                    const result = await clearCache();
+
+                    if (result.wasEmpty) {
+                      toast.info('Cache is already empty');
+                    } else {
+                      toast.success(`Cache cleared: ${result.deletedCount} ${result.deletedCount === 1 ? 'item' : 'items'} deleted`);
+                    }
+                  }}
+                >
+                  Clear All Cache
+                </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>

@@ -4,12 +4,49 @@ export interface EmojiItem {
   emoji: string;
   name: string;
   keywords: string[];
+  supportsSkinTone?: boolean;
 }
 
 export interface EmojiCategory {
   id: string;
   name: string;
   emojis: EmojiItem[];
+}
+
+export const SKIN_TONES = {
+  default: '',
+  light: '🏻',
+  mediumLight: '🏼',
+  medium: '🏽',
+  mediumDark: '🏾',
+  dark: '🏿',
+} as const;
+
+export type SkinTone = keyof typeof SKIN_TONES;
+
+export const SKIN_TONE_LABELS: Record<SkinTone, string> = {
+  default: 'Default',
+  light: 'Tone 1',
+  mediumLight: 'Tone 2',
+  medium: 'Tone 3',
+  mediumDark: 'Tone 4',
+  dark: 'Tone 5',
+};
+
+export function applySkinTone(emoji: string, skinTone: SkinTone): string {
+  if (skinTone === 'default') return emoji;
+  return emoji + SKIN_TONES[skinTone];
+}
+
+export function getSkinToneVariants(emoji: string): string[] {
+  return [
+    emoji,
+    applySkinTone(emoji, 'light'),
+    applySkinTone(emoji, 'mediumLight'),
+    applySkinTone(emoji, 'medium'),
+    applySkinTone(emoji, 'mediumDark'),
+    applySkinTone(emoji, 'dark'),
+  ];
 }
 
 
@@ -149,40 +186,40 @@ export const EMOJI_CATEGORIES: EmojiCategory[] = [
     id: 'gestures',
     name: 'People & Body',
     emojis: [
-      { emoji: '👍', name: 'thumbs_up', keywords: ['like', 'yes', 'approve'] },
-      { emoji: '👎', name: 'thumbs_down', keywords: ['dislike', 'no', 'disapprove'] },
-      { emoji: '👊', name: 'fist', keywords: ['punch', 'power'] },
-      { emoji: '✊', name: 'raised_fist', keywords: ['solidarity', 'power'] },
-      { emoji: '🤛', name: 'left_fist', keywords: ['fist_bump'] },
-      { emoji: '🤜', name: 'right_fist', keywords: ['fist_bump'] },
-      { emoji: '👏', name: 'clap', keywords: ['applause', 'congrats'] },
-      { emoji: '🙌', name: 'raised_hands', keywords: ['celebrate', 'hooray'] },
-      { emoji: '👐', name: 'open_hands', keywords: ['hug'] },
-      { emoji: '🤲', name: 'palms_up', keywords: ['please', 'pray'] },
-      { emoji: '🤝', name: 'handshake', keywords: ['deal', 'agreement'] },
-      { emoji: '🙏', name: 'pray', keywords: ['please', 'thanks', 'namaste'] },
-      { emoji: '✌️', name: 'victory', keywords: ['peace'] },
-      { emoji: '🤞', name: 'crossed_fingers', keywords: ['luck', 'hope'] },
-      { emoji: '🤟', name: 'love_you', keywords: ['ily'] },
-      { emoji: '🤘', name: 'metal', keywords: ['rock'] },
-      { emoji: '🤙', name: 'call_me', keywords: ['phone', 'hang_loose'] },
-      { emoji: '👈', name: 'point_left', keywords: ['direction'] },
-      { emoji: '👉', name: 'point_right', keywords: ['direction'] },
-      { emoji: '👆', name: 'point_up', keywords: ['direction'] },
-      { emoji: '👇', name: 'point_down', keywords: ['direction'] },
-      { emoji: '☝️', name: 'index_pointing_up', keywords: ['one', 'direction'] },
-      { emoji: '✋', name: 'raised_hand', keywords: ['stop', 'high_five'] },
-      { emoji: '🤚', name: 'raised_back_hand', keywords: ['stop'] },
-      { emoji: '🖐️', name: 'hand_splayed', keywords: ['five', 'stop'] },
-      { emoji: '🖖', name: 'vulcan', keywords: ['spock', 'star_trek'] },
-      { emoji: '👋', name: 'wave', keywords: ['hello', 'goodbye', 'hi'] },
-      { emoji: '🤙', name: 'call_me', keywords: ['phone'] },
-      { emoji: '💪', name: 'muscle', keywords: ['strong', 'flex', 'bicep'] },
-      { emoji: '🦵', name: 'leg', keywords: ['kick'] },
-      { emoji: '🦶', name: 'foot', keywords: ['kick'] },
-      { emoji: '👂', name: 'ear', keywords: ['hear', 'listen'] },
-      { emoji: '🦻', name: 'ear_hearing_aid', keywords: ['accessibility'] },
-      { emoji: '👃', name: 'nose', keywords: ['smell'] },
+      { emoji: '👍', name: 'thumbs_up', keywords: ['like', 'yes', 'approve'], supportsSkinTone: true },
+      { emoji: '👎', name: 'thumbs_down', keywords: ['dislike', 'no', 'disapprove'], supportsSkinTone: true },
+      { emoji: '👊', name: 'fist', keywords: ['punch', 'power'], supportsSkinTone: true },
+      { emoji: '✊', name: 'raised_fist', keywords: ['solidarity', 'power'], supportsSkinTone: true },
+      { emoji: '🤛', name: 'left_fist', keywords: ['fist_bump'], supportsSkinTone: true },
+      { emoji: '🤜', name: 'right_fist', keywords: ['fist_bump'], supportsSkinTone: true },
+      { emoji: '👏', name: 'clap', keywords: ['applause', 'congrats'], supportsSkinTone: true },
+      { emoji: '🙌', name: 'raised_hands', keywords: ['celebrate', 'hooray'], supportsSkinTone: true },
+      { emoji: '👐', name: 'open_hands', keywords: ['hug'], supportsSkinTone: true },
+      { emoji: '🤲', name: 'palms_up', keywords: ['please', 'pray'], supportsSkinTone: true },
+      { emoji: '🤝', name: 'handshake', keywords: ['deal', 'agreement'], supportsSkinTone: true },
+      { emoji: '🙏', name: 'pray', keywords: ['please', 'thanks', 'namaste'], supportsSkinTone: true },
+      { emoji: '✌️', name: 'victory', keywords: ['peace'], supportsSkinTone: true },
+      { emoji: '🤞', name: 'crossed_fingers', keywords: ['luck', 'hope'], supportsSkinTone: true },
+      { emoji: '🤟', name: 'love_you', keywords: ['ily'], supportsSkinTone: true },
+      { emoji: '🤘', name: 'metal', keywords: ['rock'], supportsSkinTone: true },
+      { emoji: '🤙', name: 'call_me', keywords: ['phone', 'hang_loose'], supportsSkinTone: true },
+      { emoji: '👈', name: 'point_left', keywords: ['direction'], supportsSkinTone: true },
+      { emoji: '👉', name: 'point_right', keywords: ['direction'], supportsSkinTone: true },
+      { emoji: '👆', name: 'point_up', keywords: ['direction'], supportsSkinTone: true },
+      { emoji: '👇', name: 'point_down', keywords: ['direction'], supportsSkinTone: true },
+      { emoji: '☝️', name: 'index_pointing_up', keywords: ['one', 'direction'], supportsSkinTone: true },
+      { emoji: '✋', name: 'raised_hand', keywords: ['stop', 'high_five'], supportsSkinTone: true },
+      { emoji: '🤚', name: 'raised_back_hand', keywords: ['stop'], supportsSkinTone: true },
+      { emoji: '🖐️', name: 'hand_splayed', keywords: ['five', 'stop'], supportsSkinTone: true },
+      { emoji: '🖖', name: 'vulcan', keywords: ['spock', 'star_trek'], supportsSkinTone: true },
+      { emoji: '👋', name: 'wave', keywords: ['hello', 'goodbye', 'hi'], supportsSkinTone: true },
+      { emoji: '🤙', name: 'call_me', keywords: ['phone'], supportsSkinTone: true },
+      { emoji: '💪', name: 'muscle', keywords: ['strong', 'flex', 'bicep'], supportsSkinTone: true },
+      { emoji: '🦵', name: 'leg', keywords: ['kick'], supportsSkinTone: true },
+      { emoji: '🦶', name: 'foot', keywords: ['kick'], supportsSkinTone: true },
+      { emoji: '👂', name: 'ear', keywords: ['hear', 'listen'], supportsSkinTone: true },
+      { emoji: '🦻', name: 'ear_hearing_aid', keywords: ['accessibility'], supportsSkinTone: true },
+      { emoji: '👃', name: 'nose', keywords: ['smell'], supportsSkinTone: true },
       { emoji: '🧠', name: 'brain', keywords: ['smart', 'intelligent'] },
       { emoji: '🦷', name: 'tooth', keywords: ['dentist'] },
       { emoji: '🦴', name: 'bone', keywords: ['skeleton'] },
