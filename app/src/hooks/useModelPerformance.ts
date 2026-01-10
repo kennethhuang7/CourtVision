@@ -491,29 +491,40 @@ export function useModelPerformance(
 
 
 
-      const timeSeriesData: TimeSeriesDataPoint[] = Array.from(dateMap.entries())
+      const sortedEntries = Array.from(dateMap.entries())
         .map(([dateStr, data]) => {
-
           const [year, month, day] = dateStr.split('-').map(Number);
           const dateObj = new Date(year, month - 1, day);
           const avgError = data.predictionErrors.length > 0
             ? data.predictionErrors.reduce((sum, e) => sum + e, 0) / data.predictionErrors.length
             : 0;
-
-
           const preciseError = Number(avgError);
 
-
           return {
-            date: dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
             fullDate: dateStr,
             dateSort: dateObj.getTime(),
             error: preciseError,
             predictions: data.count,
           };
         })
-        .sort((a, b) => a.dateSort - b.dateSort)
-        .map(({ dateSort, ...rest }) => rest); 
+        .sort((a, b) => a.dateSort - b.dateSort);
+
+      const years = new Set(sortedEntries.map(d => d.fullDate.split('-')[0]));
+      const spansMultipleYears = years.size > 1;
+
+      const timeSeriesData: TimeSeriesDataPoint[] = sortedEntries.map(point => {
+        const [year, month, day] = point.fullDate.split('-').map(Number);
+        const dateObj = new Date(year, month - 1, day);
+
+        return {
+          date: spansMultipleYears
+            ? dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          fullDate: point.fullDate,
+          error: point.error,
+          predictions: point.predictions,
+        };
+      }); 
 
       
       const statKeyMap: Record<string, keyof typeof statFields> = {
