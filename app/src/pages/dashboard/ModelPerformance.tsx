@@ -361,7 +361,7 @@ export default function ModelPerformance() {
     }
 
     
-    const timeSeriesMap = new Map<string, Record<string, number> & { predictions?: number }>();
+    const timeSeriesMap = new Map<string, Record<string, number> & { predictions?: number; fullDate?: string }>();
     
     
     if (modelsToCompare.includes('ensemble' as any) && selectedModels.length > 0) {
@@ -373,22 +373,28 @@ export default function ModelPerformance() {
           if (point.predictions !== undefined) {
             existing.predictions = point.predictions;
           }
+          if (point.fullDate !== undefined) {
+            existing.fullDate = point.fullDate;
+          }
           timeSeriesMap.set(point.date, existing);
         });
       }
     }
-    
-    
+
+
     performanceQueries.forEach(({ model, query }) => {
       const data = query.data;
       if (!data || !data.timeSeriesData) return;
-      
+
       data.timeSeriesData.forEach(point => {
         const existing = timeSeriesMap.get(point.date) || {};
         existing[model] = point.error;
-        
+
         if (point.predictions !== undefined && existing.predictions === undefined) {
           existing.predictions = point.predictions;
+        }
+        if (point.fullDate !== undefined && existing.fullDate === undefined) {
+          existing.fullDate = point.fullDate;
         }
         timeSeriesMap.set(point.date, existing);
       });
