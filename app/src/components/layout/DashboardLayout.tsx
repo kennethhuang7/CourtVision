@@ -17,6 +17,7 @@ import { OfflineIndicator } from '@/components/ui/offline-indicator';
 import { useAutoRefreshInit } from '@/hooks/useAutoRefreshInit';
 import { useErrorLoggingInit } from '@/hooks/useErrorLoggingInit';
 import { useTrackCurrentSession } from '@/hooks/useSessions';
+import { DiscordPresence } from '@/components/DiscordPresence';
 
 export function DashboardLayout() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -58,6 +59,7 @@ export function DashboardLayout() {
 
   return (
     <div className="flex h-screen flex-col bg-background overflow-hidden">
+      <DiscordPresence />
       <TitleBar />
       <div className="flex flex-1 pt-10 overflow-hidden">
         <Sidebar />

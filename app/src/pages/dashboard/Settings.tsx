@@ -324,11 +324,9 @@ export default function Settings() {
     startWithSystem: boolean;
     startMinimized: boolean;
     alwaysOnTop: boolean;
+    discordRichPresence: boolean;
   } | null>(null);
   const [isLoadingAppSettings, setIsLoadingAppSettings] = useState(false);
-
-  
-  const [discordRichPresenceEnabled, setDiscordRichPresenceEnabled] = useState(false);
 
   
   useEffect(() => {
@@ -339,7 +337,6 @@ export default function Settings() {
       setProfilePictureUrl(profile.profile_picture_url);
       setBannerUrl(profile.banner_url);
       setDisplayUserStats((profile as any).display_user_stats || false);
-      setDiscordRichPresenceEnabled((profile as any).discord_rich_presence_enabled || false);
       
       
       if (profile.default_time_window) {
@@ -2739,26 +2736,12 @@ export default function Settings() {
                       <div>
                         <Label>Discord Rich Presence</Label>
                         <p className="text-sm text-muted-foreground">
-                          Show your activity in CourtVision on your Discord profile. This feature will be implemented in a future update.
+                          Show your current activity in CourtVision on your Discord profile. Requires Discord desktop app to be running.
                         </p>
                       </div>
-                      <Switch 
-                        checked={discordRichPresenceEnabled}
-                        onCheckedChange={async (enabled) => {
-                          setDiscordRichPresenceEnabled(enabled);
-                          try {
-                            await updateProfile.mutateAsync({
-                              discord_rich_presence_enabled: enabled,
-                            } as any);
-                            toast.success('Discord Rich Presence setting updated');
-                          } catch (err) {
-                            logger.error('Error updating Discord Rich Presence setting', err as Error);
-                            toast.error('Failed to update setting');
-                            
-                            setDiscordRichPresenceEnabled(!enabled);
-                          }
-                        }}
-                        disabled={updateProfile.isPending}
+                      <Switch
+                        checked={appSettings.discordRichPresence}
+                        onCheckedChange={(enabled) => handleAppSettingChange('discordRichPresence', enabled)}
                       />
                     </div>
                   </div>
