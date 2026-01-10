@@ -2,6 +2,7 @@ const { app, BrowserWindow, shell, Menu, ipcMain, session, globalShortcut, Tray,
 const path = require('path');
 const { join } = path;
 const StoreModule = require('electron-store');
+const { initDiscordRPC, setActivity, clearActivity, destroyDiscordRPC, isDiscordRPCConnected } = require('./discordRpc.cjs');
 
 const Store = StoreModule.default || StoreModule;
 
@@ -16,6 +17,7 @@ const store = new Store({
     startWithSystem: false,
     startMinimized: false,
     alwaysOnTop: false,
+    discordRichPresence: false,
   },
 });
 
@@ -350,17 +352,22 @@ if (!gotTheLock) {
 
   app.whenReady().then(() => {
     createWindow();
-    
-    
+
+
     if (store.get('minimizeToTray', false)) {
       createTray();
     }
-    
-    
+
+
     setupAutoStart();
-    
-    
+
+
     registerDevShortcuts();
+
+
+    if (store.get('discordRichPresence', false)) {
+      initDiscordRPC();
+    }
   });
 }
 
@@ -418,6 +425,7 @@ ipcMain.handle('get-app-settings', () => {
     startWithSystem: store.get('startWithSystem', false),
     startMinimized: store.get('startMinimized', false),
     alwaysOnTop: store.get('alwaysOnTop', false),
+    discordRichPresence: store.get('discordRichPresence', false),
   };
 });
 
@@ -465,7 +473,16 @@ ipcMain.handle('set-app-settings', (event, settings) => {
       win.setAlwaysOnTop(settings.alwaysOnTop);
     }
   }
-  
+
+  if (settings.hasOwnProperty('discordRichPresence')) {
+    store.set('discordRichPresence', settings.discordRichPresence);
+    if (settings.discordRichPresence) {
+      initDiscordRPC();
+    } else {
+      destroyDiscordRPC();
+    }
+  }
+
   return { success: true };
 });
 
@@ -499,6 +516,7 @@ app.on('will-quit', () => {
   if (isDev) {
     globalShortcut.unregisterAll();
   }
+  destroyDiscordRPC();
 });
 
 
@@ -609,7 +627,7 @@ ipcMain.handle('ensure-courtvision-folders', () => {
 
 ipcMain.handle('save-image-file', async (event, fileName, dataUrl, customFolder) => {
   try {
-    
+
     let exportsPath;
     if (customFolder) {
       exportsPath = customFolder;
@@ -618,19 +636,19 @@ ipcMain.handle('save-image-file', async (event, fileName, dataUrl, customFolder)
       exportsPath = path.join(documentsPath, 'CourtVision', 'Exports');
     }
 
-    
+
     if (!fs.existsSync(exportsPath)) {
       fs.mkdirSync(exportsPath, { recursive: true });
     }
 
-    
+
     const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, '');
     const buffer = Buffer.from(base64Data, 'base64');
 
-    
+
     const filePath = path.join(exportsPath, fileName);
 
-    
+
     fs.writeFileSync(filePath, buffer);
 
     return { success: true, filePath };
@@ -638,4 +656,20 @@ ipcMain.handle('save-image-file', async (event, fileName, dataUrl, customFolder)
     console.error('Failed to save image file:', error);
     return { success: false, error: error.message };
   }
+});
+
+ipcMain.handle('discord-set-activity', (event, activity) => {
+  if (store.get('discordRichPresence', false)) {
+    setActivity(activity);
+  }
+});
+
+ipcMain.handle('discord-clear-activity', () => {
+  if (store.get('discordRichPresence', false)) {
+    clearActivity();
+  }
+});
+
+ipcMain.handle('discord-is-connected', () => {
+  return isDiscordRPCConnected();
 });

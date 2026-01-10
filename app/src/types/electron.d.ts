@@ -4,12 +4,23 @@ export interface AppSettings {
   startWithSystem: boolean;
   startMinimized: boolean;
   alwaysOnTop: boolean;
+  discordRichPresence: boolean;
 }
 
 export interface CourtVisionFolders {
   base: string;
   logs: string;
   exports: string;
+}
+
+export interface DiscordActivity {
+  details?: string;
+  state?: string;
+  startTimestamp?: number;
+  largeImageKey?: string;
+  largeImageText?: string;
+  smallImageKey?: string;
+  smallImageText?: string;
 }
 
 export interface ElectronAPI {
@@ -28,6 +39,9 @@ export interface ElectronAPI {
   getDefaultCourtVisionFolders: () => Promise<CourtVisionFolders | null>;
   ensureCourtVisionFolders: () => Promise<CourtVisionFolders | null>;
   saveImageFile: (fileName: string, dataUrl: string, customFolder?: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+  discordSetActivity: (activity: DiscordActivity) => Promise<void>;
+  discordClearActivity: () => Promise<void>;
+  discordIsConnected: () => Promise<boolean>;
 }
 
 declare global {
