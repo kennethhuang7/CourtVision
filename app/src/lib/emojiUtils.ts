@@ -1,7 +1,9 @@
 
 
-import { RECENTLY_USED_KEY, MAX_RECENT_EMOJIS, ALL_EMOJIS } from './emojiData';
+import { RECENTLY_USED_KEY, MAX_RECENT_EMOJIS, ALL_EMOJIS, type SkinTone, applySkinTone } from './emojiData';
 import { logger } from './logger';
+
+const SKIN_TONE_PREFERENCE_KEY = 'courtvision-emoji-skin-tone';
 
 
 const EMOJI_REGEX = /(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)/gu;
@@ -123,4 +125,35 @@ export async function loadCustomEmojis(): Promise<Array<{ name: string; url: str
 export function getEmojiName(emoji: string): string {
   const found = ALL_EMOJIS.find(item => item.emoji === emoji);
   return found ? found.name : emoji;
+}
+
+
+export function getSkinTonePreference(): SkinTone {
+  try {
+    const stored = localStorage.getItem(SKIN_TONE_PREFERENCE_KEY);
+    if (!stored) return 'default';
+
+    const validTones: SkinTone[] = ['default', 'light', 'mediumLight', 'medium', 'mediumDark', 'dark'];
+    return validTones.includes(stored as SkinTone) ? (stored as SkinTone) : 'default';
+  } catch (error) {
+    logger.error('Failed to load skin tone preference', error as Error);
+    return 'default';
+  }
+}
+
+
+export function setSkinTonePreference(skinTone: SkinTone): void {
+  try {
+    localStorage.setItem(SKIN_TONE_PREFERENCE_KEY, skinTone);
+  } catch (error) {
+    logger.error('Failed to save skin tone preference', error as Error);
+  }
+}
+
+
+export function applyDefaultSkinTone(emoji: string, supportsSkinTone: boolean): string {
+  if (!supportsSkinTone) return emoji;
+
+  const preference = getSkinTonePreference();
+  return applySkinTone(emoji, preference);
 }

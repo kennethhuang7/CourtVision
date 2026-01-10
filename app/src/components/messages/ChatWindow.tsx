@@ -600,7 +600,7 @@ export function ChatWindow() {
                         </button>
                       </PopoverTrigger>
                       <PopoverContent
-                        className="w-auto p-0 border-0 shadow-none bg-transparent"
+                        className="w-auto p-0 border-0 shadow-none bg-transparent z-[110]"
                         side="top"
                         align="end"
                         sideOffset={8}

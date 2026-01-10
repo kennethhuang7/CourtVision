@@ -1,8 +1,9 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { X, Search, Smile, Users, TreePine, Coffee, Dumbbell, Plane, Lightbulb, Hash, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { EMOJI_CATEGORIES, DEFAULT_REACTION_EMOJIS } from '@/lib/emojiData';
-import { searchEmojis, getRecentlyUsedEmojis, addToRecentlyUsed } from '@/lib/emojiUtils';
+import { EMOJI_CATEGORIES, DEFAULT_REACTION_EMOJIS, ALL_EMOJIS, getSkinToneVariants, type SkinTone, SKIN_TONE_LABELS } from '@/lib/emojiData';
+import { searchEmojis, getRecentlyUsedEmojis, addToRecentlyUsed, applyDefaultSkinTone, setSkinTonePreference } from '@/lib/emojiUtils';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 interface EmojiPickerProps {
   onEmojiSelect: (emoji: string) => void;
@@ -27,6 +28,7 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
   const [selectedCategory, setSelectedCategory] = useState<string>('recent');
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
   const [showFullPicker, setShowFullPicker] = useState(false);
+  const [skinTonePopoverOpen, setSkinTonePopoverOpen] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   
@@ -41,47 +43,89 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
     }
   }, [mode, showFullPicker]);
 
-  
-  const handleEmojiClick = (emoji: string) => {
+
+
+  const handleEmojiClick = (emoji: string, skinTone?: SkinTone) => {
+    // Just insert the emoji - don't change the default preference
+    // User must change default in Settings
     addToRecentlyUsed(emoji);
     setRecentEmojis(getRecentlyUsedEmojis());
     onEmojiSelect(emoji);
 
-    
+    // Close popover
+    setSkinTonePopoverOpen(null);
+
+
     if (mode === 'react') {
       onClose();
     }
   };
 
-  
+
+
   const displayEmojis = useMemo(() => {
-    
+    let emojiList: Array<{ emoji: string; supportsSkinTone: boolean }> = [];
+
+
     if (searchQuery.trim()) {
-      return searchEmojis(searchQuery);
+      const searchResults = searchEmojis(searchQuery);
+      emojiList = searchResults.map(emoji => {
+        const emojiData = ALL_EMOJIS.find(e => e.emoji === emoji);
+        return {
+          emoji,
+          supportsSkinTone: emojiData?.supportsSkinTone || false,
+        };
+      });
     }
 
-    
-    if (selectedCategory === 'recent') {
-      return recentEmojis.length > 0 ? recentEmojis : DEFAULT_REACTION_EMOJIS;
+    else if (selectedCategory === 'recent') {
+      const recent = recentEmojis.length > 0 ? recentEmojis : DEFAULT_REACTION_EMOJIS;
+      emojiList = recent.map(emoji => {
+        const emojiData = ALL_EMOJIS.find(e => e.emoji === emoji);
+        return {
+          emoji,
+          supportsSkinTone: emojiData?.supportsSkinTone || false,
+        };
+      });
     }
 
-    
-    const category = EMOJI_CATEGORIES.find(cat => cat.id === selectedCategory);
-    return category ? category.emojis.map(e => e.emoji) : [];
+    else {
+      const category = EMOJI_CATEGORIES.find(cat => cat.id === selectedCategory);
+      emojiList = category ? category.emojis.map(e => ({
+        emoji: e.emoji,
+        supportsSkinTone: e.supportsSkinTone || false,
+      })) : [];
+    }
+
+    // Apply default skin tone to emojis that support it
+    return emojiList.map(item => ({
+      ...item,
+      displayEmoji: applyDefaultSkinTone(item.emoji, item.supportsSkinTone),
+    }));
   }, [searchQuery, selectedCategory, recentEmojis]);
 
-  
+
+
   if (mode === 'react' && !showFullPicker) {
+    const quickReactions = DEFAULT_REACTION_EMOJIS.map(emoji => {
+      const emojiData = ALL_EMOJIS.find(e => e.emoji === emoji);
+      const supportsSkinTone = emojiData?.supportsSkinTone || false;
+      return {
+        emoji,
+        displayEmoji: applyDefaultSkinTone(emoji, supportsSkinTone),
+      };
+    });
+
     return (
       <div className={cn('flex items-center gap-1', className)}>
-        {DEFAULT_REACTION_EMOJIS.map(emoji => (
+        {quickReactions.map((item) => (
           <button
-            key={emoji}
-            onClick={() => handleEmojiClick(emoji)}
+            key={item.emoji}
+            onClick={() => handleEmojiClick(item.displayEmoji)}
             className="text-2xl hover:bg-accent rounded p-1 transition-colors"
-            aria-label={`React with ${emoji}`}
+            aria-label={`React with ${item.displayEmoji}`}
           >
-            {emoji}
+            {item.displayEmoji}
           </button>
         ))}
         <div className="w-px h-6 bg-border mx-1" />
@@ -158,16 +202,58 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
           </div>
         ) : (
           <div className="grid grid-cols-8 gap-1">
-            {displayEmojis.map((emoji, index) => (
-              <button
-                key={`${emoji}-${index}`}
-                onClick={() => handleEmojiClick(emoji)}
-                className="text-2xl hover:bg-accent rounded p-1 transition-colors aspect-square flex items-center justify-center"
-                aria-label={`Select ${emoji}`}
-              >
-                {emoji}
-              </button>
-            ))}
+            {displayEmojis.map((item, index) => {
+              if (!item.supportsSkinTone) {
+                // Regular emoji without skin tone support
+                return (
+                  <button
+                    key={`${item.emoji}-${index}`}
+                    onClick={() => handleEmojiClick(item.displayEmoji)}
+                    className="text-2xl hover:bg-accent rounded p-1 transition-colors aspect-square flex items-center justify-center"
+                    aria-label={`Select ${item.displayEmoji}`}
+                  >
+                    {item.displayEmoji}
+                  </button>
+                );
+              }
+
+              // Emoji with skin tone support - show popover
+              const variants = getSkinToneVariants(item.emoji);
+              const skinToneKeys: SkinTone[] = ['default', 'light', 'mediumLight', 'medium', 'mediumDark', 'dark'];
+
+              return (
+                <Popover
+                  key={`${item.emoji}-${index}`}
+                  open={skinTonePopoverOpen === `${item.emoji}-${index}`}
+                  onOpenChange={(open) => setSkinTonePopoverOpen(open ? `${item.emoji}-${index}` : null)}
+                >
+                  <PopoverTrigger asChild>
+                    <button
+                      className="text-2xl hover:bg-accent rounded p-1 transition-colors aspect-square flex items-center justify-center relative group"
+                      aria-label={`Select ${item.displayEmoji} or choose skin tone`}
+                    >
+                      {item.displayEmoji}
+                      <div className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-primary/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-2" align="center">
+                    <div className="flex gap-1">
+                      {variants.map((variant, variantIndex) => (
+                        <button
+                          key={variantIndex}
+                          onClick={() => handleEmojiClick(variant, skinToneKeys[variantIndex])}
+                          className="text-2xl hover:bg-accent rounded p-1 transition-colors w-10 h-10 flex items-center justify-center"
+                          aria-label={`Select ${SKIN_TONE_LABELS[skinToneKeys[variantIndex]]}`}
+                          title={SKIN_TONE_LABELS[skinToneKeys[variantIndex]]}
+                        >
+                          {variant}
+                        </button>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              );
+            })}
           </div>
         )}
       </div>
