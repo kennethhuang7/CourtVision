@@ -4,19 +4,27 @@ import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { logger } from './logger';
 
 const DB_NAME = 'courtvision-cache';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
-
-export type CacheRetentionDays = 7 | 14 | 30 | 60 | 90 | 'all';
+export type CacheRetentionDays = 7 | 14 | 30 | 60 | 90 | 180 | 'all' | 'off';
 
 interface CourtVisionDB extends DBSchema {
   predictions: {
-    key: string; 
+    key: string;
     value: {
       date: string;
-      data: any; 
-      cachedAt: number; 
-      size: number; 
+      data: any;
+      cachedAt: number;
+      size: number;
+    };
+  };
+  model_performance: {
+    key: string;
+    value: {
+      cacheKey: string;
+      data: any;
+      cachedAt: number;
+      size: number;
     };
   };
   metadata: {
@@ -33,9 +41,11 @@ class CacheManager {
     try {
       this.db = await openDB<CourtVisionDB>(DB_NAME, DB_VERSION, {
         upgrade(db) {
-          
           if (!db.objectStoreNames.contains('predictions')) {
             db.createObjectStore('predictions', { keyPath: 'date' });
+          }
+          if (!db.objectStoreNames.contains('model_performance')) {
+            db.createObjectStore('model_performance', { keyPath: 'cacheKey' });
           }
           if (!db.objectStoreNames.contains('metadata')) {
             db.createObjectStore('metadata');
@@ -97,7 +107,7 @@ class CacheManager {
   async savePredictions(date: string, data: any, models?: string[]): Promise<void> {
     try {
       const db = await this.ensureInit();
-      
+
       const cacheKey = models && models.length > 0
         ? `${date}|models:${models.join('|')}`
         : date;
@@ -106,7 +116,7 @@ class CacheManager {
       const size = new Blob([dataStr]).size;
 
       await db.put('predictions', {
-        date: cacheKey, 
+        date: cacheKey,
         data,
         cachedAt: Date.now(),
         size,
@@ -118,6 +128,43 @@ class CacheManager {
     }
   }
 
+  async getModelPerformance(cacheKey: string): Promise<any | null> {
+    try {
+      const db = await this.ensureInit();
+      const cached = await db.get('model_performance', cacheKey);
+
+      if (!cached) {
+        return null;
+      }
+
+      logger.info(`Cache hit for model performance: ${cacheKey}`);
+      return cached.data;
+    } catch (error) {
+      logger.error('Failed to get cached model performance', error as Error);
+      return null;
+    }
+  }
+
+  async saveModelPerformance(cacheKey: string, data: any): Promise<void> {
+    try {
+      const db = await this.ensureInit();
+
+      const dataStr = JSON.stringify(data);
+      const size = new Blob([dataStr]).size;
+
+      await db.put('model_performance', {
+        cacheKey,
+        data,
+        cachedAt: Date.now(),
+        size,
+      });
+
+      logger.info(`Cached model performance for ${cacheKey} (${(size / 1024).toFixed(1)}KB)`);
+    } catch (error) {
+      logger.error('Failed to cache model performance', error as Error);
+    }
+  }
+
   
   async getStorageUsage(): Promise<{ totalBytes: number; itemCount: number; formattedSize: string }> {
     try {
@@ -125,10 +172,15 @@ class CacheManager {
       let totalBytes = 0;
       let itemCount = 0;
 
-      
       const predictions = await db.getAll('predictions');
       predictions.forEach((p) => {
         totalBytes += p.size;
+        itemCount++;
+      });
+
+      const modelPerformance = await db.getAll('model_performance');
+      modelPerformance.forEach((mp) => {
+        totalBytes += mp.size;
         itemCount++;
       });
 
@@ -189,42 +241,43 @@ class CacheManager {
     try {
       const db = await this.ensureInit();
 
-      
       const predictionCount = await db.count('predictions');
-      const wasEmpty = predictionCount === 0;
+      const modelPerfCount = await db.count('model_performance');
+      const totalCount = predictionCount + modelPerfCount;
+      const wasEmpty = totalCount === 0;
 
-      
       await db.clear('predictions');
+      await db.clear('model_performance');
       await db.clear('metadata');
 
       if (wasEmpty) {
         logger.debug('Cache was already empty');
       } else {
-        logger.info(`Cache cleared: ${predictionCount} items deleted`);
+        logger.info(`Cache cleared: ${totalCount} items deleted`);
       }
 
-      return { wasEmpty, deletedCount: predictionCount };
+      return { wasEmpty, deletedCount: totalCount };
     } catch (error) {
       logger.error('Failed to clear cache', error as Error);
-      
       return { wasEmpty: true, deletedCount: 0 };
     }
   }
 
   
-  async getCacheCounts(): Promise<{ predictions: number }> {
+  async getCacheCounts(): Promise<{ predictions: number; modelPerformance: number }> {
     try {
       const db = await this.ensureInit();
       const predictions = await db.count('predictions');
+      const modelPerformance = await db.count('model_performance');
 
-      return { predictions };
+      return { predictions, modelPerformance };
     } catch (error) {
       logger.error('Failed to get cache counts', error as Error);
-      return { predictions: 0 };
+      return { predictions: 0, modelPerformance: 0 };
     }
   }
 
-  
+
   async getAllCacheEntries(): Promise<Array<{
     date: string;
     type: 'prediction';
@@ -242,10 +295,10 @@ class CacheManager {
         models?: string;
       }> = [];
 
-      
+
       const predictions = await db.getAll('predictions');
       predictions.forEach((p) => {
-        
+
         const parts = p.date.split('|models:');
         const models = parts.length > 1 ? parts[1] : undefined;
 
@@ -265,7 +318,50 @@ class CacheManager {
     }
   }
 
-  
+
+  async getAllModelPerformanceEntries(): Promise<Array<{
+    cacheKey: string;
+    timePeriod: string;
+    stat: string;
+    models: string[];
+    size: number;
+    cachedAt: number;
+  }>> {
+    try {
+      const db = await this.ensureInit();
+      const entries: Array<{
+        cacheKey: string;
+        timePeriod: string;
+        stat: string;
+        models: string[];
+        size: number;
+        cachedAt: number;
+      }> = [];
+
+      const modelPerformance = await db.getAll('model_performance');
+      modelPerformance.forEach((mp) => {
+        // Parse cache key: "30|points|xgboost,lightgbm"
+        const parts = mp.cacheKey.split('|');
+        if (parts.length === 3) {
+          entries.push({
+            cacheKey: mp.cacheKey,
+            timePeriod: parts[0],
+            stat: parts[1],
+            models: parts[2].split(','),
+            size: mp.size,
+            cachedAt: mp.cachedAt,
+          });
+        }
+      });
+
+      return entries;
+    } catch (error) {
+      logger.error('Failed to get model performance cache entries', error as Error);
+      return [];
+    }
+  }
+
+
   async deleteEntries(keys: string[]): Promise<void> {
     try {
       const db = await this.ensureInit();
@@ -282,6 +378,27 @@ class CacheManager {
       logger.info(`Deleted ${keys.length} cache entries`);
     } catch (error) {
       logger.error('Failed to delete cache entries', error as Error);
+      throw error;
+    }
+  }
+
+
+  async deleteModelPerformanceEntries(cacheKeys: string[]): Promise<void> {
+    try {
+      const db = await this.ensureInit();
+
+      for (const cacheKey of cacheKeys) {
+        try {
+          await db.delete('model_performance', cacheKey);
+          logger.info(`Deleted model performance cache entry: ${cacheKey}`);
+        } catch {
+          logger.warn(`Model performance cache entry not found: ${cacheKey}`);
+        }
+      }
+
+      logger.info(`Deleted ${cacheKeys.length} model performance cache entries`);
+    } catch (error) {
+      logger.error('Failed to delete model performance cache entries', error as Error);
       throw error;
     }
   }
