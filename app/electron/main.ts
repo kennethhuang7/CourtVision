@@ -2,9 +2,120 @@ const { app, BrowserWindow, shell, Menu, ipcMain, session, globalShortcut, Tray,
 const path = require('path');
 const { join } = path;
 const StoreModule = require('electron-store');
-const { initDiscordRPC, setActivity, clearActivity, destroyDiscordRPC, isDiscordRPCConnected } = require('./discordRpc.cjs');
+const RPC = require('discord-rpc');
 
 const Store = StoreModule.default || StoreModule;
+
+const DISCORD_CLIENT_ID = '1459638871594635356';
+
+let discordClient: any = null;
+let isDiscordConnected = false;
+let discordReconnectTimeout: NodeJS.Timeout | null = null;
+let lastDiscordActivity: any = null;
+
+function initDiscordRPC() {
+  if (discordClient) {
+    return;
+  }
+
+  discordClient = new RPC.Client({ transport: 'ipc' });
+
+  discordClient.on('ready', () => {
+    isDiscordConnected = true;
+    if (lastDiscordActivity) {
+      setActivity(lastDiscordActivity);
+    }
+  });
+
+  discordClient.on('disconnected', () => {
+    isDiscordConnected = false;
+    scheduleDiscordReconnect();
+  });
+
+  tryDiscordConnect();
+}
+
+function tryDiscordConnect() {
+  if (!discordClient) return;
+
+  discordClient.login({ clientId: DISCORD_CLIENT_ID }).catch((error: Error) => {
+    isDiscordConnected = false;
+    scheduleDiscordReconnect();
+  });
+}
+
+function scheduleDiscordReconnect() {
+  if (discordReconnectTimeout) {
+    clearTimeout(discordReconnectTimeout);
+  }
+
+  discordReconnectTimeout = setTimeout(() => {
+    if (!store.get('discordRichPresence', false)) {
+      return;
+    }
+    tryDiscordConnect();
+  }, 15000);
+}
+
+function setActivity(activity: any) {
+  lastDiscordActivity = activity;
+
+  if (!discordClient || !isDiscordConnected) {
+    return;
+  }
+
+  const formattedActivity = {
+    details: activity.details || 'Viewing Dashboard',
+    state: activity.state,
+    startTimestamp: activity.startTimestamp || Date.now(),
+    largeImageKey: activity.largeImageKey || 'courtvision',
+    largeImageText: activity.largeImageText || 'CourtVision',
+    smallImageKey: activity.smallImageKey,
+    smallImageText: activity.smallImageText,
+    instance: false,
+  };
+
+  const cleanActivity: any = {};
+  for (const [key, value] of Object.entries(formattedActivity)) {
+    if (value !== undefined && value !== null && value !== '') {
+      cleanActivity[key] = value;
+    }
+  }
+
+  discordClient.setActivity(cleanActivity).catch((error: Error) => {});
+}
+
+function clearActivity() {
+  lastDiscordActivity = null;
+
+  if (!discordClient || !isDiscordConnected) {
+    return;
+  }
+
+  discordClient.clearActivity().catch((error: Error) => {});
+}
+
+function destroyDiscordRPC() {
+  if (discordReconnectTimeout) {
+    clearTimeout(discordReconnectTimeout);
+    discordReconnectTimeout = null;
+  }
+
+  if (discordClient) {
+    try {
+      discordClient.clearActivity();
+      discordClient.destroy();
+    } catch (error) {
+      console.error('Error destroying Discord RPC:', error);
+    }
+    discordClient = null;
+    isDiscordConnected = false;
+  }
+}
+
+function isDiscordRPCConnected(): boolean {
+  return isDiscordConnected;
+}
 
 
 app.commandLine.appendSwitch('disable-http2');
