@@ -43,9 +43,9 @@ const queryClient = new QueryClient({
 const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <CacheProvider>
-          <AuthProvider>
+      <AuthProvider>
+        <ThemeProvider>
+          <CacheProvider>
             <DoNotDisturbProvider>
               <NotificationProvider>
                 <ChatWindowProvider>
@@ -131,11 +131,6 @@ const App = () => (
                         <Analytics />
                       </ErrorBoundary>
                     } />
-                    <Route path="settings" element={
-                      <ErrorBoundary>
-                        <Settings />
-                      </ErrorBoundary>
-                    } />
                     <Route path="notifications" element={
                       <ErrorBoundary>
                         <Notifications />
@@ -150,9 +145,9 @@ const App = () => (
                 </ChatWindowProvider>
               </NotificationProvider>
             </DoNotDisturbProvider>
-          </AuthProvider>
         </CacheProvider>
       </ThemeProvider>
+      </AuthProvider>
     </QueryClientProvider>
   </ErrorBoundary>
 );

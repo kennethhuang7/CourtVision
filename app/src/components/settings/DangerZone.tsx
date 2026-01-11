@@ -60,10 +60,55 @@ export function DangerZone() {
       }
 
       
+      const userPickIds = await supabase
+        .from('user_picks')
+        .select('id')
+        .eq('owner_id', user.id);
+      const pickIds = userPickIds.data?.map(p => p.id) || [];
+
+      const userGroupIds = await supabase
+        .from('user_groups')
+        .select('id')
+        .eq('owner_id', user.id);
+      const groupIds = userGroupIds.data?.map(g => g.id) || [];
+
+      const userMessageIds = await supabase
+        .from('user_messages')
+        .select('id')
+        .eq('sender_id', user.id);
+      const messageIds = userMessageIds.data?.map(m => m.id) || [];
+
+      const userGroupMessageIds = await supabase
+        .from('group_messages')
+        .select('id')
+        .eq('sender_id', user.id);
+      const groupMessageIds = userGroupMessageIds.data?.map(m => m.id) || [];
+
+      if (pickIds.length > 0) {
+        await supabase.from('pick_user_shares').delete().in('pick_id', pickIds);
+        await supabase.from('pick_group_shares').delete().in('pick_id', pickIds);
+      }
+
+      if (groupIds.length > 0) {
+        await supabase.from('group_messages').delete().in('group_id', groupIds);
+        await supabase.from('user_group_members').delete().in('group_id', groupIds);
+        await supabase.from('user_group_invites').delete().in('group_id', groupIds);
+        await supabase.from('pick_group_shares').delete().in('group_id', groupIds);
+      }
+
+      if (messageIds.length > 0) {
+        await supabase.from('message_reactions').delete().in('message_id', messageIds);
+      }
+
+      if (groupMessageIds.length > 0) {
+        await supabase.from('message_reactions').delete().in('message_id', groupMessageIds);
+      }
+
       const tablesToDelete = [
         'user_notifications',
         'user_sessions',
         'user_messages',
+        'group_messages',
         'message_reactions',
         'user_conversations',
         'pick_user_shares',
@@ -78,33 +123,54 @@ export function DangerZone() {
 
       for (const table of tablesToDelete) {
         try {
-          
+
           if (table === 'user_friendships') {
-            
+
             await supabase
               .from(table)
               .delete()
               .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
           } else if (table === 'user_groups') {
-            
+
             await supabase
               .from(table)
               .delete()
               .eq('owner_id', user.id);
           } else if (table === 'user_picks') {
-            
+
             await supabase
               .from(table)
               .delete()
               .eq('owner_id', user.id);
           } else if (table === 'user_profiles') {
-            
+
             await supabase
               .from(table)
               .delete()
-              .eq('id', user.id);
+              .eq('user_id', user.id);
+          } else if (table === 'user_messages' || table === 'group_messages') {
+
+            await supabase
+              .from(table)
+              .delete()
+              .eq('sender_id', user.id);
+          } else if (table === 'pick_user_shares') {
+
+            await supabase
+              .from(table)
+              .delete()
+              .eq('shared_with_user_id', user.id);
+          } else if (table === 'pick_group_shares') {
+
+            continue;
+          } else if (table === 'user_group_invites') {
+
+            await supabase
+              .from(table)
+              .delete()
+              .or(`inviter_id.eq.${user.id},invitee_id.eq.${user.id}`);
           } else {
-            
+
             await supabase
               .from(table)
               .delete()
@@ -191,14 +257,25 @@ export function DangerZone() {
                 <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4">
                   <p className="text-sm font-medium text-destructive mb-2">The following data will be permanently deleted:</p>
                   <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                    <li>Profile information (username, bio, avatar, banner)</li>
-                    <li>All your picks (saved and active)</li>
-                    <li>All your messages and conversations</li>
+                    <li>Profile information (username, bio, avatar, banner, settings)</li>
+                    <li>All your picks (and all shares of those picks to others)</li>
+                    <li>All your direct messages, group messages, and conversations</li>
                     <li>All friendships and friend requests</li>
-                    <li>All group memberships and owned groups</li>
+                    <li>All groups you own (including all members, messages, and invites)</li>
+                    <li>All group memberships and invites</li>
+                    <li>All pick shares to you and message reactions</li>
                     <li>All notification history</li>
                     <li>All active sessions</li>
                     <li>Your authentication credentials</li>
+                  </ul>
+                </div>
+
+                <div className="rounded-lg border border-warning/20 bg-warning/5 p-4 mt-4">
+                  <p className="text-sm font-semibold text-foreground mb-2">Impact on others:</p>
+                  <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                    <li>Groups you own will be completely deleted for all members</li>
+                    <li>Picks you shared will no longer be accessible to recipients</li>
+                    <li>Your messages will be deleted from all conversations</li>
                   </ul>
                 </div>
 

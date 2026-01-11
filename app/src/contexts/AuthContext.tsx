@@ -168,14 +168,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const register = useCallback(async (email: string, username: string, password: string) => {
+  const register = useCallback(async (email: string, username: string, displayName: string, password: string) => {
     setIsLoading(true);
     try {
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: { username },
+          data: {
+            username,
+            display_name: displayName
+          },
         },
       });
 

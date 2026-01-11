@@ -14,6 +14,7 @@ export default function Register() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -38,7 +39,7 @@ export default function Register() {
     e.preventDefault();
     setError('');
 
-    if (!email || !username || !password || !confirmPassword) {
+    if (!email || !username || !displayName || !password || !confirmPassword) {
       setError('Please fill in all fields');
       return;
     }
@@ -55,11 +56,15 @@ export default function Register() {
 
     try {
       setIsSubmitting(true);
-      await register(email, username, password);
+      await register(email, username, displayName, password);
       toast.success('Account created. Please verify your email before signing in.');
       navigate('/verify-email', { replace: true, state: { email } });
-    } catch (err) {
-      setError('Registration failed. Please try again.');
+    } catch (err: any) {
+      if (err?.message?.includes('duplicate') || err?.message?.includes('unique')) {
+        setError('This username is already taken. Please choose another.');
+      } else {
+        setError('Registration failed. Please try again.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -137,14 +142,30 @@ export default function Register() {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="displayName">Display Name</Label>
+              <Input
+                id="displayName"
+                type="text"
+                placeholder="Your display name"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                maxLength={50}
+              />
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
               <Input
                 id="username"
                 type="text"
-                placeholder="Choose a username"
+                placeholder="Choose a unique username"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                maxLength={30}
               />
+              <p className="text-xs text-muted-foreground">
+                Lowercase letters, numbers, and underscores only
+              </p>
             </div>
 
             <div className="space-y-2">

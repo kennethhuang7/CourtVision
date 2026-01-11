@@ -22,6 +22,9 @@ export function ExportDataSection() {
 
     try {
       
+      const userPicks = await supabase.from('user_picks').select('id').eq('owner_id', user.id);
+      const userPickIds = userPicks.data?.map(p => p.id) || [];
+
       const [
         profileData,
         picksData,
@@ -30,18 +33,32 @@ export function ExportDataSection() {
         friendshipsData,
         groupMembershipsData,
         groupsData,
+        groupMessagesData,
         notificationsData,
         sessionsData,
+        groupInvitesData,
+        messageReactionsData,
+        pickGroupSharesData,
+        pickUserSharesData,
       ] = await Promise.all([
-        supabase.from('user_profiles').select('*').eq('id', user.id).single(),
-        supabase.from('user_picks').select('*').eq('owner_id', user.id),
+        supabase.from('user_profiles').select('*').eq('user_id', user.id).single(),
+        Promise.resolve({ data: userPicks.data }),
         supabase.from('user_messages').select('*').eq('sender_id', user.id),
         supabase.from('user_conversations').select('*').eq('user_id', user.id),
         supabase.from('user_friendships').select('*').or(`user_id.eq.${user.id},friend_id.eq.${user.id}`),
         supabase.from('user_group_members').select('*').eq('user_id', user.id),
         supabase.from('user_groups').select('*').eq('owner_id', user.id),
+        supabase.from('group_messages').select('*').eq('sender_id', user.id),
         supabase.from('user_notifications').select('*').eq('user_id', user.id),
         supabase.from('user_sessions').select('*').eq('user_id', user.id),
+        supabase.from('user_group_invites').select('*').or(`inviter_id.eq.${user.id},invitee_id.eq.${user.id}`),
+        supabase.from('message_reactions').select('*').eq('user_id', user.id),
+        userPickIds.length > 0
+          ? supabase.from('pick_group_shares').select('*').in('pick_id', userPickIds)
+          : Promise.resolve({ data: [] }),
+        userPickIds.length > 0
+          ? supabase.from('pick_user_shares').select('*').or(`pick_id.in.(${userPickIds.join(',')}),shared_with_user_id.eq.${user.id}`)
+          : Promise.resolve({ data: [] }),
       ]);
 
       
@@ -49,7 +66,7 @@ export function ExportDataSection() {
         export_info: {
           exported_at: new Date().toISOString(),
           user_id: user.id,
-          export_version: '1.0',
+          export_version: '2.0',
         },
         profile: profileData.data,
         picks: picksData.data || [],
@@ -58,8 +75,13 @@ export function ExportDataSection() {
         friendships: friendshipsData.data || [],
         group_memberships: groupMembershipsData.data || [],
         owned_groups: groupsData.data || [],
+        group_messages: groupMessagesData.data || [],
         notifications: notificationsData.data || [],
         sessions: sessionsData.data || [],
+        group_invites: groupInvitesData.data || [],
+        message_reactions: messageReactionsData.data || [],
+        pick_group_shares: pickGroupSharesData.data || [],
+        pick_user_shares: pickUserSharesData.data || [],
       };
 
       
@@ -98,11 +120,12 @@ export function ExportDataSection() {
           <div>
             <p className="text-sm text-foreground font-medium mb-1">Data Included in Export:</p>
             <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-              <li>Profile information (username, bio, avatar, banner)</li>
+              <li>Profile information (username, display name, bio, avatar, banner, settings)</li>
               <li>All your picks (saved and active)</li>
-              <li>Messages and conversations</li>
+              <li>Direct messages, group messages, conversations, and message reactions</li>
               <li>Friends and friendships</li>
-              <li>Group memberships and owned groups</li>
+              <li>Group memberships, owned groups, and group invites</li>
+              <li>Pick shares (shared to groups and other users)</li>
               <li>Notification history</li>
               <li>Active sessions</li>
             </ul>
