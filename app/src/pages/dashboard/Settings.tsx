@@ -33,6 +33,7 @@ import { cn, getInitials } from '@/lib/utils';
 import { useUserProfile, useUpdateUserProfile, useCheckUsernameAvailability } from '@/hooks/useUserProfile';
 import { useFriendCount } from '@/hooks/useFriends';
 import { useUserPicks } from '@/hooks/useUserPicks';
+import { useUserSettings } from '@/hooks/useUserSettings';
 import { uploadProfilePicture, uploadBanner, deleteProfilePicture, deleteBanner, validateImageFile } from '@/lib/imageUpload';
 import { supabase } from '@/lib/supabase';
 import { useNotifications } from '@/contexts/NotificationContext';
@@ -68,6 +69,7 @@ export default function Settings() {
   const { settings: notificationSettings, updateSettings: updateNotificationSettings, requestDesktopPermission, hasDesktopPermission, previewSound } = useNotifications();
   const { isEnabled: doNotDisturb, enable, disable } = useDoNotDisturb();
   const { retentionDays, setRetentionDays, modelPerfRetentionDays, setModelPerfRetentionDays, storageUsage, cacheCounts, clearCache, refreshStats, getAllCacheEntries, deleteCacheEntries, getAllModelPerformanceEntries, deleteModelPerformanceEntries } = useCache();
+  const { settings: hybridSettings, updateSetting } = useUserSettings();
 
 
   const [cacheModalOpen, setCacheModalOpen] = useState(false);
@@ -171,6 +173,7 @@ export default function Settings() {
   const [showRedditOnProfile, setShowRedditOnProfile] = useState(false);
   
   const [isSavingConnections, setIsSavingConnections] = useState(false);
+  const [hasUnsavedConnections, setHasUnsavedConnections] = useState(false);
   const [activeConnections, setActiveConnections] = useState<Array<{ id: string; platform: typeof platforms[0] }>>([]);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
@@ -210,13 +213,17 @@ export default function Settings() {
     if (!window.electron?.setAppSettings || !appSettings) return;
 
     const newSettings = { ...appSettings, [key]: value };
-    
-    
+
+
     if (key === 'minimizeToTray' && !value) {
       newSettings.startMinimized = false;
     }
-    
+
     setAppSettings(newSettings);
+
+    if (key === 'discordRichPresence') {
+      updateSetting('discord_rich_presence_enabled', value);
+    }
 
     try {
       const settingsToUpdate: Partial<typeof appSettings> = { [key]: value };
@@ -443,12 +450,23 @@ export default function Settings() {
   useEffect(() => {
     if (isEditingAboutMe && aboutMeTextareaRef.current) {
       aboutMeTextareaRef.current.focus();
-      
+
       const textarea = aboutMeTextareaRef.current;
       const length = textarea.value.length;
       textarea.setSelectionRange(length, length);
     }
   }, [isEditingAboutMe]);
+
+  useEffect(() => {
+    if (user && hybridSettings) {
+      if (hybridSettings.skin_tone_preference) {
+        setSkinTone(hybridSettings.skin_tone_preference as SkinTone);
+      }
+      if (appSettings && hybridSettings.discord_rich_presence_enabled !== undefined) {
+        setAppSettings(prev => prev ? { ...prev, discordRichPresence: hybridSettings.discord_rich_presence_enabled || false } : prev);
+      }
+    }
+  }, [user, hybridSettings]);
 
   useEffect(() => {
     if (user) {
@@ -690,7 +708,45 @@ export default function Settings() {
     try {
       await updateProfile.mutateAsync({ display_user_stats: newValue } as any);
     } catch (error) {
-      
+
+    }
+  };
+
+  const handleSaveAllChanges = async () => {
+    if (isEditingDisplayName) await handleSaveDisplayName();
+    if (isEditingUsername) await handleSaveUsername();
+    if (isEditingEmail) await handleSaveEmail();
+    if (isEditingAboutMe) await handleSaveAboutMe();
+    if (hasUnsavedConnections) await handleSaveConnections();
+  };
+
+  const handleDiscardAllChanges = () => {
+    if (isEditingDisplayName) {
+      setDisplayName(profile?.display_name || '');
+      setIsEditingDisplayName(false);
+    }
+    if (isEditingUsername) {
+      setUsername(profile?.username || '');
+      setUsernameError(null);
+      setIsEditingUsername(false);
+    }
+    if (isEditingEmail) {
+      setEmail(user?.email || '');
+      setIsEditingEmail(false);
+    }
+    if (isEditingAboutMe) {
+      setAboutMe(profile?.about_me || '');
+      setIsEditingAboutMe(false);
+    }
+    if (hasUnsavedConnections) {
+      const active: Array<{ id: string; platform: typeof platforms[0] }> = [];
+      platforms.forEach((platform) => {
+        if (platform.username) {
+          active.push({ id: platform.id, platform });
+        }
+      });
+      setActiveConnections(active);
+      setHasUnsavedConnections(false);
     }
   };
 
@@ -791,8 +847,9 @@ export default function Settings() {
         show_youtube_on_profile: showYoutubeOnProfile,
         show_reddit_on_profile: showRedditOnProfile,
       } as any);
+      setHasUnsavedConnections(false);
     } catch (error) {
-      
+
     } finally {
       setIsSavingConnections(false);
     }
@@ -977,22 +1034,24 @@ export default function Settings() {
   const handleAddConnection = (platformId: string) => {
     const platform = platforms.find(p => p.id === platformId);
     if (!platform) return;
-    
-    
+
+
     if (activeConnections.some(ac => ac.id === platformId)) return;
-    
+
     setActiveConnections([...activeConnections, { id: platformId, platform }]);
+    setHasUnsavedConnections(true);
   };
 
   
   const handleRemoveConnection = (platformId: string) => {
     setActiveConnections(activeConnections.filter(ac => ac.id !== platformId));
-    
+
     const platform = platforms.find(p => p.id === platformId);
     if (platform) {
       platform.setUsername('');
       platform.setShowOnProfile(false);
     }
+    setHasUnsavedConnections(true);
   };
 
   
@@ -1011,6 +1070,7 @@ export default function Settings() {
       newConnections.splice(index, 0, draggedItem);
       setActiveConnections(newConnections);
       setDraggedIndex(index);
+      setHasUnsavedConnections(true);
     }
   };
 
@@ -1136,12 +1196,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-6xl">
-      <div className="min-w-0">
-        <h1 className="text-3xl font-bold text-foreground leading-tight truncate">Settings</h1>
-        <p className="text-muted-foreground leading-tight truncate">Manage your account and preferences</p>
-      </div>
-
+    <div className="space-y-6 animate-fade-in p-6">
       <Tabs defaultValue="account" className="space-y-6">
         <TabsList className="bg-card border border-border">
           <TabsTrigger value="account" className="gap-2">
@@ -1169,13 +1224,33 @@ export default function Settings() {
         </TabsList>
 
         <TabsContent value="account" className="space-y-4">
+          {(isEditingDisplayName || isEditingUsername || isEditingEmail || isEditingAboutMe || hasUnsavedConnections) && (
+            <div className="rounded-lg bg-warning/10 border border-warning/20 p-4 flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground">You have unsaved changes</p>
+                <p className="text-sm text-muted-foreground">
+                  {isEditingDisplayName || isEditingUsername || isEditingEmail || isEditingAboutMe
+                    ? 'Save or discard your profile changes.'
+                    : 'Save or discard your connection changes.'}
+                </p>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button size="sm" onClick={handleSaveAllChanges} disabled={isEditingUsername && !!usernameError}>
+                  Save Changes
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleDiscardAllChanges}>
+                  Discard
+                </Button>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="space-y-4">
               <Tabs defaultValue="profile" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="profile">Profile</TabsTrigger>
                   <TabsTrigger value="connections">Connections</TabsTrigger>
-                  <TabsTrigger value="password">Password</TabsTrigger>
                   <TabsTrigger value="security">Security</TabsTrigger>
                 </TabsList>
 
@@ -1490,7 +1565,10 @@ export default function Settings() {
                                       <Input
                                         dir="ltr"
                                         value={currentPlatform.username}
-                                        onChange={(e) => currentPlatform.setUsername(e.target.value)}
+                                        onChange={(e) => {
+                                          currentPlatform.setUsername(e.target.value);
+                                          setHasUnsavedConnections(true);
+                                        }}
                                         placeholder={currentPlatform.placeholder}
                                         maxLength={currentPlatform.maxLength}
                                         className={cn(
@@ -1531,6 +1609,7 @@ export default function Settings() {
                                       checked={currentPlatform.showOnProfile}
                                       onCheckedChange={(checked) => {
                                         currentPlatform.setShowOnProfile(checked);
+                                        setHasUnsavedConnections(true);
                                       }}
                                       disabled={!currentPlatform.username}
                                       onMouseDown={(e) => {
@@ -1577,18 +1656,18 @@ export default function Settings() {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="password" className="space-y-4 mt-4">
+                <TabsContent value="security" className="space-y-4 mt-4">
                   <SettingsSection title="Change Password" description="Update your account password. You'll need to enter your current password.">
                     <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="currentPassword">Current Password</Label>
+                      <div className="space-y-2">
+                        <Label htmlFor="currentPassword">Current Password</Label>
                         <div className="relative">
-                <Input
-                  id="currentPassword"
+                          <Input
+                            id="currentPassword"
                             dir="ltr"
                             type={showCurrentPassword ? 'text' : 'password'}
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
+                            value={currentPassword}
+                            onChange={(e) => setCurrentPassword(e.target.value)}
                             placeholder="Enter your current password"
                             className="pr-10"
                           />
@@ -1601,17 +1680,17 @@ export default function Settings() {
                           >
                             {showCurrentPassword ? <EyeOff className="h-4 w-4 shrink-0" /> : <Eye className="h-4 w-4 shrink-0" />}
                           </Button>
-              </div>
+                        </div>
                       </div>
-                <div className="space-y-2">
-                  <Label htmlFor="newPassword">New Password</Label>
+                      <div className="space-y-2">
+                        <Label htmlFor="newPassword">New Password</Label>
                         <div className="relative">
-                  <Input
-                    id="newPassword"
+                          <Input
+                            id="newPassword"
                             dir="ltr"
                             type={showNewPassword ? 'text' : 'password'}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
                             placeholder="Enter your new password"
                             className="pr-10"
                           />
@@ -1625,16 +1704,16 @@ export default function Settings() {
                             {showNewPassword ? <EyeOff className="h-4 w-4 shrink-0" /> : <Eye className="h-4 w-4 shrink-0" />}
                           </Button>
                         </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="confirmPassword">Confirm Password</Label>
                         <div className="relative">
-                  <Input
-                    id="confirmPassword"
+                          <Input
+                            id="confirmPassword"
                             dir="ltr"
                             type={showConfirmPassword ? 'text' : 'password'}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
                             placeholder="Confirm your new password"
                             className="pr-10"
                           />
@@ -1647,20 +1726,18 @@ export default function Settings() {
                           >
                             {showConfirmPassword ? <EyeOff className="h-4 w-4 shrink-0" /> : <Eye className="h-4 w-4 shrink-0" />}
                           </Button>
-                </div>
-              </div>
-                      <Button 
-                        size="sm" 
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
                         onClick={handleSaveAccount}
                         disabled={!currentPassword || !newPassword || !confirmPassword}
                       >
                         Update Password
                       </Button>
-            </div>
-          </SettingsSection>
-                </TabsContent>
+                    </div>
+                  </SettingsSection>
 
-                <TabsContent value="security" className="space-y-4 mt-4">
                   <SettingsSection title="Active Sessions" description="Manage devices that are logged into your account. You can log out of any device remotely.">
                     <DeviceManagement />
                   </SettingsSection>
@@ -2056,6 +2133,7 @@ export default function Settings() {
                   const newTone = value as SkinTone;
                   setSkinTone(newTone);
                   setSkinTonePreference(newTone);
+                  updateSetting('skin_tone_preference', newTone);
                 }}
               >
                 <SelectTrigger className="w-[200px]">
@@ -2312,6 +2390,25 @@ export default function Settings() {
         </TabsContent>
 
         <TabsContent value="data" className="space-y-4">
+          {pendingRetentionDays !== null && (
+            <div className="rounded-lg bg-warning/10 border border-warning/20 p-4 flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground">You have unsaved cache retention changes</p>
+                <p className="text-sm text-muted-foreground">
+                  Changing retention to {pendingRetentionDays === 'all' ? 'all time' : `${pendingRetentionDays} days`}. Save or discard your changes.
+                </p>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button size="sm" onClick={handleSaveRetention}>
+                  Save Changes
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleCancelRetention}>
+                  Discard
+                </Button>
+              </div>
+            </div>
+          )}
           <SettingsSection title="Default Preferences">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">

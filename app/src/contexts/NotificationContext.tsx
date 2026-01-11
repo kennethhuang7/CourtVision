@@ -4,6 +4,7 @@ import { playNotificationSound, type NotificationSoundType } from '@/lib/notific
 import { logger } from '@/lib/logger';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUserSettings } from '@/hooks/useUserSettings';
 
 export type NotificationType =
   | 'newPredictions'
@@ -61,6 +62,7 @@ const NotificationContext = createContext<NotificationContextType | undefined>(u
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const { settings: userSettings, updateSetting } = useUserSettings();
 
   const [settings, setSettings] = useState<NotificationSettings>(() => {
     if (typeof window === 'undefined') return DEFAULT_SETTINGS;
@@ -68,13 +70,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        
+
         return {
           ...DEFAULT_SETTINGS,
           ...parsed,
-          soundType: parsed.soundType || DEFAULT_SETTINGS.soundType, 
-          soundVolume: parsed.soundVolume !== undefined ? parsed.soundVolume : DEFAULT_SETTINGS.soundVolume, 
-          taskbarFlashing: parsed.taskbarFlashing !== undefined ? parsed.taskbarFlashing : DEFAULT_SETTINGS.taskbarFlashing, 
+          soundType: parsed.soundType || DEFAULT_SETTINGS.soundType,
+          soundVolume: parsed.soundVolume !== undefined ? parsed.soundVolume : DEFAULT_SETTINGS.soundVolume,
+          taskbarFlashing: parsed.taskbarFlashing !== undefined ? parsed.taskbarFlashing : DEFAULT_SETTINGS.taskbarFlashing,
           types: {
             ...DEFAULT_SETTINGS.types,
             ...(parsed.types || {}),
@@ -86,6 +88,17 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
     return DEFAULT_SETTINGS;
   });
+
+  useEffect(() => {
+    if (user && userSettings) {
+      setSettings(prev => ({
+        ...prev,
+        soundType: (userSettings.notification_sound_type as NotificationSoundType) || prev.soundType,
+        soundVolume: userSettings.notification_sound_volume !== undefined ? userSettings.notification_sound_volume : prev.soundVolume,
+        sound: userSettings.sound_effects_enabled !== undefined ? userSettings.sound_effects_enabled : prev.sound,
+      }));
+    }
+  }, [user, userSettings]);
 
   const [hasDesktopPermission, setHasDesktopPermission] = useState<boolean | null>(() => {
     if (typeof window === 'undefined' || !('Notification' in window)) return null;
@@ -139,7 +152,19 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         ...(newSettings.types || {}),
       },
     }));
-  }, []);
+
+    if (user) {
+      if (newSettings.soundType !== undefined) {
+        updateSetting('notification_sound_type', newSettings.soundType);
+      }
+      if (newSettings.soundVolume !== undefined) {
+        updateSetting('notification_sound_volume', newSettings.soundVolume);
+      }
+      if (newSettings.sound !== undefined) {
+        updateSetting('sound_effects_enabled', newSettings.sound);
+      }
+    }
+  }, [user, updateSetting]);
 
   
   const playSound = useCallback(() => {

@@ -1,4 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
+import { useState } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -24,6 +25,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn, getInitials } from '@/lib/utils';
 import { useChatWindow } from '@/contexts/ChatWindowContext';
 import { useDoNotDisturb } from '@/contexts/DoNotDisturbContext';
+import { SettingsModal } from '@/components/settings/SettingsModal';
 
 function ChatWindowToggle() {
   const { isVisible, toggle } = useChatWindow();
@@ -71,30 +73,67 @@ function DoNotDisturbToggle() {
   );
 }
 
-const navigation = [
+const mainNavigation = [
   { name: 'Predictions', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Player Analysis', href: '/dashboard/player-analysis', icon: Users },
   { name: 'Pick Finder', href: '/dashboard/pick-finder', icon: Target },
-  { name: 'Trends', href: '/dashboard/trends', icon: Flame },
+  { name: 'Player Analysis', href: '/dashboard/player-analysis', icon: Users },
   { name: 'My Picks', href: '/dashboard/saved-picks', icon: Trophy },
+  { name: 'Trends', href: '/dashboard/trends', icon: Flame },
+];
+
+const socialNavigation = [
   { name: 'Community', href: '/dashboard/community', icon: Globe },
   { name: 'Messages', href: '/dashboard/messages', icon: MessageSquare },
   { name: 'My Friends', href: '/dashboard/friends', icon: UserPlus },
   { name: 'My Groups', href: '/dashboard/groups', icon: UsersRound },
+];
+
+const insightsNavigation = [
   { name: 'Model Performance', href: '/dashboard/model-performance', icon: BarChart3 },
   { name: 'Analytics', href: '/dashboard/analytics', icon: Activity },
-  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
 export function Sidebar() {
   const location = useLocation();
   const { logout, user } = useAuth();
   const { data: profile } = useUserProfile();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
-  
   const displayName = profile?.display_name || profile?.username || user?.username || 'User';
   const username = profile?.username || user?.username || 'user';
   const profilePictureUrl = profile?.profile_picture_url;
+
+  const renderNavItems = (items: typeof mainNavigation) => {
+    return items.map((item) => {
+      const isActive = location.pathname === item.href ||
+        (item.href !== '/dashboard' && location.pathname.startsWith(item.href));
+
+      return (
+        <NavLink
+          key={item.name}
+          to={item.href}
+          className={() => cn(
+            'nav-link group',
+            isActive && 'active'
+          )}
+        >
+          <item.icon className={cn(
+            'h-5 w-5 shrink-0 transition-colors',
+            isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'
+          )} />
+          <span className={cn(
+            'font-medium truncate min-w-0',
+            isActive ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'
+          )}>
+            {item.name}
+          </span>
+          {isActive && (
+            <TrendingUp className="h-4 w-4 shrink-0 text-primary animate-fade-in ml-auto" />
+          )}
+        </NavLink>
+      );
+    });
+  };
 
   return (
     <aside className="fixed left-0 top-10 z-40 h-[calc(100vh-2.5rem)] w-64 border-r border-border bg-sidebar overflow-hidden">
@@ -109,36 +148,32 @@ export function Sidebar() {
           </div>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto">
-          {navigation.map((item) => {
-            const isActive = location.pathname === item.href ||
-              (item.href !== '/dashboard' && location.pathname.startsWith(item.href));
+        <nav className="flex-1 px-3 py-4 overflow-y-auto">
+          <div className="space-y-1 mb-3">
+            {renderNavItems(mainNavigation)}
+          </div>
 
-            return (
-              <NavLink
-                key={item.name}
-                to={item.href}
-                className={() => cn(
-                  'nav-link group',
-                  isActive && 'active'
-                )}
-              >
-                <item.icon className={cn(
-                  'h-5 w-5 shrink-0 transition-colors',
-                  isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'
-                )} />
-                <span className={cn(
-                  'font-medium truncate min-w-0',
-                  isActive ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'
-                )}>
-                  {item.name}
-                </span>
-                {isActive && (
-                  <TrendingUp className="h-4 w-4 shrink-0 text-primary animate-fade-in ml-auto" />
-                )}
-              </NavLink>
-            );
-          })}
+          <div className="my-3 border-t border-sidebar-border" />
+
+          <div className="mb-3">
+            <div className="px-3 py-2">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Social</h3>
+            </div>
+            <div className="space-y-1">
+              {renderNavItems(socialNavigation)}
+            </div>
+          </div>
+
+          <div className="my-3 border-t border-sidebar-border" />
+
+          <div>
+            <div className="px-3 py-2">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Insights</h3>
+            </div>
+            <div className="space-y-1">
+              {renderNavItems(insightsNavigation)}
+            </div>
+          </div>
         </nav>
 
         <div className="border-t border-sidebar-border p-4 shrink-0">
@@ -164,6 +199,18 @@ export function Sidebar() {
             <div className="flex items-center gap-1 shrink-0">
               <ChatWindowToggle />
               <DoNotDisturbToggle />
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "h-8 w-8 p-0 flex-shrink-0",
+                  settingsOpen && "bg-primary/10 text-primary hover:bg-primary/20"
+                )}
+                onClick={() => setSettingsOpen(true)}
+                title="Settings"
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
             </div>
           </div>
           <button
@@ -175,6 +222,8 @@ export function Sidebar() {
           </button>
         </div>
       </div>
+
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </aside>
   );
 }
