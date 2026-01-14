@@ -21,16 +21,32 @@ import { TEAM_SEARCH_MAP } from '@/constants/teams';
 export default function Predictions() {
   const { dateFormat } = useTheme();
   
-  const [selectedDate, setSelectedDate] = useState<Date>(() => {
-    const stored = sessionStorage.getItem('shared-selected-date');
-    if (stored) {
-      const parsed = new Date(stored);
-      if (!isNaN(parsed.getTime())) {
-        return parsed;
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  useEffect(() => {
+    const initializeDate = async () => {
+      const stored = sessionStorage.getItem('shared-selected-date');
+      if (stored) {
+        const parsed = new Date(stored);
+        if (!isNaN(parsed.getTime())) {
+          setSelectedDate(parsed);
+          setIsInitializing(false);
+          return;
+        }
       }
-    }
-    return new Date();
-  });
+
+      const { getMostRecentDateWithPredictions } = await import('@/lib/dateUtils');
+      const mostRecent = await getMostRecentDateWithPredictions();
+      if (mostRecent) {
+        setSelectedDate(mostRecent);
+        sessionStorage.setItem('shared-selected-date', mostRecent.toISOString());
+      }
+      setIsInitializing(false);
+    };
+
+    initializeDate();
+  }, []);
 
   
   useEffect(() => {
@@ -66,7 +82,7 @@ export default function Predictions() {
     isError,
     error,
     refetch,
-  } = useSupabasePredictions(selectedDate, selectedModels);
+  } = useSupabasePredictions(selectedDate, selectedModels, { enabled: !isInitializing });
 
   
   const [retryCountdown, setRetryCountdown] = useState<number | null>(null);

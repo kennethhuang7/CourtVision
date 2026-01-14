@@ -36,7 +36,7 @@ export function useSavePick() {
         throw new Error('Invalid game ID');
       }
       const trimmedGameId = input.gameId.trim();
-      const gameIdPattern = /^\d{10}$/;
+      const gameIdPattern = /^\d{8,10}$/;
       if (!gameIdPattern.test(trimmedGameId)) {
         throw new Error('Invalid game ID format');
       }

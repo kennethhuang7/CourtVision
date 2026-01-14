@@ -96,7 +96,10 @@ def construct_nba_game_id(target_date, home_team_id, away_team_id, cur, used_ids
     result = cur.fetchone()
     if result:
         last_id = result[0]
-        sequence = int(last_id[-3:]) + 1
+        if len(last_id) == 8:
+            sequence = int(last_id[-3:]) + 1
+        else:
+            sequence = 1
     else:
         sequence = 1
     

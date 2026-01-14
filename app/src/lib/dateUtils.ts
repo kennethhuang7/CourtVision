@@ -1,98 +1,64 @@
 import { format } from 'date-fns';
-import type { DateFormat, TimeFormat } from '@/contexts/ThemeContext';
+import { supabase } from './supabase';
+import { logger } from './logger';
 
-
-export function parseDateString(dateStr: string | Date | null | undefined): Date {
-  
-  if (!dateStr) {
-    return new Date();
-  }
-
-  if (dateStr instanceof Date) {
-    return dateStr;
-  }
-
-  
-  if (typeof dateStr !== 'string') {
-    return new Date();
-  }
-
-  
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    const [year, month, day] = dateStr.split('-').map(Number);
-    
-    if (isNaN(year) || isNaN(month) || isNaN(day)) {
-      return new Date();
-    }
-    return new Date(year, month - 1, day); 
-  }
-
-  
-  const parsed = new Date(dateStr);
-  
-  return isNaN(parsed.getTime()) ? new Date() : parsed;
-}
-
-
-export function formatUserDate(
-  date: Date | string,
-  formatType: DateFormat,
-  longFormat = false
-): string {
-  const dateObj = typeof date === 'string' ? parseDateString(date) : date;
-
-  if (longFormat) {
-    
-    return format(dateObj, 'MMMM d, yyyy');
-  }
-
-  
-  const formatMap: Record<DateFormat, string> = {
-    'MM/DD/YYYY': 'MM/dd/yyyy',
-    'DD/MM/YYYY': 'dd/MM/yyyy',
-    'YYYY-MM-DD': 'yyyy-MM-dd',
-  };
-
-  return format(dateObj, formatMap[formatType]);
-}
-
-
-export function formatTableDate(date: Date | string, formatType: DateFormat): string {
-  return formatUserDate(date, formatType, false);
-}
-
-
-export function formatUserTime(
-  date: Date | string,
-  timeFormatType: TimeFormat
-): string {
-  const dateObj = typeof date === 'string' ? parseDateString(date) : date;
-
-  
-  if (timeFormatType === '12h') {
-    return format(dateObj, 'h:mm a'); 
+export function formatUserDate(date: Date, formatStr: string, includeYear?: boolean): string {
+  if (formatStr === 'MM/DD/YYYY') {
+    return format(date, includeYear ? 'MM/dd/yyyy' : 'MM/dd');
+  } else if (formatStr === 'DD/MM/YYYY') {
+    return format(date, includeYear ? 'dd/MM/yyyy' : 'dd/MM');
   } else {
-    return format(dateObj, 'HH:mm'); 
+    return format(date, includeYear ? 'yyyy-MM-dd' : 'MM-dd');
   }
 }
 
+export async function getMostRecentDateWithPredictions(): Promise<Date | null> {
+  try {
+    const { data, error } = await supabase
+      .from('predictions')
+      .select('prediction_date')
+      .order('prediction_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-export function formatUserDateTime(
-  date: Date | string,
-  dateFormatType: DateFormat,
-  timeFormatType: TimeFormat
-): string {
-  const dateObj = typeof date === 'string' ? parseDateString(date) : date;
+    if (error) {
+      logger.warn('Error fetching most recent prediction date', error);
+      return null;
+    }
 
-  
-  const dateFormatMap: Record<DateFormat, string> = {
-    'MM/DD/YYYY': 'MMM d, yyyy',
-    'DD/MM/YYYY': 'd MMM yyyy',
-    'YYYY-MM-DD': 'yyyy-MM-dd',
-  };
+    if (!data || !data.prediction_date) {
+      return null;
+    }
 
-  const timeFormatString = timeFormatType === '12h' ? 'h:mm a' : 'HH:mm';
+    const dateStr = typeof data.prediction_date === 'string' 
+      ? data.prediction_date 
+      : data.prediction_date.toISOString().split('T')[0];
+    
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) {
+      return null;
+    }
 
-  return format(dateObj, `${dateFormatMap[dateFormatType]} ${timeFormatString}`);
+    return date;
+  } catch (error) {
+    logger.error('Error in getMostRecentDateWithPredictions', error as Error);
+    return null;
+  }
 }
 
+export async function getInitialDate(): Promise<Date> {
+  const stored = sessionStorage.getItem('shared-selected-date');
+  if (stored) {
+    const parsed = new Date(stored);
+    if (!isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+
+  const mostRecent = await getMostRecentDateWithPredictions();
+  if (mostRecent) {
+    return mostRecent;
+  }
+
+  return new Date();
+}

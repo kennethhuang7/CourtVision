@@ -580,13 +580,16 @@ export function PlayerDetailModal({ prediction, open, onOpenChange }: PlayerDeta
   const handleAnalyzePlayer = () => {
     if (gameDate) {
       const gameDateObj = new Date(gameDate);
+      gameDateObj.setHours(0, 0, 0, 0);
       sessionStorage.setItem('shared-selected-date', gameDateObj.toISOString());
     }
     localStorage.setItem('player-analysis-selected-game', gameId);
     localStorage.setItem('player-analysis-selected-player', playerId);
     localStorage.setItem('player-analysis-selected-stat', 'points');
     onOpenChange(false);
-    navigate('/dashboard/player-analysis');
+    setTimeout(() => {
+      navigate('/dashboard/player-analysis');
+    }, 0);
   };
 
   const toggleStat = (statKey: string) => {
