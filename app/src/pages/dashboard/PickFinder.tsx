@@ -10,6 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { PickFinderLoading } from '@/components/pick-finder/PickFinderLoading';
 import { PickResultCard } from '@/components/pick-finder/PickResultCard';
+import { RateLimitError } from '@/components/ui/RateLimitError';
 import { usePickFinder } from '@/hooks/usePickFinder';
 import { useEnsemble } from '@/contexts/EnsembleContext';
 import { logger } from '@/lib/logger';
@@ -168,7 +169,7 @@ export default function PickFinder() {
   };
 
   const { selectedModels } = useEnsemble();
-  const { findPicks } = usePickFinder();
+  const { findPicks, error, isLoading } = usePickFinder();
   const [loadingStage, setLoadingStage] = useState<string>('');
   const [loadingProgress, setLoadingProgress] = useState<number>(0);
 
@@ -185,8 +186,14 @@ export default function PickFinder() {
       setResults(picks);
       setPage('results');
     } catch (error) {
+      const err = error as Error;
+      logger.error('Error finding picks', err);
       setResults([]);
-      setPage('constructor');
+      if (err.message?.includes('Rate limited') || err.message?.includes('429')) {
+        setPage('loading');
+      } else {
+        setPage('constructor');
+      }
     }
   };
 
@@ -208,6 +215,28 @@ export default function PickFinder() {
 
   
   if (page === 'loading') {
+    const isRateLimitError = error && (error.message?.includes('Rate limited') || error.message?.includes('429'));
+    
+    if (isRateLimitError) {
+      return (
+        <div className="flex h-full flex-col bg-background">
+          <div className="flex-1 flex items-center justify-center p-6">
+            <RateLimitError 
+              error={error} 
+              onRetry={handleSearch}
+              showRetry={true}
+            />
+          </div>
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2">
+            <Button onClick={handleCancel} variant="outline" size="lg">
+              <X className="mr-2 h-4 w-4 shrink-0" />
+              <span className="whitespace-nowrap">Cancel</span>
+            </Button>
+          </div>
+        </div>
+      );
+    }
+    
     return (
       <div className="flex h-full flex-col bg-background">
         <PickFinderLoading filters={filters} currentStage={loadingStage} progress={loadingProgress} />

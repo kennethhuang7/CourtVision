@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
 import { cacheManager } from '@/lib/cache';
+import { withBackoff } from '@/lib/backoff';
 import type { TrendFilters, Trend } from '@/types/trends';
 import type { StatType } from '@/types/nba';
 import type { ModelId } from '@/contexts/EnsembleContext';
@@ -157,7 +158,8 @@ export function useTrends() {
 
   const findTrends = async (
     filters: TrendFilters,
-    selectedModels: ModelId[]
+    selectedModels: ModelId[],
+    onProgress?: (stage: string, progress: number) => void
   ): Promise<Trend[]> => {
     setIsLoading(true);
     setError(null);
@@ -167,11 +169,44 @@ export function useTrends() {
       const statTypes = filters.statType === 'all' ? allStatTypes : [filters.statType];
 
       const allTrends: Trend[] = [];
+      const totalStats = statTypes.length;
 
       
-      for (const statType of statTypes) {
-        const trends = await findTrendsForStat(statType, filters, selectedModels);
-        allTrends.push(...trends);
+      for (let i = 0; i < statTypes.length; i++) {
+        const statType = statTypes[i];
+        if (onProgress) {
+          onProgress(`Finding trends for ${statType}...`, (i / totalStats) * 100);
+        }
+
+        try {
+          const trends = await withBackoff(
+            () => findTrendsForStat(statType, filters, selectedModels),
+            {
+              initialDelay: 2000,
+              maxDelay: 15000,
+              maxRetries: 3,
+              factor: 2,
+            },
+            (attempt, delay, error) => {
+              logger.warn(`Trends query retry ${attempt} after ${Math.ceil(delay / 1000)}s`, error);
+              if (onProgress) {
+                onProgress(`Retrying ${statType} trends (attempt ${attempt})...`, (i / totalStats) * 100);
+              }
+            }
+          );
+          allTrends.push(...trends);
+        } catch (err) {
+          const error = err as Error;
+          const isRateLimit = error.message?.includes('Rate limited') || error.message?.includes('429');
+          
+          if (isRateLimit) {
+            logger.warn(`Rate limited while finding ${statType} trends`, error);
+            setError(error);
+            throw error;
+          }
+          
+          logger.error(`Error finding trends for ${statType}`, error);
+        }
       }
 
       
@@ -185,10 +220,15 @@ export function useTrends() {
         return b.trendScore - a.trendScore;
       });
 
+      if (onProgress) {
+        onProgress('Completed', 100);
+      }
+
       return allTrends;
     } catch (err) {
-      logger.error('Error finding trends', err as Error);
-      setError(err as Error);
+      const error = err as Error;
+      logger.error('Error finding trends', error);
+      setError(error);
       return [];
     } finally {
       setIsLoading(false);
@@ -206,12 +246,22 @@ async function findTrendsForStat(
 ): Promise<Trend[]> {
   try {
     
-    const { data: upcomingGames, error: upcomingError } = await supabase
-      .from('games')
-      .select('game_id, game_date, home_team_id, away_team_id, season, game_status, game_type')
-      .in('game_status', ['scheduled', 'upcoming', 'live'])
-      .order('game_date', { ascending: true })
-      .limit(100);
+    const { data: upcomingGames, error: upcomingError } = await withBackoff(
+      () => supabase
+        .from('games')
+        .select('game_id, game_date, home_team_id, away_team_id, season, game_status, game_type')
+        .in('game_status', ['scheduled', 'upcoming', 'live'])
+        .order('game_date', { ascending: true })
+        .limit(100)
+        .then(result => {
+          if (result.error) throw result.error;
+          return result;
+        }),
+      { initialDelay: 2000, maxDelay: 15000, maxRetries: 3 },
+      (attempt, delay) => {
+        logger.warn(`Trends games query retry ${attempt} after ${Math.ceil(delay / 1000)}s`);
+      }
+    );
 
     if (upcomingError) throw upcomingError;
     if (!upcomingGames || upcomingGames.length === 0) return [];
@@ -228,30 +278,62 @@ async function findTrendsForStat(
     const teamIds = Array.from(new Set(games.flatMap(g => [g.home_team_id, g.away_team_id])));
 
     
-    const { data: teams, error: teamsError } = await supabase
-      .from('teams')
-      .select('team_id, full_name, abbreviation')
-      .in('team_id', teamIds);
+    const [teamsResult, playersResult] = await Promise.all([
+      withBackoff(
+        () => supabase
+          .from('teams')
+          .select('team_id, full_name, abbreviation')
+          .in('team_id', teamIds)
+          .then(result => {
+            if (result.error) throw result.error;
+            return result;
+          }),
+        { initialDelay: 2000, maxDelay: 15000, maxRetries: 3 },
+        (attempt, delay) => {
+          logger.warn(`Trends teams query retry ${attempt} after ${Math.ceil(delay / 1000)}s`);
+        }
+      ),
+      withBackoff(
+        () => supabase
+          .from('players')
+          .select('player_id, full_name, position, team_id')
+          .in('team_id', teamIds)
+          .eq('is_active', true)
+          .then(result => {
+            if (result.error) throw result.error;
+            return result;
+          }),
+        { initialDelay: 2000, maxDelay: 15000, maxRetries: 3 },
+        (attempt, delay) => {
+          logger.warn(`Trends players query retry ${attempt} after ${Math.ceil(delay / 1000)}s`);
+        }
+      )
+    ]);
 
+    const { data: teams, error: teamsError } = teamsResult;
     if (teamsError) throw teamsError;
     const teamsMap = new Map(teams?.map(t => [t.team_id, t]) || []);
 
-    
-    const { data: players, error: playersError } = await supabase
-      .from('players')
-      .select('player_id, full_name, position, team_id')
-      .in('team_id', teamIds)
-      .eq('is_active', true);
-
+    const { data: players, error: playersError } = playersResult;
     if (playersError) throw playersError;
     if (!players || players.length === 0) return [];
 
     
-    const { data: allPredictions, error: predError } = await supabase
-      .from('predictions')
-      .select('player_id, game_id, model_version, predicted_points, predicted_rebounds, predicted_assists, predicted_steals, predicted_blocks, predicted_turnovers, predicted_three_pointers_made, confidence_score')
-      .in('game_id', gameIds)
-      .in('model_version', selectedModels);
+    const { data: allPredictions, error: predError } = await withBackoff(
+      () => supabase
+        .from('predictions')
+        .select('player_id, game_id, model_version, predicted_points, predicted_rebounds, predicted_assists, predicted_steals, predicted_blocks, predicted_turnovers, predicted_three_pointers_made, confidence_score')
+        .in('game_id', gameIds)
+        .in('model_version', selectedModels)
+        .then(result => {
+          if (result.error) throw result.error;
+          return result;
+        }),
+      { initialDelay: 2000, maxDelay: 15000, maxRetries: 3 },
+      (attempt, delay) => {
+        logger.warn(`Trends predictions query retry ${attempt} after ${Math.ceil(delay / 1000)}s`);
+      }
+    );
 
     if (predError) throw predError;
 
@@ -301,14 +383,34 @@ async function findTrendsForStat(
 
     for (let i = 0; i < playerIds.length; i += batchSize) {
       const batch = playerIds.slice(i, i + batchSize);
-      const { data: statsRows, error: statsError } = await supabase
-        .from('player_game_stats')
-        .select(`player_id, game_id, ${statColumn}, minutes_played, team_id`)
-        .in('player_id', batch)
-        .limit(5000);
+      
+      try {
+        const { data: statsRows, error: statsError } = await withBackoff(
+          () => supabase
+            .from('player_game_stats')
+            .select(`player_id, game_id, ${statColumn}, minutes_played, team_id`)
+            .in('player_id', batch)
+            .limit(5000)
+            .then(result => {
+              if (result.error) throw result.error;
+              return result;
+            }),
+          { initialDelay: 2000, maxDelay: 15000, maxRetries: 3 },
+          (attempt, delay) => {
+            logger.warn(`Trends stats batch ${i / batchSize + 1} retry ${attempt} after ${Math.ceil(delay / 1000)}s`);
+          }
+        );
 
-      if (statsError) throw statsError;
-      if (statsRows) allStatsRows.push(...statsRows);
+        if (statsError) throw statsError;
+        if (statsRows) allStatsRows.push(...statsRows);
+      } catch (err) {
+        const error = err as Error;
+        const isRateLimit = error.message?.includes('Rate limited') || error.message?.includes('429');
+        if (isRateLimit) {
+          throw error;
+        }
+        logger.warn(`Error fetching trends stats batch ${i / batchSize + 1}, continuing...`, error);
+      }
     }
 
     
@@ -318,13 +420,33 @@ async function findTrendsForStat(
 
     for (let i = 0; i < historicalGameIds.length; i += gameBatchSize) {
       const batch = historicalGameIds.slice(i, i + gameBatchSize);
-      const { data: gameRows, error: gameError } = await supabase
-        .from('games')
-        .select('game_id, game_date, home_team_id, away_team_id, game_status, season, game_type')
-        .in('game_id', batch);
+      
+      try {
+        const { data: gameRows, error: gameError } = await withBackoff(
+          () => supabase
+            .from('games')
+            .select('game_id, game_date, home_team_id, away_team_id, game_status, season, game_type')
+            .in('game_id', batch)
+            .then(result => {
+              if (result.error) throw result.error;
+              return result;
+            }),
+          { initialDelay: 2000, maxDelay: 15000, maxRetries: 3 },
+          (attempt, delay) => {
+            logger.warn(`Trends games batch ${i / gameBatchSize + 1} retry ${attempt} after ${Math.ceil(delay / 1000)}s`);
+          }
+        );
 
-      if (gameError) throw gameError;
-      if (gameRows) allGameRows.push(...gameRows);
+        if (gameError) throw gameError;
+        if (gameRows) allGameRows.push(...gameRows);
+      } catch (err) {
+        const error = err as Error;
+        const isRateLimit = error.message?.includes('Rate limited') || error.message?.includes('429');
+        if (isRateLimit) {
+          throw error;
+        }
+        logger.warn(`Error fetching trends games batch ${i / gameBatchSize + 1}, continuing...`, error);
+      }
     }
 
     const gamesMap = new Map(allGameRows.map(g => [g.game_id, g]));
@@ -578,7 +700,7 @@ function evaluateTrend(
   return {
     playerId: player.player_id.toString(),
     playerName: player.full_name,
-    playerPhotoUrl: `https://ak-static.cms.nba.com/wp-content/uploads/headshots/nba/latest/260x190/${topPlayer.player_id}.png`,
+    playerPhotoUrl: `https://ak-static.cms.nba.com/wp-content/uploads/headshots/nba/latest/260x190/${player.player_id}.png`,
     position: player.position || 'N/A',
     team: playerTeam.full_name,
     teamAbbr: playerTeam.abbreviation,

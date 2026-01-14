@@ -47,7 +47,6 @@ export function DangerZone() {
     setIsDeleting(true);
 
     try {
-      
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: user.email || '',
         password: confirmPassword,
@@ -59,157 +58,29 @@ export function DangerZone() {
         return;
       }
 
-      
-      const userPickIds = await supabase
-        .from('user_picks')
-        .select('id')
-        .eq('owner_id', user.id);
-      const pickIds = userPickIds.data?.map(p => p.id) || [];
+      const { error: deleteError } = await supabase.rpc('delete_user_account', {
+        user_id_to_delete: user.id
+      });
 
-      const userGroupIds = await supabase
-        .from('user_groups')
-        .select('id')
-        .eq('owner_id', user.id);
-      const groupIds = userGroupIds.data?.map(g => g.id) || [];
-
-      const userMessageIds = await supabase
-        .from('user_messages')
-        .select('id')
-        .eq('sender_id', user.id);
-      const messageIds = userMessageIds.data?.map(m => m.id) || [];
-
-      const userGroupMessageIds = await supabase
-        .from('group_messages')
-        .select('id')
-        .eq('sender_id', user.id);
-      const groupMessageIds = userGroupMessageIds.data?.map(m => m.id) || [];
-
-      if (pickIds.length > 0) {
-        await supabase.from('pick_user_shares').delete().in('pick_id', pickIds);
-        await supabase.from('pick_group_shares').delete().in('pick_id', pickIds);
-      }
-
-      if (groupIds.length > 0) {
-        await supabase.from('group_messages').delete().in('group_id', groupIds);
-        await supabase.from('user_group_members').delete().in('group_id', groupIds);
-        await supabase.from('user_group_invites').delete().in('group_id', groupIds);
-        await supabase.from('pick_group_shares').delete().in('group_id', groupIds);
-      }
-
-      if (messageIds.length > 0) {
-        await supabase.from('message_reactions').delete().in('message_id', messageIds);
-      }
-
-      if (groupMessageIds.length > 0) {
-        await supabase.from('message_reactions').delete().in('message_id', groupMessageIds);
-      }
-
-      const tablesToDelete = [
-        'user_notifications',
-        'user_sessions',
-        'user_messages',
-        'group_messages',
-        'message_reactions',
-        'user_conversations',
-        'pick_user_shares',
-        'pick_group_shares',
-        'user_picks',
-        'user_group_invites',
-        'user_group_members',
-        'user_groups',
-        'user_friendships',
-        'user_profiles',
-      ];
-
-      for (const table of tablesToDelete) {
-        try {
-
-          if (table === 'user_friendships') {
-
-            await supabase
-              .from(table)
-              .delete()
-              .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
-          } else if (table === 'user_groups') {
-
-            await supabase
-              .from(table)
-              .delete()
-              .eq('owner_id', user.id);
-          } else if (table === 'user_picks') {
-
-            await supabase
-              .from(table)
-              .delete()
-              .eq('owner_id', user.id);
-          } else if (table === 'user_profiles') {
-
-            await supabase
-              .from(table)
-              .delete()
-              .eq('user_id', user.id);
-          } else if (table === 'user_messages' || table === 'group_messages') {
-
-            await supabase
-              .from(table)
-              .delete()
-              .eq('sender_id', user.id);
-          } else if (table === 'pick_user_shares') {
-
-            await supabase
-              .from(table)
-              .delete()
-              .eq('shared_with_user_id', user.id);
-          } else if (table === 'pick_group_shares') {
-
-            continue;
-          } else if (table === 'user_group_invites') {
-
-            await supabase
-              .from(table)
-              .delete()
-              .or(`inviter_id.eq.${user.id},invitee_id.eq.${user.id}`);
-          } else {
-
-            await supabase
-              .from(table)
-              .delete()
-              .eq('user_id', user.id);
-          }
-        } catch (error) {
-          logger.warn(`Error deleting from ${table}`, error);
-          
-        }
-      }
-
-      
-      
-      
-
-      
-      try {
-        const { error: deleteAuthError } = await supabase.rpc('delete_user_account', {
-          user_id_to_delete: user.id
-        });
-
-        if (deleteAuthError) {
-          logger.error('Error deleting auth user via RPC', deleteAuthError);
-          
-          await logout();
-          toast.success('Account data deleted. Please contact support to complete account deletion.');
-          navigate('/login');
-          return;
-        }
-      } catch (rpcError) {
-        logger.warn('RPC function not available, signing out user', rpcError);
-        
-        await logout();
-        toast.success('Account data deleted. Please contact support to complete account deletion.');
-        navigate('/login');
+      if (deleteError) {
+        logger.error('Error deleting user account', deleteError);
+        toast.error('Failed to delete account. Please try again or contact support.');
+        setIsDeleting(false);
         return;
       }
 
-      
+      try {
+        const { error: authDeleteError } = await supabase.rpc('delete_auth_user', {
+          user_id_to_delete: user.id
+        });
+
+        if (authDeleteError) {
+          logger.warn('Auth user deletion failed, data deleted', authDeleteError);
+        }
+      } catch (authError) {
+        logger.warn('Auth deletion RPC not available, data deleted', authError);
+      }
+
       await logout();
       toast.success('Your account has been permanently deleted');
       navigate('/login');

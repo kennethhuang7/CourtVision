@@ -82,7 +82,7 @@ export function ExportLayout({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                background: isLightTheme ? '#f3f4f6' : '#1f2937',
+                background: isLightTheme ? 'hsl(0 0% 95%)' : 'hsl(0 0% 15%)',
               }}>
                 <img
                   src={playerPhoto}

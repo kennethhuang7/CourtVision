@@ -52,21 +52,39 @@ export function useUserSettings() {
 
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('theme_mode, ui_density, font_scale, zoom_level, date_format, time_format, notification_sound_type, notification_sound_volume, sound_effects_enabled, skin_tone_preference, discord_rich_presence_enabled')
+        .select('*')
         .eq('user_id', user.id)
         .single();
 
       if (error) {
-        logger.error('Error fetching user settings', error);
+        if (error.code !== 'PGRST116') {
+          logger.error('Error fetching user settings', error);
+        }
         return localSettings;
       }
 
-      const merged = { ...data, ...localSettings };
+      const extractedSettings: UserSettings = {};
+      if (data) {
+        if ('theme_mode' in data) extractedSettings.theme_mode = data.theme_mode;
+        if ('ui_density' in data) extractedSettings.ui_density = data.ui_density;
+        if ('font_scale' in data) extractedSettings.font_scale = data.font_scale;
+        if ('zoom_level' in data) extractedSettings.zoom_level = data.zoom_level;
+        if ('date_format' in data) extractedSettings.date_format = data.date_format;
+        if ('time_format' in data) extractedSettings.time_format = data.time_format;
+        if ('notification_sound_type' in data) extractedSettings.notification_sound_type = data.notification_sound_type;
+        if ('notification_sound_volume' in data) extractedSettings.notification_sound_volume = data.notification_sound_volume;
+        if ('sound_effects_enabled' in data) extractedSettings.sound_effects_enabled = data.sound_effects_enabled;
+        if ('skin_tone_preference' in data) extractedSettings.skin_tone_preference = data.skin_tone_preference;
+        if ('discord_rich_presence_enabled' in data) extractedSettings.discord_rich_presence_enabled = data.discord_rich_presence_enabled;
+      }
+
+      const merged = { ...extractedSettings, ...localSettings };
       setLocalSettings(merged);
       return merged;
     },
     enabled: !!user?.id,
     staleTime: 60000,
+    retry: false,
   });
 
   const updateSettings = useMutation({

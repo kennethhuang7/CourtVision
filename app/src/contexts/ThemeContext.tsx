@@ -91,15 +91,35 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    if (user && settings) {
-      if (settings.theme_mode) setThemeState(settings.theme_mode as ThemeMode);
-      if (settings.ui_density) setDensityState(settings.ui_density as UIDensity);
-      if (settings.font_scale) setFontScaleState(settings.font_scale);
-      if (settings.zoom_level) setZoomLevelState(settings.zoom_level);
-      if (settings.date_format) setDateFormatState(settings.date_format as DateFormat);
-      if (settings.time_format) setTimeFormatState(settings.time_format as TimeFormat);
+    if (!user || !settings || Object.keys(settings).length === 0) return;
+    
+    let hasChanges = false;
+    
+    if (settings.theme_mode && settings.theme_mode !== theme) {
+      setThemeState(settings.theme_mode as ThemeMode);
+      hasChanges = true;
     }
-  }, [user, settings]);
+    if (settings.ui_density && settings.ui_density !== density) {
+      setDensityState(settings.ui_density as UIDensity);
+      hasChanges = true;
+    }
+    if (settings.font_scale !== undefined && settings.font_scale !== fontScale) {
+      setFontScaleState(settings.font_scale);
+      hasChanges = true;
+    }
+    if (settings.zoom_level !== undefined && settings.zoom_level !== zoomLevel) {
+      setZoomLevelState(settings.zoom_level);
+      hasChanges = true;
+    }
+    if (settings.date_format && settings.date_format !== dateFormat) {
+      setDateFormatState(settings.date_format as DateFormat);
+      hasChanges = true;
+    }
+    if (settings.time_format && settings.time_format !== timeFormat) {
+      setTimeFormatState(settings.time_format as TimeFormat);
+      hasChanges = true;
+    }
+  }, [user?.id, settings.theme_mode, settings.ui_density, settings.font_scale, settings.zoom_level, settings.date_format, settings.time_format]);
 
   const setTheme = (newTheme: ThemeMode) => {
     setThemeState(newTheme);

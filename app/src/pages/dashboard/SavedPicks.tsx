@@ -7,6 +7,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RateLimitError } from '@/components/ui/RateLimitError';
 import { useUserPicks } from '@/hooks/useUserPicks';
 import { useDeletePick } from '@/hooks/useDeletePick';
 import { SharePickModal } from '@/components/picks/SharePickModal';
@@ -249,6 +250,24 @@ export default function SavedPicks() {
   }
 
   if (isError) {
+    const isRateLimitError = error && (
+      error.message?.includes('Rate limited') || 
+      error.message?.includes('429') ||
+      (error as any).code === 429
+    );
+    
+    if (isRateLimitError) {
+      return (
+        <div className="flex h-[calc(100vh-10rem)] items-center justify-center p-6">
+          <RateLimitError 
+            error={error as Error} 
+            onRetry={() => refetch()}
+            showRetry={true}
+          />
+        </div>
+      );
+    }
+    
     return (
       <div className="flex h-[calc(100vh-10rem)] items-center justify-center">
         <div className="flex flex-col items-center gap-4">

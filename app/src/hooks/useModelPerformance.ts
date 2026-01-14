@@ -1,4 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { withBackoff } from '@/lib/backoff';
 import { supabase } from '@/lib/supabase';
 import type { ModelId } from '@/contexts/EnsembleContext';
 import { getRefreshIntervalMs } from './useAutoRefresh';
@@ -51,6 +53,43 @@ const VALID_TIME_PERIODS = ['all', '7', '30', '90', '180', '365'];
 const VALID_STATS = ['points', 'rebounds', 'assists', 'steals', 'blocks', 'turnovers', 'threePointers', 'overall'];
 const VALID_MODEL_IDS: ModelId[] = ['xgboost', 'lightgbm', 'catboost', 'random_forest'];
 
+function compareModelPerformanceData(
+  oldData: ModelPerformanceResult | null,
+  newData: ModelPerformanceResult
+): boolean {
+  if (!oldData) return false;
+
+  if (oldData.overallMetrics.length !== newData.overallMetrics.length) return false;
+  if (oldData.timeSeriesData.length !== newData.timeSeriesData.length) return false;
+
+  for (let i = 0; i < oldData.overallMetrics.length; i++) {
+    const old = oldData.overallMetrics[i];
+    const new_ = newData.overallMetrics[i];
+    if (old.stat !== new_.stat || Math.abs(old.mae - new_.mae) > 0.001 || old.predictions !== new_.predictions) {
+      return false;
+    }
+  }
+
+  const oldDates = new Set(oldData.timeSeriesData.map(d => d.fullDate || d.date));
+  const newDates = new Set(newData.timeSeriesData.map(d => d.fullDate || d.date));
+  
+  if (oldDates.size !== newDates.size) return false;
+  for (const date of oldDates) {
+    if (!newDates.has(date)) return false;
+  }
+
+  for (let i = 0; i < oldData.timeSeriesData.length; i++) {
+    const old = oldData.timeSeriesData[i];
+    const newDate = old.fullDate || old.date;
+    const new_ = newData.timeSeriesData.find(d => (d.fullDate || d.date) === newDate);
+    if (!new_ || Math.abs(old.error - new_.error) > 0.001) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export function useModelPerformance(
   timePeriod: string,
   selectedStat: string,
@@ -59,28 +98,37 @@ export function useModelPerformance(
 ) {
   const { modelPerfRetentionDays } = useCache();
 
+  const validatedTimePeriod = VALID_TIME_PERIODS.includes(timePeriod) ? timePeriod : 'all';
+  const validatedStat = VALID_STATS.includes(selectedStat) ? selectedStat : 'points';
+  const validatedModels = selectedModels.filter(model => VALID_MODEL_IDS.includes(model));
+  
+  const cacheKey = `${validatedTimePeriod}|${validatedStat}|${validatedModels.join(',')}`;
+
+  const [placeholderData, setPlaceholderData] = useState<ModelPerformanceResult | undefined>(undefined);
+
+  useEffect(() => {
+    if (modelPerfRetentionDays !== 'off') {
+      cacheManager.getModelPerformance(cacheKey).then(cached => {
+        if (cached) {
+          setPlaceholderData(cached as ModelPerformanceResult);
+        } else {
+          setPlaceholderData(undefined);
+        }
+      });
+    } else {
+      setPlaceholderData(undefined);
+    }
+  }, [cacheKey, modelPerfRetentionDays]);
+
   return useQuery<ModelPerformanceResult, Error>({
     queryKey: ['model-performance', timePeriod, selectedStat, selectedModels.slice().sort()],
-    enabled: options?.enabled !== false,
+    enabled: options?.enabled !== false && validatedModels.length > 0,
+    placeholderData,
     queryFn: async () => {
       try {
 
-      const validatedTimePeriod = VALID_TIME_PERIODS.includes(timePeriod) ? timePeriod : 'all';
-      const validatedStat = VALID_STATS.includes(selectedStat) ? selectedStat : 'points';
-      const validatedModels = selectedModels.filter(model => VALID_MODEL_IDS.includes(model));
-
       if (validatedModels.length === 0) {
         throw new Error('No valid models selected');
-      }
-
-      const cacheKey = `${validatedTimePeriod}|${validatedStat}|${validatedModels.join(',')}`;
-
-      if (modelPerfRetentionDays !== 'off') {
-        const cachedData = await cacheManager.getModelPerformance(cacheKey);
-        if (cachedData) {
-          logger.info(`Using cached model performance for ${cacheKey}`);
-          return cachedData as ModelPerformanceResult;
-        }
       }
 
       
@@ -136,31 +184,52 @@ export function useModelPerformance(
       
       while (hasMore && iterationCount < maxIterations) {
         iterationCount++;
-        let query = supabase
-          .from('predictions')
-          .select(
-            'prediction_id, player_id, game_id, prediction_date, model_version, ' +
-            'predicted_points, predicted_rebounds, predicted_assists, predicted_steals, predicted_blocks, predicted_turnovers, predicted_three_pointers_made, ' +
-            'actual_points, actual_rebounds, actual_assists, actual_steals, actual_blocks, actual_turnovers, actual_three_pointers_made, ' +
-            'prediction_error'
-          )
-          .not('actual_points', 'is', null)
-          .range(offset, offset + pageSize - 1);
         
-        if (validatedModels.length > 0) {
-          query = query.in('model_version', validatedModels);
-        }
+        try {
+          let queryBuilder = supabase
+            .from('predictions')
+            .select(
+              'prediction_id, player_id, game_id, prediction_date, model_version, ' +
+              'predicted_points, predicted_rebounds, predicted_assists, predicted_steals, predicted_blocks, predicted_turnovers, predicted_three_pointers_made, ' +
+              'actual_points, actual_rebounds, actual_assists, actual_steals, actual_blocks, actual_turnovers, actual_three_pointers_made, ' +
+              'prediction_error'
+            )
+            .not('actual_points', 'is', null)
+            .range(offset, offset + pageSize - 1);
+          
+          if (validatedModels.length > 0) {
+            queryBuilder = queryBuilder.in('model_version', validatedModels);
+          }
 
-        const { data: pageRows, error } = await query;
-        
-        if (error) throw error;
-        
-        if (!pageRows || pageRows.length === 0) {
+          const { data: pageRows, error } = await withBackoff(
+            async () => {
+              const result = await queryBuilder;
+              if (result.error) throw result.error;
+              return result;
+            },
+            { initialDelay: 2000, maxDelay: 15000, maxRetries: 3 },
+            (attempt, delay) => {
+              logger.warn(`Model performance predictions page ${iterationCount} retry ${attempt} after ${Math.ceil(delay / 1000)}s`);
+            }
+          );
+          
+          if (error) throw error;
+          
+          if (!pageRows || pageRows.length === 0) {
+            hasMore = false;
+          } else {
+            allRows = allRows.concat(pageRows as PredictionRow[]);
+            hasMore = pageRows.length === pageSize;
+            offset += pageSize;
+          }
+        } catch (err) {
+          const error = err as Error;
+          const isRateLimit = error.message?.includes('Rate limited') || error.message?.includes('429');
+          if (isRateLimit) {
+            throw error;
+          }
+          logger.warn(`Error fetching predictions page ${iterationCount}, continuing...`, error);
           hasMore = false;
-        } else {
-          allRows = allRows.concat(pageRows as PredictionRow[]);
-          hasMore = pageRows.length === pageSize;
-          offset += pageSize;
         }
       }
 
@@ -182,16 +251,22 @@ export function useModelPerformance(
 
       
       const gameIds = Array.from(new Set(rows.map(r => r.game_id)));
-      const { data: gameRows, error: gameError } = await supabase
-        .from('games')
-        .select('game_id, game_date')
-        .in('game_id', gameIds)
-        .order('game_date', { ascending: false }) 
-        .limit(10000); 
-      
-      
-      
-      
+      const { data: gameRows, error: gameError } = await withBackoff(
+        () => supabase
+          .from('games')
+          .select('game_id, game_date')
+          .in('game_id', gameIds)
+          .order('game_date', { ascending: false }) 
+          .limit(10000)
+          .then(result => {
+            if (result.error) throw result.error;
+            return result;
+          }),
+        { initialDelay: 2000, maxDelay: 15000, maxRetries: 3 },
+        (attempt, delay) => {
+          logger.warn(`Model performance games query retry ${attempt} after ${Math.ceil(delay / 1000)}s`);
+        }
+      );
 
       if (gameError) throw gameError;
       
@@ -597,7 +672,15 @@ export function useModelPerformance(
       };
 
       if (modelPerfRetentionDays !== 'off') {
-        await cacheManager.saveModelPerformance(cacheKey, result);
+        const cachedData = await cacheManager.getModelPerformance(cacheKey);
+        const isDifferent = !compareModelPerformanceData(cachedData, result);
+        
+        if (isDifferent || !cachedData) {
+          await cacheManager.saveModelPerformance(cacheKey, result);
+          logger.info(`Updated model performance cache for ${cacheKey}`);
+        } else {
+          logger.debug(`Model performance data unchanged for ${cacheKey}`);
+        }
       }
 
       return result;
@@ -615,11 +698,17 @@ export function useModelPerformance(
     
     refetchInterval: (query) => {
       if (typeof window === 'undefined') return false;
-      const stored = localStorage.getItem('courtvision-auto-refresh-interval');
-      return getRefreshIntervalMs(stored || 'never');
+      const stored = localStorage.getItem('courtvision-model-perf-auto-refresh-interval');
+      const interval = getRefreshIntervalMs(stored || '360');
+      return interval;
     },
-    refetchIntervalInBackground: false, 
-    staleTime: 300000, 
+    refetchIntervalInBackground: true,
+    staleTime: 60000,
+    onSuccess: (data) => {
+      if (modelPerfRetentionDays !== 'off' && data) {
+        setPlaceholderData(data);
+      }
+    },
   });
 }
 

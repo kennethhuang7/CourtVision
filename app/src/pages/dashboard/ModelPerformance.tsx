@@ -5,6 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { RateLimitError } from '@/components/ui/RateLimitError';
 import { logger } from '@/lib/logger';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -230,8 +231,13 @@ export default function ModelPerformance() {
   const error = (modelsToCompare.includes('ensemble' as any) && ensembleQuery.error) ||
     performanceQueries.find(q => q.query.error)?.query.error;
   
+  const isRateLimitError = error && (
+    (error as Error).message?.includes('Rate limited') || 
+    (error as Error).message?.includes('429') ||
+    (error as any).code === 429
+  );
   
-  if (isError && error) {
+  if (isError && error && !isRateLimitError) {
     logger.error('Model Performance Error', error as Error);
   }
 
@@ -883,6 +889,17 @@ export default function ModelPerformance() {
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <span className="ml-3 text-muted-foreground">Loading performance metrics...</span>
+          </div>
+        ) : isRateLimitError ? (
+          <div className="flex items-center justify-center py-12">
+            <RateLimitError 
+              error={error as Error} 
+              onRetry={() => {
+                ensembleQuery.refetch();
+                performanceQueries.forEach(q => q.query.refetch());
+              }}
+              showRetry={true}
+            />
           </div>
         ) : isError ? (
           <div className="flex flex-col items-center justify-center py-12 text-destructive">

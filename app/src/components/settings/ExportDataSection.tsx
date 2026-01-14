@@ -25,6 +25,12 @@ export function ExportDataSection() {
       const userPicks = await supabase.from('user_picks').select('id').eq('owner_id', user.id);
       const userPickIds = userPicks.data?.map(p => p.id) || [];
 
+      const userMessages = await supabase.from('user_messages').select('id').eq('sender_id', user.id);
+      const userMessageIds = userMessages.data?.map(m => m.id) || [];
+
+      const userGroupMessages = await supabase.from('group_messages').select('id').eq('sender_id', user.id);
+      const userGroupMessageIds = userGroupMessages.data?.map(m => m.id) || [];
+
       const [
         profileData,
         picksData,
@@ -37,15 +43,16 @@ export function ExportDataSection() {
         notificationsData,
         sessionsData,
         groupInvitesData,
-        messageReactionsData,
+        messageReactionsByUserData,
+        messageReactionsToUserMessagesData,
         pickGroupSharesData,
         pickUserSharesData,
       ] = await Promise.all([
         supabase.from('user_profiles').select('*').eq('user_id', user.id).single(),
-        Promise.resolve({ data: userPicks.data }),
+        supabase.from('user_picks').select('*').eq('owner_id', user.id),
         supabase.from('user_messages').select('*').eq('sender_id', user.id),
         supabase.from('user_conversations').select('*').eq('user_id', user.id),
-        supabase.from('user_friendships').select('*').or(`user_id.eq.${user.id},friend_id.eq.${user.id}`),
+        supabase.from('user_friendships').select('*').or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`),
         supabase.from('user_group_members').select('*').eq('user_id', user.id),
         supabase.from('user_groups').select('*').eq('owner_id', user.id),
         supabase.from('group_messages').select('*').eq('sender_id', user.id),
@@ -53,6 +60,9 @@ export function ExportDataSection() {
         supabase.from('user_sessions').select('*').eq('user_id', user.id),
         supabase.from('user_group_invites').select('*').or(`inviter_id.eq.${user.id},invitee_id.eq.${user.id}`),
         supabase.from('message_reactions').select('*').eq('user_id', user.id),
+        [...userMessageIds, ...userGroupMessageIds].length > 0
+          ? supabase.from('message_reactions').select('*').in('message_id', [...userMessageIds, ...userGroupMessageIds])
+          : Promise.resolve({ data: [] }),
         userPickIds.length > 0
           ? supabase.from('pick_group_shares').select('*').in('pick_id', userPickIds)
           : Promise.resolve({ data: [] }),
@@ -62,11 +72,19 @@ export function ExportDataSection() {
       ]);
 
       
+      const allReactions = [
+        ...(messageReactionsByUserData.data || []),
+        ...(messageReactionsToUserMessagesData.data || []),
+      ];
+      const uniqueReactions = Array.from(
+        new Map(allReactions.map(r => [r.id, r])).values()
+      );
+
       const exportData = {
         export_info: {
           exported_at: new Date().toISOString(),
           user_id: user.id,
-          export_version: '2.0',
+          export_version: '2.1',
         },
         profile: profileData.data,
         picks: picksData.data || [],
@@ -79,7 +97,7 @@ export function ExportDataSection() {
         notifications: notificationsData.data || [],
         sessions: sessionsData.data || [],
         group_invites: groupInvitesData.data || [],
-        message_reactions: messageReactionsData.data || [],
+        message_reactions: uniqueReactions,
         pick_group_shares: pickGroupSharesData.data || [],
         pick_user_shares: pickUserSharesData.data || [],
       };
@@ -120,14 +138,17 @@ export function ExportDataSection() {
           <div>
             <p className="text-sm text-foreground font-medium mb-1">Data Included in Export:</p>
             <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-              <li>Profile information (username, display name, bio, avatar, banner, settings)</li>
-              <li>All your picks (saved and active)</li>
-              <li>Direct messages, group messages, conversations, and message reactions</li>
-              <li>Friends and friendships</li>
-              <li>Group memberships, owned groups, and group invites</li>
-              <li>Pick shares (shared to groups and other users)</li>
-              <li>Notification history</li>
-              <li>Active sessions</li>
+              <li>Profile information (username, display name, bio, avatar, banner, all settings)</li>
+              <li>All your picks (all picks you created, including inactive ones)</li>
+              <li>All direct messages and group messages you sent</li>
+              <li>All conversations you participated in</li>
+              <li>All message reactions you created, plus reactions to your messages</li>
+              <li>All friendships (both requests you sent and received)</li>
+              <li>All group memberships and groups you own</li>
+              <li>All group invites you sent or received</li>
+              <li>All pick shares (picks you shared and picks shared with you)</li>
+              <li>All notification history</li>
+              <li>All active sessions</li>
             </ul>
           </div>
 

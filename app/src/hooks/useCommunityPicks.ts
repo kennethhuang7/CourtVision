@@ -133,11 +133,37 @@ export function useCommunityPicks(filter: CommunityFilter) {
 
       
       const ownerIds = Array.from(new Set(picksData.map(p => p.owner_id)));
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('user_profiles')
-        .select('user_id, username, display_name, profile_picture_url')
-        .in('user_id', ownerIds);
+      const groupIds = Array.from(new Set(
+        picksData
+          .filter(p => p.shared_group_id)
+          .map(p => p.shared_group_id!)
+      ));
+      const playerIds = Array.from(new Set(picksData.map(p => p.player_id)));
+      const gameIds = Array.from(new Set(picksData.map(p => p.game_id)));
 
+      
+      const [profilesResult, groupsResult, playersResult] = await Promise.all([
+        ownerIds.length > 0
+          ? supabase
+              .from('user_profiles')
+              .select('user_id, username, display_name, profile_picture_url')
+              .in('user_id', ownerIds)
+          : Promise.resolve({ data: [], error: null }),
+        groupIds.length > 0
+          ? supabase
+              .from('user_groups')
+              .select('id, name, description')
+              .in('id', groupIds)
+          : Promise.resolve({ data: [], error: null }),
+        playerIds.length > 0
+          ? supabase
+              .from('players')
+              .select('player_id, full_name, team_id')
+              .in('player_id', playerIds)
+          : Promise.resolve({ data: [], error: null })
+      ]);
+
+      const { data: profilesData, error: profilesError } = profilesResult;
       if (profilesError) {
         logger.error('Error fetching owner profiles', profilesError as Error);
         throw profilesError;
@@ -148,35 +174,13 @@ export function useCommunityPicks(filter: CommunityFilter) {
         (profilesData || []).map(p => [p.user_id, p])
       );
 
-      
-      const groupIds = Array.from(new Set(
-        picksData
-          .filter(p => p.shared_group_id)
-          .map(p => p.shared_group_id!)
-      ));
+      const { data: groupsData } = groupsResult;
       const groupsMap = new Map<string, { id: string; name: string; description: string | null }>();
-      
-      if (groupIds.length > 0) {
-        const { data: groupsData } = await supabase
-          .from('user_groups')
-          .select('id, name, description')
-          .in('id', groupIds);
-        
-        if (groupsData) {
-          groupsData.forEach(g => groupsMap.set(g.id, g));
-        }
+      if (groupsData) {
+        groupsData.forEach(g => groupsMap.set(g.id, g));
       }
 
-      
-      const playerIds = Array.from(new Set(picksData.map(p => p.player_id)));
-      const gameIds = Array.from(new Set(picksData.map(p => p.game_id)));
-
-      
-      const { data: playersData, error: playersError } = await supabase
-        .from('players')
-        .select('player_id, full_name, team_id')
-        .in('player_id', playerIds);
-
+      const { data: playersData, error: playersError } = playersResult;
       if (playersError) throw playersError;
 
       
@@ -187,19 +191,26 @@ export function useCommunityPicks(filter: CommunityFilter) {
         .in('team_id', teamIds);
 
       
-      const { data: gamesData, error: gamesError } = await supabase
-        .from('games')
-        .select('game_id, game_date, home_team_id, away_team_id, game_status, home_score, away_score')
-        .in('game_id', gameIds);
+      const [gamesResult, statsResult] = await Promise.all([
+        gameIds.length > 0
+          ? supabase
+              .from('games')
+              .select('game_id, game_date, home_team_id, away_team_id, game_status, home_score, away_score')
+              .in('game_id', gameIds)
+          : Promise.resolve({ data: [], error: null }),
+        playerIds.length > 0 && gameIds.length > 0
+          ? supabase
+              .from('player_game_stats')
+              .select('player_id, game_id, points, rebounds_total, assists, steals, blocks, turnovers, three_pointers_made')
+              .in('player_id', playerIds)
+              .in('game_id', gameIds)
+          : Promise.resolve({ data: [], error: null })
+      ]);
 
+      const { data: gamesData, error: gamesError } = gamesResult;
       if (gamesError) throw gamesError;
 
-      
-      const { data: statsData } = await supabase
-        .from('player_game_stats')
-        .select('player_id, game_id, points, rebounds_total, assists, steals, blocks, turnovers, three_pointers_made')
-        .in('player_id', playerIds)
-        .in('game_id', gameIds);
+      const { data: statsData } = statsResult;
 
       
       const teamsMap = new Map(
