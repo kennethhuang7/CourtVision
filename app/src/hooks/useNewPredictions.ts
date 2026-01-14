@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useDoNotDisturb } from '@/contexts/DoNotDisturbContext';
@@ -12,6 +12,7 @@ export function useNewPredictions() {
   const { notify } = useNotifications();
   const { isEnabled: doNotDisturb } = useDoNotDisturb();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const previousPredictionCountsRef = useRef<Map<string, number>>(new Map());
   const hasInitializedRef = useRef(false);
 
@@ -89,6 +90,11 @@ export function useNewPredictions() {
             tag: `new-predictions-${dateStr}`,
           }
         );
+
+        queryClient.invalidateQueries({ 
+          queryKey: ['predictions', dateStr],
+          exact: false 
+        });
       }
 
 

@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useDoNotDisturb } from '@/contexts/DoNotDisturbContext';
@@ -12,6 +12,7 @@ export function useGameResultsUpdates() {
   const { user } = useAuth();
   const { notify } = useNotifications();
   const { isEnabled: doNotDisturb } = useDoNotDisturb();
+  const queryClient = useQueryClient();
   const previousUpdatedGamesRef = useRef<Set<string>>(new Set());
   const hasInitializedRef = useRef(false);
 
@@ -87,9 +88,10 @@ export function useGameResultsUpdates() {
       return;
     }
 
+    const newGameIds: string[] = [];
     currentGameIds.forEach(gameId => {
       if (!previousUpdatedGamesRef.current.has(gameId)) {
-        
+        newGameIds.push(gameId);
         notify(
           'gameResults',
           'Game Results Updated',
@@ -101,6 +103,31 @@ export function useGameResultsUpdates() {
       }
     });
 
+    if (newGameIds.length > 0) {
+      supabase
+        .from('games')
+        .select('game_date')
+        .in('game_id', newGameIds)
+        .then(({ data: gameDates }) => {
+          if (gameDates) {
+            const uniqueDates = Array.from(new Set(gameDates.map(g => {
+              const date = typeof g.game_date === 'string' ? g.game_date : g.game_date.toISOString().split('T')[0];
+              return date;
+            })));
+            
+            uniqueDates.forEach(dateStr => {
+              queryClient.invalidateQueries({ 
+                queryKey: ['predictions', dateStr],
+                exact: false 
+              });
+            });
+          }
+        })
+        .catch(error => {
+          logger.error('Error fetching game dates for invalidation', error as Error);
+        });
+    }
+
     
     previousUpdatedGamesRef.current = new Set(currentGameIds);
 
@@ -111,7 +138,7 @@ export function useGameResultsUpdates() {
         JSON.stringify(Array.from(currentGameIds))
       );
     }
-  }, [query.data, notify, user?.id]);
+  }, [query.data, notify, user?.id, queryClient]);
 
   return query;
 }

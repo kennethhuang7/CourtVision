@@ -48,16 +48,52 @@ export default function PlayerAnalysis() {
   const { dateFormat, theme: currentTheme } = useTheme();
   
   
-  const [selectedDate, setSelectedDate] = useState<Date>(() => {
-    const stored = sessionStorage.getItem('shared-selected-date');
-    if (stored) {
-      const parsed = new Date(stored);
-      if (!isNaN(parsed.getTime())) {
-        return parsed;
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [isInitializingDate, setIsInitializingDate] = useState(true);
+
+  useEffect(() => {
+    const initializeDate = async () => {
+      const storedGameId = localStorage.getItem('player-analysis-selected-game');
+      
+      if (storedGameId) {
+        const { data: gameData, error } = await supabase
+          .from('games')
+          .select('game_date')
+          .eq('game_id', storedGameId)
+          .maybeSingle();
+        
+        if (!error && gameData && gameData.game_date) {
+          const gameDate = new Date(gameData.game_date);
+          if (!isNaN(gameDate.getTime())) {
+            setSelectedDate(gameDate);
+            sessionStorage.setItem('shared-selected-date', gameDate.toISOString());
+            setIsInitializingDate(false);
+            return;
+          }
+        }
       }
-    }
-    return new Date();
-  });
+
+      const stored = sessionStorage.getItem('shared-selected-date');
+      if (stored) {
+        const parsed = new Date(stored);
+        if (!isNaN(parsed.getTime())) {
+          setSelectedDate(parsed);
+          setIsInitializingDate(false);
+          return;
+        }
+      }
+
+      const { getMostRecentDateWithPredictions } = await import('@/lib/dateUtils');
+      const mostRecent = await getMostRecentDateWithPredictions();
+      if (mostRecent) {
+        setSelectedDate(mostRecent);
+        sessionStorage.setItem('shared-selected-date', mostRecent.toISOString());
+      }
+      setIsInitializingDate(false);
+    };
+
+    initializeDate();
+  }, []);
 
   
   useEffect(() => {
@@ -129,6 +165,10 @@ export default function PlayerAnalysis() {
 
   const { selectedModels } = useEnsemble();
   const { data: games = [], isLoading: isLoadingPredictions } = useSupabasePredictions(
+    selectedDate,
+    selectedModels,
+    { enabled: !isInitializingDate }
+  );
     selectedDate,
     selectedModels
   );

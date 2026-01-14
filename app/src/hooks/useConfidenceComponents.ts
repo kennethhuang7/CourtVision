@@ -46,9 +46,8 @@ export function useConfidenceComponents(
       
       const { data: predictions, error: predError } = await supabase
         .from('predictions')
-        .select('prediction_id, model_version')
+        .select('prediction_id, model_version, game_id')
         .eq('player_id', numericPlayerId)
-        .eq('game_id', gameId)
         .in('model_version', selectedModels);
 
       if (predError) throw predError;
@@ -56,7 +55,104 @@ export function useConfidenceComponents(
         return [];
       }
 
-      const predictionIds = predictions.map(p => p.prediction_id);
+      const matchingPredictions = predictions.filter(p => p.game_id === gameId);
+      
+      if (matchingPredictions.length === 0) {
+        const { data: gameData } = await supabase
+          .from('games')
+          .select('game_date, home_team_id, away_team_id')
+          .eq('game_id', gameId)
+          .maybeSingle();
+        
+        if (gameData) {
+          const { data: altPredictions } = await supabase
+            .from('predictions')
+            .select('prediction_id, model_version, game_id')
+            .eq('player_id', numericPlayerId)
+            .in('model_version', selectedModels);
+          
+          if (altPredictions && altPredictions.length > 0) {
+            const { data: altGames } = await supabase
+              .from('games')
+              .select('game_id, game_date, home_team_id, away_team_id')
+              .in('game_id', altPredictions.map(p => p.game_id))
+              .eq('game_date', gameData.game_date)
+              .eq('home_team_id', gameData.home_team_id)
+              .eq('away_team_id', gameData.away_team_id);
+            
+            if (altGames && altGames.length > 0) {
+              const altGameId = altGames[0].game_id;
+              const altMatching = altPredictions.filter(p => p.game_id === altGameId);
+              if (altMatching.length > 0) {
+                const predictionIds = altMatching.map(p => p.prediction_id);
+                
+                const { data, error } = await supabase
+                  .from('confidence_components')
+                  .select('*')
+                  .in('prediction_id', predictionIds)
+                  .order('stat_name', { ascending: true })
+                  .order('model_version', { ascending: true });
+
+                if (error) throw error;
+                if (!data || data.length === 0) {
+                  return [];
+                }
+
+                const componentsByStat = new Map<string, ConfidenceComponent[]>();
+                
+                for (const component of data as ConfidenceComponent[]) {
+                  const key = component.stat_name;
+                  if (!componentsByStat.has(key)) {
+                    componentsByStat.set(key, []);
+                  }
+                  componentsByStat.get(key)!.push(component);
+                }
+
+                const averagedComponents: ConfidenceComponent[] = [];
+                
+                for (const [statName, components] of componentsByStat.entries()) {
+                  const filteredComponents = components.filter(c => 
+                    selectedModels.includes(c.model_version as ModelId)
+                  );
+
+                  if (filteredComponents.length === 0) continue;
+
+                  const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+                  const nModels = selectedModels.length;
+                  
+                  const ensembleScore = nModels === 1 ? 0 : avg(filteredComponents.map(c => c.ensemble_score));
+                  const varianceScore = avg(filteredComponents.map(c => c.variance_score));
+                  const averaged: ConfidenceComponent = {
+                    ...filteredComponents[0], 
+                    component_id: filteredComponents[0].component_id, 
+                    prediction_id: filteredComponents[0].prediction_id, 
+                    model_version: nModels === 1 ? selectedModels[0] : 'ensemble', 
+                    ensemble_score: ensembleScore,
+                    variance_score: varianceScore,
+                    feature_score: avg(filteredComponents.map(c => c.feature_score)),
+                    experience_score: avg(filteredComponents.map(c => c.experience_score)),
+                    transaction_score: avg(filteredComponents.map(c => c.transaction_score)),
+                    opponent_adj: avg(filteredComponents.map(c => c.opponent_adj)),
+                    injury_adj: avg(filteredComponents.map(c => c.injury_adj)),
+                    playoff_adj: avg(filteredComponents.map(c => c.playoff_adj)),
+                    back_to_back_adj: avg(filteredComponents.map(c => c.back_to_back_adj)),
+                    raw_score: avg(filteredComponents.map(c => c.raw_score)),
+                    calibrated_score: avg(filteredComponents.map(c => c.calibrated_score)),
+                    n_models: nModels, 
+                  };
+
+                  averagedComponents.push(averaged);
+                }
+
+                return averagedComponents;
+              }
+            }
+          }
+        }
+        return [];
+      }
+
+      const predictionIds = matchingPredictions.map(p => p.prediction_id);
 
       
       const { data, error } = await supabase
