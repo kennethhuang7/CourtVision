@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
+import { useState, useEffect } from 'react';
 import { supabase, queryWithTimeout } from '@/lib/supabase';
 import { cacheManager } from '@/lib/cache';
 import { useCache } from '@/contexts/CacheContext';
 import type { ModelId } from '@/contexts/EnsembleContext';
 import { Game, Prediction, Player, PlayerStats, FeatureExplanations } from '@/types/nba';
-import { getRefreshIntervalMs } from './useAutoRefresh';
 import { logger } from '@/lib/logger';
 
 type PredictionRow = {
@@ -85,25 +85,32 @@ function toActualStats(row: PredictionRow): PlayerStats | undefined {
   };
 }
 
-export function useSupabasePredictions(selectedDate: Date, selectedModels: ModelId[]) {
+export function useSupabasePredictions(selectedDate: Date, selectedModels: ModelId[], options?: { enabled?: boolean }) {
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
   const { isOnline } = useCache();
+  const sortedModels = selectedModels.slice().sort();
+  
+  const [placeholderData, setPlaceholderData] = useState<Game[] | undefined>(undefined);
+
+  useEffect(() => {
+    const loadCached = async () => {
+      const cached = await cacheManager.getPredictions(dateStr, sortedModels);
+      if (cached) {
+        setPlaceholderData(cached as Game[]);
+      } else {
+        setPlaceholderData(undefined);
+      }
+    };
+    loadCached();
+  }, [dateStr, sortedModels.join(',')]);
+
 
   return useQuery<Game[], Error>({
-    queryKey: ['predictions', dateStr, selectedModels.slice().sort()],
+    queryKey: ['predictions', dateStr, sortedModels],
+    enabled: options?.enabled !== false,
+    placeholderData,
     queryFn: async () => {
-      
-      
-      const sortedModels = selectedModels.slice().sort();
-      const cachedData = await cacheManager.getPredictions(dateStr, sortedModels);
-
-      if (cachedData) {
-        logger.info(`Using cached predictions for ${dateStr} with models ${sortedModels.join(',')}`);
-        return cachedData as Game[];
-      }
-
-      
-      if (!isOnline) {
+      if (!isOnline && !placeholderData) {
         throw new Error('No cached data available and device is offline');
       }
 
@@ -362,22 +369,33 @@ export function useSupabasePredictions(selectedDate: Date, selectedModels: Model
 
       const games = Array.from(gamesMap.values());
 
+      const cachedGames = placeholderData || await cacheManager.getPredictions(dateStr, sortedModels);
       
+      if (cachedGames && cachedGames.length > 0) {
+        const cachedGameIds = new Set(cachedGames.flatMap(g => g.predictions.map(p => p.gameId)));
+        const freshGameIds = new Set(games.flatMap(g => g.predictions.map(p => p.gameId)));
+        
+        const gameIdsChanged = cachedGameIds.size !== freshGameIds.size || 
+          Array.from(cachedGameIds).some(id => !freshGameIds.has(id));
+        
+        if (gameIdsChanged) {
+          logger.info(`Game IDs changed for ${dateStr} - updating cache`);
+        }
+      }
       
       await cacheManager.savePredictions(dateStr, games, sortedModels);
+      setPlaceholderData(games);
 
       return games;
     },
-    
-    
-    
-    refetchInterval: (query) => {
-      if (typeof window === 'undefined') return false;
-      const stored = localStorage.getItem('courtvision-auto-refresh-interval');
-      return getRefreshIntervalMs(stored || 'never');
+    refetchInterval: false,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+    onSuccess: (data) => {
+      if (data) {
+        setPlaceholderData(data);
+      }
     },
-    refetchIntervalInBackground: false, 
-    staleTime: 60000, 
   });
 }
 

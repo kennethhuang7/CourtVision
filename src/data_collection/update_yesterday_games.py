@@ -112,6 +112,42 @@ def merge_predictions_to_real_game_id(cur, conn, real_game_id, target_date, home
             except Exception as e:
                 print(f"    ERROR: Failed to update confidence_components from {old_game_id} to {real_game_id}: {e}")
 
+            try:
+                cur.execute("""
+                    UPDATE user_picks
+                    SET game_id = %s
+                    WHERE game_id = %s
+                """, (real_game_id, old_game_id))
+                picks_updated = cur.rowcount
+                if picks_updated > 0:
+                    print(f"    Updated {picks_updated} user_picks from {old_game_id} to {real_game_id}")
+            except Exception as e:
+                print(f"    ERROR: Failed to update user_picks from {old_game_id} to {real_game_id}: {e}")
+
+            try:
+                cur.execute("""
+                    UPDATE betting_lines
+                    SET game_id = %s
+                    WHERE game_id = %s
+                """, (real_game_id, old_game_id))
+                betting_updated = cur.rowcount
+                if betting_updated > 0:
+                    print(f"    Updated {betting_updated} betting_lines from {old_game_id} to {real_game_id}")
+            except Exception as e:
+                print(f"    ERROR: Failed to update betting_lines from {old_game_id} to {real_game_id}: {e}")
+
+            try:
+                cur.execute("""
+                    UPDATE shot_chart_data
+                    SET game_id = %s
+                    WHERE game_id = %s
+                """, (real_game_id, old_game_id))
+                shot_chart_updated = cur.rowcount
+                if shot_chart_updated > 0:
+                    print(f"    Updated {shot_chart_updated} shot_chart_data from {old_game_id} to {real_game_id}")
+            except Exception as e:
+                print(f"    ERROR: Failed to update shot_chart_data from {old_game_id} to {real_game_id}: {e}")
+
             conn.commit()
         
         cur.execute("""
