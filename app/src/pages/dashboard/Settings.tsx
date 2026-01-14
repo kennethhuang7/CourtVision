@@ -34,6 +34,7 @@ import { useUserProfile, useUpdateUserProfile, useCheckUsernameAvailability } fr
 import { useFriendCount } from '@/hooks/useFriends';
 import { useUserPicks } from '@/hooks/useUserPicks';
 import { useUserSettings } from '@/hooks/useUserSettings';
+import type { AutoRefreshInterval } from '@/hooks/useAutoRefresh';
 import { uploadProfilePicture, uploadBanner, deleteProfilePicture, deleteBanner, validateImageFile } from '@/lib/imageUpload';
 import { supabase } from '@/lib/supabase';
 import { useNotifications } from '@/contexts/NotificationContext';
@@ -314,7 +315,7 @@ export default function Settings() {
   const [defaultTimeWindow, setDefaultTimeWindow] = useState('L10');
   const [defaultStat, setDefaultStat] = useState('points');
   const [defaultConfidence, setDefaultConfidence] = useState('all');
-  const [autoRefresh, setAutoRefresh] = useState('never');
+  const [autoRefresh, setAutoRefresh] = useState<AutoRefreshInterval>('never');
   
   
   const [errorLoggingEnabled, setErrorLoggingEnabled] = useState(true);
@@ -2458,17 +2459,18 @@ export default function Settings() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Auto-Refresh Interval</Label>
+                <Label>Auto-Refresh Predictions Interval</Label>
                 <Select value={autoRefresh} onValueChange={setAutoRefresh}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="never">Never</SelectItem>
-                    <SelectItem value="5">5 minutes</SelectItem>
-                    <SelectItem value="15">15 minutes</SelectItem>
-                    <SelectItem value="30">30 minutes</SelectItem>
-                    <SelectItem value="60">1 hour</SelectItem>
+                    <SelectItem value="never">Never - Manual refresh only</SelectItem>
+                    <SelectItem value="30">Every 30 minutes</SelectItem>
+                    <SelectItem value="60">Every hour</SelectItem>
+                    <SelectItem value="120">Every 2 hours</SelectItem>
+                    <SelectItem value="180">Every 3 hours</SelectItem>
+                    <SelectItem value="360">Every 6 hours</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -2522,6 +2524,37 @@ export default function Settings() {
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   When enabled, model performance queries are cached for faster loading. Cached data updates automatically when viewed.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Model Performance Auto-Refresh</Label>
+                <Select
+                  value={(() => {
+                    if (typeof window === 'undefined') return '360';
+                    const stored = localStorage.getItem('courtvision-model-perf-auto-refresh-interval');
+                    return stored || '360';
+                  })()}
+                  onValueChange={(value) => {
+                    if (typeof window !== 'undefined') {
+                      localStorage.setItem('courtvision-model-perf-auto-refresh-interval', value);
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="never">Never - Manual refresh only</SelectItem>
+                    <SelectItem value="30">Every 30 minutes</SelectItem>
+                    <SelectItem value="60">Every hour</SelectItem>
+                    <SelectItem value="120">Every 2 hours</SelectItem>
+                    <SelectItem value="360">Every 6 hours</SelectItem>
+                    <SelectItem value="720">Every 12 hours</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  How often model performance data refreshes automatically in the background. Default: Every 6 hours.
                 </p>
               </div>
 

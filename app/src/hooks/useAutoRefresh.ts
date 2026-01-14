@@ -6,7 +6,7 @@ import { logger } from '@/lib/logger';
 const AUTO_REFRESH_STORAGE_KEY = 'courtvision-auto-refresh-interval';
 const DEFAULT_INTERVAL = 'never';
 
-type AutoRefreshInterval = 'never' | '5' | '15' | '30' | '60';
+export type AutoRefreshInterval = 'never' | '30' | '60' | '120' | '180' | '360';
 
 
 export function getRefreshIntervalMs(interval: string | null | undefined): number | false {
@@ -32,7 +32,7 @@ export function useAutoRefresh() {
     if (typeof window === 'undefined') return DEFAULT_INTERVAL as AutoRefreshInterval;
     
     const stored = localStorage.getItem(AUTO_REFRESH_STORAGE_KEY);
-    if (stored && (stored === 'never' || stored === '5' || stored === '15' || stored === '30' || stored === '60')) {
+    if (stored && (stored === 'never' || stored === '30' || stored === '60' || stored === '120' || stored === '180' || stored === '360')) {
       return stored as AutoRefreshInterval;
     }
     return DEFAULT_INTERVAL as AutoRefreshInterval;
@@ -42,7 +42,7 @@ export function useAutoRefresh() {
   useEffect(() => {
     if (profile?.auto_refresh_interval) {
       const dbInterval = profile.auto_refresh_interval;
-      if (dbInterval === 'never' || dbInterval === '5' || dbInterval === '15' || dbInterval === '30' || dbInterval === '60') {
+      if (dbInterval === 'never' || dbInterval === '30' || dbInterval === '60' || dbInterval === '120' || dbInterval === '180' || dbInterval === '360') {
         setInterval(dbInterval as AutoRefreshInterval);
         
         localStorage.setItem(AUTO_REFRESH_STORAGE_KEY, dbInterval);

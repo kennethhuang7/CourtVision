@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Flame, Filter, Loader2 } from 'lucide-react';
+import { Flame, Filter, Loader2, AlertCircle } from 'lucide-react';
 import { useTrends } from '@/hooks/useTrends';
 import { useEnsemble } from '@/contexts/EnsembleContext';
+import { RateLimitError } from '@/components/ui/RateLimitError';
 import type { TrendFilters, Trend } from '@/types/trends';
 import type { StatType } from '@/types/nba';
 import { TrendsList } from '@/components/trends/TrendsList';
@@ -19,13 +20,15 @@ const defaultFilters: TrendFilters = {
 };
 
 function Trends() {
-  const { findTrends, isLoading } = useTrends();
+  const { findTrends, isLoading, error } = useTrends();
   const { selectedModels } = useEnsemble();
 
   const [filters, setFilters] = useState<TrendFilters>(defaultFilters);
   const [trends, setTrends] = useState<Trend[]>([]);
   const [selectedTrend, setSelectedTrend] = useState<Trend | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [loadingStage, setLoadingStage] = useState<string>('');
+  const [loadingProgress, setLoadingProgress] = useState<number>(0);
 
   
   useEffect(() => {
@@ -33,12 +36,19 @@ function Trends() {
   }, [filters, selectedModels]);
 
   const loadTrends = async () => {
-    const results = await findTrends(filters, selectedModels);
-    setTrends(results);
+    try {
+      const results = await findTrends(filters, selectedModels, (stage, progress) => {
+        setLoadingStage(stage);
+        setLoadingProgress(progress);
+      });
+      setTrends(results);
 
-    
-    if (results.length > 0 && !selectedTrend) {
-      setSelectedTrend(results[0]);
+      
+      if (results.length > 0 && !selectedTrend) {
+        setSelectedTrend(results[0]);
+      }
+    } catch (err) {
+      
     }
   };
 
@@ -82,11 +92,43 @@ function Trends() {
       )}
 
       <div className="flex-1 flex overflow-hidden">
-        {isLoading && (
+        {error && (error.message?.includes('Rate limited') || error.message?.includes('429')) ? (
+          <div className="flex-1 flex items-center justify-center p-6">
+            <RateLimitError 
+              error={error} 
+              onRetry={loadTrends}
+              showRetry={true}
+            />
+          </div>
+        ) : isLoading && (
           <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <Loader2 className="h-12 w-12 text-blue-500 animate-spin mx-auto mb-4" />
-              <p className="text-zinc-400">Finding trending picks...</p>
+            <div className="text-center space-y-4 max-w-md">
+              <div className="relative w-20 h-20 mx-auto">
+                <div className="absolute inset-0 rounded-full bg-blue-500/10 animate-pulse" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Loader2 className="h-10 w-10 text-blue-500 animate-spin shrink-0" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-white font-medium">Finding trending picks...</p>
+                {loadingStage && (
+                  <p className="text-zinc-400 text-sm">{loadingStage}</p>
+                )}
+                {loadingProgress > 0 && (
+                  <div className="w-full max-w-xs mx-auto">
+                    <div className="w-full bg-zinc-800 rounded-full h-2">
+                      <div 
+                        className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${loadingProgress}%` }}
+                      />
+                    </div>
+                    <p className="text-zinc-500 text-xs mt-2 text-center">{Math.round(loadingProgress)}%</p>
+                  </div>
+                )}
+              </div>
+              <p className="text-zinc-500 text-xs max-w-sm mx-auto">
+                This may take a moment while we analyze player performance data
+              </p>
             </div>
           </div>
         )}

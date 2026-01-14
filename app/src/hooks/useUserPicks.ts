@@ -121,22 +121,29 @@ export function useUserPicks() {
 
       
       const teamIds = Array.from(new Set((playersData || []).map(p => p.team_id).filter(Boolean)));
-      const { data: teamsData, error: teamsError } = await supabase
-        .from('teams')
-        .select('team_id, abbreviation')
-        .in('team_id', teamIds);
+      
+      const [teamsResult, gamesResult] = await Promise.all([
+        teamIds.length > 0
+          ? supabase
+              .from('teams')
+              .select('team_id, abbreviation')
+              .in('team_id', teamIds)
+          : Promise.resolve({ data: [], error: null }),
+        gameIds.length > 0
+          ? supabase
+              .from('games')
+              .select('game_id, game_date, home_team_id, away_team_id, game_status, home_score, away_score')
+              .in('game_id', gameIds)
+          : Promise.resolve({ data: [], error: null })
+      ]);
 
+      const { data: teamsData, error: teamsError } = teamsResult;
       if (teamsError) {
         logger.warn('Error fetching teams for user picks', teamsError as Error);
         
       }
 
-      
-      const { data: gamesData, error: gamesError } = await supabase
-        .from('games')
-        .select('game_id, game_date, home_team_id, away_team_id, game_status, home_score, away_score')
-        .in('game_id', gameIds);
-
+      const { data: gamesData, error: gamesError } = gamesResult;
       if (gamesError) throw gamesError;
 
       
