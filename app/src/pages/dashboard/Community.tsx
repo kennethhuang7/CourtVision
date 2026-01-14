@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { RateLimitError } from '@/components/ui/RateLimitError';
 import { useCommunityPicks, type CommunityFilter } from '@/hooks/useCommunityPicks';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -49,6 +50,8 @@ export default function Community() {
     data: picks = [],
     isLoading,
     isError,
+    error,
+    refetch,
   } = useCommunityPicks(filter);
 
   const { data: userPicks = [] } = useUserPicks();
@@ -234,6 +237,24 @@ export default function Community() {
   }
 
   if (isError) {
+    const isRateLimitError = error && (
+      error.message?.includes('Rate limited') || 
+      error.message?.includes('429') ||
+      (error as any).code === 429
+    );
+    
+    if (isRateLimitError) {
+      return (
+        <div className="flex items-center justify-center h-64 p-6">
+          <RateLimitError 
+            error={error as Error} 
+            onRetry={() => refetch()}
+            showRetry={true}
+          />
+        </div>
+      );
+    }
+    
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-destructive">Error loading community picks</div>

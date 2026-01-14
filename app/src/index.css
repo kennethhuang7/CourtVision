@@ -54,6 +54,7 @@
     --gradient-subtle: linear-gradient(180deg, hsl(0 0% 8%) 0%, hsl(0 0% 5%) 100%);
     --gradient-blue-glow: linear-gradient(135deg, hsl(217 91% 60% / 0.1) 0%, hsl(210 100% 50% / 0.05) 100%);
     --gradient-border: linear-gradient(135deg, hsl(217 91% 60% / 0.3) 0%, hsl(0 0% 20% / 0.5) 100%);
+    --gradient-player-card: linear-gradient(90deg, hsl(var(--card)) 0%, hsl(var(--card) / 0.95) 50%, hsl(var(--card)) 100%);
 
     --shadow-card: 0 4px 24px -4px rgba(0, 0, 0, 0.6);
     --shadow-glow: 0 0 40px rgba(59, 130, 246, 0.25);
@@ -116,6 +117,7 @@
     --gradient-glass: linear-gradient(135deg, rgba(0,0,0,0.02) 0%, rgba(0,0,0,0.01) 100%);
     --gradient-hero: linear-gradient(135deg, hsl(217 30% 96%) 0%, hsl(0 0% 98%) 100%);
     --gradient-subtle: linear-gradient(180deg, hsl(0 0% 98%) 0%, hsl(0 0% 95%) 100%);
+    --gradient-player-card: linear-gradient(90deg, hsl(var(--card)) 0%, hsl(var(--card) / 0.98) 50%, hsl(var(--card)) 100%);
     --gradient-blue-glow: linear-gradient(135deg, hsl(217 91% 50% / 0.1) 0%, hsl(210 100% 45% / 0.05) 100%);
     --gradient-border: linear-gradient(135deg, hsl(217 91% 50% / 0.2) 0%, hsl(0 0% 80% / 0.5) 100%);
 
@@ -177,6 +179,7 @@
     --gradient-subtle: linear-gradient(180deg, hsl(0 0% 8%) 0%, hsl(0 0% 5%) 100%);
     --gradient-blue-glow: linear-gradient(135deg, hsl(217 91% 60% / 0.1) 0%, hsl(210 100% 50% / 0.05) 100%);
     --gradient-border: linear-gradient(135deg, hsl(217 91% 60% / 0.3) 0%, hsl(0 0% 20% / 0.5) 100%);
+    --gradient-player-card: linear-gradient(90deg, hsl(var(--card)) 0%, hsl(var(--card) / 0.95) 50%, hsl(var(--card)) 100%);
 
     --shadow-card: 0 4px 24px -4px rgba(0, 0, 0, 0.6);
     --shadow-glow: 0 0 40px rgba(59, 130, 246, 0.25);
@@ -234,6 +237,7 @@
     --gradient-glass: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%);
     --gradient-hero: linear-gradient(135deg, hsl(222 47% 10%) 0%, hsl(222 47% 4%) 100%);
     --gradient-subtle: linear-gradient(180deg, hsl(222 47% 10%) 0%, hsl(222 47% 7%) 100%);
+    --gradient-player-card: linear-gradient(90deg, hsl(var(--card)) 0%, hsl(var(--card) / 0.95) 50%, hsl(var(--card)) 100%);
     --gradient-blue-glow: linear-gradient(135deg, hsl(217 91% 60% / 0.12) 0%, hsl(210 100% 50% / 0.06) 100%);
     --gradient-border: linear-gradient(135deg, hsl(217 91% 60% / 0.35) 0%, hsl(222 47% 25% / 0.5) 100%);
 
@@ -293,6 +297,7 @@
     --gradient-glass: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%);
     --gradient-hero: linear-gradient(135deg, hsl(0 0% 4%) 0%, hsl(0 0% 0%) 100%);
     --gradient-subtle: linear-gradient(180deg, hsl(0 0% 4%) 0%, hsl(0 0% 1%) 100%);
+    --gradient-player-card: linear-gradient(90deg, hsl(var(--card)) 0%, hsl(var(--card) / 0.95) 50%, hsl(var(--card)) 100%);
     --gradient-blue-glow: linear-gradient(135deg, hsl(217 91% 60% / 0.08) 0%, hsl(210 100% 50% / 0.04) 100%);
     --gradient-border: linear-gradient(135deg, hsl(217 91% 60% / 0.25) 0%, hsl(0 0% 15% / 0.5) 100%);
 
@@ -517,13 +522,13 @@
     @apply flex items-center border border-border rounded-xl transition-all duration-300;
     padding: var(--density-card-padding, 1rem);
     gap: var(--density-gap, 1rem);
-    background: linear-gradient(90deg, hsl(0 0% 8%) 0%, hsl(0 0% 6%) 50%, hsl(0 0% 7%) 100%);
+    background: var(--gradient-player-card, var(--gradient-card));
     box-shadow: var(--shadow-card);
   }
 
   .player-card-horizontal:hover {
     @apply border-primary/40;
-    background: linear-gradient(90deg, hsl(217 50% 10%) 0%, hsl(0 0% 6%) 50%, hsl(217 50% 8%) 100%);
+    background: var(--gradient-player-card, var(--gradient-card));
     box-shadow: var(--shadow-blue);
   }
 
@@ -562,7 +567,7 @@
 
   
   .section-gradient {
-    background: linear-gradient(180deg, hsl(0 0% 7%) 0%, hsl(0 0% 5%) 100%);
+    background: var(--gradient-subtle);
     @apply border border-border rounded-xl;
     padding: var(--density-padding, 1rem);
   }

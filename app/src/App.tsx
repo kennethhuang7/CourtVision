@@ -34,7 +34,13 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
+      retry: (failureCount, error) => {
+        const err = error as Error;
+        if (err.message?.includes('Rate limited') || err.message?.includes('429') || (err as any).code === 429) {
+          return false;
+        }
+        return failureCount < 1;
+      },
       staleTime: 30000,
     },
   },

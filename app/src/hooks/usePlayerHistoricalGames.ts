@@ -120,11 +120,6 @@ export function usePlayerHistoricalGames(playerId: string | null, maxGames = 50,
         throw gameError;
       }
 
-      if (gameError) {
-        logger.error('Error fetching games for historical games', gameError as Error);
-        throw gameError;
-      }
-
       const gamesById = new Map<string, GameRow>(
         (gameRows as GameRow[]).map((g) => [g.game_id, g])
       );

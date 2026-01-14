@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
+import { withBackoff } from '@/lib/backoff';
 import type { PickFinderFilters, PickResult } from '@/types/pickFinder';
 import type { StatType } from '@/types/nba';
 import type { ModelId } from '@/contexts/EnsembleContext';
@@ -330,12 +331,23 @@ async function findPicksForDirection(
       
       reportProgress('games', 5);
       
-      const { data: upcomingGames, error: upcomingError } = await supabase
-        .from('games')
-        .select('game_id, game_date, home_team_id, away_team_id, season, game_status')
-        .in('game_status', ['scheduled', 'upcoming', 'live']) 
-        .order('game_date', { ascending: true })
-        .limit(100); 
+      const { data: upcomingGames, error: upcomingError } = await withBackoff(
+        () => supabase
+          .from('games')
+          .select('game_id, game_date, home_team_id, away_team_id, season, game_status')
+          .in('game_status', ['scheduled', 'upcoming', 'live']) 
+          .order('game_date', { ascending: true })
+          .limit(100)
+          .then(result => {
+            if (result.error) throw result.error;
+            return result;
+          }),
+        { initialDelay: 2000, maxDelay: 15000, maxRetries: 3 },
+        (attempt, delay) => {
+          logger.warn(`Games query retry ${attempt} after ${Math.ceil(delay / 1000)}s`);
+          reportProgress(`Retrying games query (attempt ${attempt})...`, 5);
+        }
+      );
 
       if (upcomingError) throw upcomingError;
       if (!upcomingGames || upcomingGames.length === 0) {
@@ -357,11 +369,22 @@ async function findPicksForDirection(
 
       
       reportProgress('players', 10);
-      const { data: predictionRows, error: predError } = await supabase
-        .from('predictions')
-        .select('game_id, player_id')
-        .in('game_id', gameIds)
-        .limit(5000);
+      const { data: predictionRows, error: predError } = await withBackoff(
+        () => supabase
+          .from('predictions')
+          .select('game_id, player_id')
+          .in('game_id', gameIds)
+          .limit(5000)
+          .then(result => {
+            if (result.error) throw result.error;
+            return result;
+          }),
+        { initialDelay: 2000, maxDelay: 15000, maxRetries: 3 },
+        (attempt, delay) => {
+          logger.warn(`Predictions query retry ${attempt} after ${Math.ceil(delay / 1000)}s`);
+          reportProgress(`Retrying predictions query (attempt ${attempt})...`, 10);
+        }
+      );
 
       if (predError) throw predError;
       if (!predictionRows || predictionRows.length === 0) {
@@ -372,20 +395,40 @@ async function findPicksForDirection(
 
       
       const teamIds = Array.from(new Set(games.flatMap(g => [g.home_team_id, g.away_team_id])));
-      const { data: teams, error: teamsError } = await supabase
-        .from('teams')
-        .select('team_id, full_name, abbreviation')
-        .in('team_id', teamIds);
+      
+      const [teamsResult, ratingsResult] = await Promise.all([
+        withBackoff(
+          () => supabase
+            .from('teams')
+            .select('team_id, full_name, abbreviation')
+            .in('team_id', teamIds)
+            .then(result => {
+              if (result.error) throw result.error;
+              return result;
+            }),
+          { initialDelay: 2000, maxDelay: 15000, maxRetries: 3 },
+          (attempt, delay) => {
+            logger.warn(`Teams query retry ${attempt} after ${Math.ceil(delay / 1000)}s`);
+          }
+        ),
+        withBackoff(
+          () => supabase
+            .from('team_ratings')
+            .select('team_id, pace, def_rating')
+            .in('team_id', teamIds)
+            .eq('season', season)
+            .then(result => result),
+          { initialDelay: 2000, maxDelay: 15000, maxRetries: 3 },
+          (attempt, delay) => {
+            logger.warn(`Team ratings query retry ${attempt} after ${Math.ceil(delay / 1000)}s`);
+          }
+        )
+      ]);
 
+      const { data: teams, error: teamsError } = teamsResult;
       if (teamsError) throw teamsError;
 
-      
-      const { data: teamRatings, error: ratingsError } = await supabase
-        .from('team_ratings')
-        .select('team_id, pace, def_rating')
-        .in('team_id', teamIds)
-        .eq('season', season);
-
+      const { data: teamRatings, error: ratingsError } = ratingsResult;
       if (ratingsError) {
         logger.error('Error fetching team ratings', ratingsError);
         
@@ -423,11 +466,22 @@ async function findPicksForDirection(
       );
 
       
-      const { data: players, error: playersError } = await supabase
-        .from('players')
-        .select('player_id, full_name, position, team_id')
-        .in('team_id', teamIds)
-        .eq('is_active', true);
+      const { data: players, error: playersError } = await withBackoff(
+        () => supabase
+          .from('players')
+          .select('player_id, full_name, position, team_id')
+          .in('team_id', teamIds)
+          .eq('is_active', true)
+          .then(result => {
+            if (result.error) throw result.error;
+            return result;
+          }),
+        { initialDelay: 2000, maxDelay: 15000, maxRetries: 3 },
+        (attempt, delay) => {
+          logger.warn(`Players query retry ${attempt} after ${Math.ceil(delay / 1000)}s`);
+          reportProgress(`Retrying players query (attempt ${attempt})...`, 12);
+        }
+      );
 
       if (playersError) throw playersError;
       if (!players || players.length === 0) {
@@ -437,11 +491,22 @@ async function findPicksForDirection(
       
       
       reportProgress('predictions', 15);
-      const { data: allPredictions, error: allPredictionsError } = await supabase
-        .from('predictions')
-        .select('player_id, game_id, model_version, predicted_points, predicted_rebounds, predicted_assists, predicted_steals, predicted_blocks, predicted_turnovers, predicted_three_pointers_made, confidence_score')
-        .in('game_id', gameIds)
-        .in('model_version', selectedModels); 
+      const { data: allPredictions, error: allPredictionsError } = await withBackoff(
+        () => supabase
+          .from('predictions')
+          .select('player_id, game_id, model_version, predicted_points, predicted_rebounds, predicted_assists, predicted_steals, predicted_blocks, predicted_turnovers, predicted_three_pointers_made, confidence_score')
+          .in('game_id', gameIds)
+          .in('model_version', selectedModels)
+          .then(result => {
+            if (result.error) throw result.error;
+            return result;
+          }),
+        { initialDelay: 2000, maxDelay: 15000, maxRetries: 3 },
+        (attempt, delay) => {
+          logger.warn(`All predictions query retry ${attempt} after ${Math.ceil(delay / 1000)}s`);
+          reportProgress(`Retrying predictions query (attempt ${attempt})...`, 15);
+        }
+      );
 
       if (allPredictionsError) throw allPredictionsError;
 
@@ -467,19 +532,35 @@ async function findPicksForDirection(
 
       for (let i = 0; i < playerIdsWithPredictions.length; i += batchSize) {
         const batch = playerIdsWithPredictions.slice(i, i + batchSize);
-        const { data: statsRows, error: statsError } = await supabase
-          .from('player_game_stats')
-          .select(`player_id, game_id, ${statColumn}, minutes_played, team_id`)
-          .in('player_id', batch)
-          .limit(maxGamesPerBatch); 
+        
+        try {
+          const { data: statsRows, error: statsError } = await withBackoff(
+            () => supabase
+              .from('player_game_stats')
+              .select(`player_id, game_id, ${statColumn}, minutes_played, team_id`)
+              .in('player_id', batch)
+              .limit(maxGamesPerBatch)
+              .then(result => {
+                if (result.error) throw result.error;
+                return result;
+              }),
+            { initialDelay: 2000, maxDelay: 15000, maxRetries: 3 },
+            (attempt, delay) => {
+              logger.warn(`Stats batch ${i / batchSize + 1} retry ${attempt} after ${Math.ceil(delay / 1000)}s`);
+            }
+          );
 
-        if (statsError) {
-          logger.error('Error fetching player_game_stats', statsError);
-          throw statsError;
-        }
-
-        if (statsRows) {
-          allStatsRows.push(...statsRows);
+          if (statsError) throw statsError;
+          if (statsRows) {
+            allStatsRows.push(...statsRows);
+          }
+        } catch (err) {
+          const error = err as Error;
+          const isRateLimit = error.message?.includes('Rate limited') || error.message?.includes('429');
+          if (isRateLimit) {
+            throw error;
+          }
+          logger.warn(`Error fetching stats batch ${i / batchSize + 1}, continuing...`, error);
         }
 
         
@@ -496,18 +577,34 @@ async function findPicksForDirection(
 
       for (let i = 0; i < historicalGameIds.length; i += gameBatchSize) {
         const batch = historicalGameIds.slice(i, i + gameBatchSize);
-        const { data: gameRows, error: gameError } = await supabase
-          .from('games')
-          .select('game_id, game_date, home_team_id, away_team_id, game_status, season, game_type')
-          .in('game_id', batch);
+        
+        try {
+          const { data: gameRows, error: gameError } = await withBackoff(
+            () => supabase
+              .from('games')
+              .select('game_id, game_date, home_team_id, away_team_id, game_status, season, game_type')
+              .in('game_id', batch)
+              .then(result => {
+                if (result.error) throw result.error;
+                return result;
+              }),
+            { initialDelay: 2000, maxDelay: 15000, maxRetries: 3 },
+            (attempt, delay) => {
+              logger.warn(`Games batch ${i / gameBatchSize + 1} retry ${attempt} after ${Math.ceil(delay / 1000)}s`);
+            }
+          );
 
-        if (gameError) {
-          logger.error('Error fetching games', gameError);
-          throw gameError;
-        }
-
-        if (gameRows) {
-          allGameRows.push(...gameRows);
+          if (gameError) throw gameError;
+          if (gameRows) {
+            allGameRows.push(...gameRows);
+          }
+        } catch (err) {
+          const error = err as Error;
+          const isRateLimit = error.message?.includes('Rate limited') || error.message?.includes('429');
+          if (isRateLimit) {
+            throw error;
+          }
+          logger.warn(`Error fetching games batch ${i / gameBatchSize + 1}, continuing...`, error);
         }
       }
 

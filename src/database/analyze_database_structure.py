@@ -192,6 +192,47 @@ def get_indexes(conn, table_name):
         cur.close()
     return indexes
 
+def get_rls_policies(conn, table_name):
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT
+                schemaname,
+                tablename,
+                policyname,
+                permissive,
+                roles,
+                cmd,
+                qual,
+                with_check
+            FROM pg_policies
+            WHERE schemaname = 'public'
+            AND tablename = %s
+            ORDER BY policyname;
+        """, (table_name,))
+        policies = cur.fetchall()
+    except Exception:
+        policies = []
+    finally:
+        cur.close()
+    return policies
+
+def is_rls_enabled(conn, table_name):
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT relforcerowsecurity
+            FROM pg_class
+            WHERE relname = %s
+            AND relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public');
+        """, (table_name,))
+        result = cur.fetchone()
+        return result[0] if result else False
+    except Exception:
+        return False
+    finally:
+        cur.close()
+
 def format_data_type(col_info):
     data_type = col_info[1]
     max_length = col_info[2]
@@ -267,6 +308,8 @@ def analyze_database(output_file=None):
         unique_constraints = get_unique_constraints(conn, table_name)
         check_constraints = get_check_constraints(conn, table_name)
         indexes = get_indexes(conn, table_name)
+        rls_enabled = is_rls_enabled(conn, table_name)
+        rls_policies = get_rls_policies(conn, table_name)
         
         output_lines.append("COLUMNS:")
         output_lines.append("-" * 80)
@@ -329,6 +372,31 @@ def analyze_database(output_file=None):
                     output_lines.append(f"  {index_name}:")
                     output_lines.append(f"    {index_def}")
             output_lines.append("")
+        
+        output_lines.append("ROW LEVEL SECURITY (RLS):")
+        output_lines.append("-" * 80)
+        output_lines.append(f"  RLS Enabled: {rls_enabled}")
+        if rls_policies:
+            for policy in rls_policies:
+                policy_name = policy[2]
+                permissive = policy[3]
+                roles = policy[4]
+                cmd = policy[5]
+                qual = policy[6]
+                with_check = policy[7]
+                output_lines.append(f"  Policy: {policy_name}")
+                output_lines.append(f"    Type: {permissive}")
+                output_lines.append(f"    Roles: {roles}")
+                output_lines.append(f"    Command: {cmd}")
+                if qual:
+                    output_lines.append(f"    USING: {qual}")
+                if with_check:
+                    output_lines.append(f"    WITH CHECK: {with_check}")
+        elif rls_enabled:
+            output_lines.append("  No policies defined (table is protected but no policies)")
+        else:
+            output_lines.append("  RLS not enabled for this table")
+        output_lines.append("")
         
         output_lines.append("")
     
