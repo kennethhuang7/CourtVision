@@ -5,6 +5,33 @@ import { useFriends } from './useFriends';
 import { useGroups } from './useGroups';
 import { logger } from '@/lib/logger';
 
+// Some Supabase/PostgREST environments reject filters on `shared_friend_ids` depending on column type/exposure.
+// Cache support status so we don't spam failing requests every refetch/reload.
+const SHARED_FRIEND_IDS_SUPPORT_KEY = 'courtvision-shared-friend-ids-filter-supported';
+
+function loadSharedFriendIdsSupport(): boolean | null {
+  try {
+    if (typeof window === 'undefined') return null;
+    const raw = window.localStorage.getItem(SHARED_FRIEND_IDS_SUPPORT_KEY);
+    if (raw === '1') return true;
+    if (raw === '0') return false;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function persistSharedFriendIdsSupport(value: boolean) {
+  try {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(SHARED_FRIEND_IDS_SUPPORT_KEY, value ? '1' : '0');
+  } catch {
+    
+  }
+}
+
+let sharedFriendIdsFilterSupported: boolean | null = loadSharedFriendIdsSupport();
+
 export interface CommunityPick {
   id: string;
   owner_id: string;
@@ -66,69 +93,125 @@ export function useCommunityPicks(filter: CommunityFilter) {
         throw new Error('You must be logged in to view community picks.');
       }
 
-      let query = supabase
-        .from('user_picks')
-        .select(`
-          id,
-          owner_id,
-          player_id,
-          game_id,
-          stat_name,
-          line_value,
-          over_under,
-          prediction_id,
-          visibility,
-          shared_group_id,
-          is_active,
-          created_at,
-          updated_at
-        `)
-        .eq('is_active', true)
-        .not('visibility', 'is', null); 
+      // Important: always build a *fresh* query builder per request.
+      // Reusing a single builder and calling it twice (especially in Promise.all)
+      // can produce invalid URLs (mutated filters) and trigger PostgREST 4xx errors.
+      const baseQuery = () =>
+        supabase
+          .from('user_picks')
+          .select(`
+            id,
+            owner_id,
+            player_id,
+            game_id,
+            stat_name,
+            line_value,
+            over_under,
+            prediction_id,
+            visibility,
+            shared_group_id,
+            is_active,
+            created_at,
+            updated_at
+          `)
+          .eq('is_active', true)
+          .not('visibility', 'is', null);
 
-      
+      let picksData: any[] = [];
+
       if (filter === 'friends') {
         const friendIds = friends.map(f =>
           f.requester_id === user.id ? f.addressee_id : f.requester_id
         );
-        
-        
-        if (friendIds.length === 0) {
-          
-          query = query
+
+        const ownerIds = Array.from(new Set([...friendIds, user.id]));
+
+        const [ownedResult, sharedResult] = await Promise.all([
+          baseQuery()
             .in('visibility', ['friends', 'custom', 'public'])
-            .eq('owner_id', user.id);
-        } else {
-          
-          
-          
-          
-          query = query
-            .in('visibility', ['friends', 'custom', 'public'])
-            .in('owner_id', [...friendIds, user.id])
-            .or(`shared_friend_ids.cs.{},shared_friend_ids.cs.{${user.id}}`);
+            .in('owner_id', ownerIds)
+            .order('created_at', { ascending: false }),
+          (async () => {
+            if (sharedFriendIdsFilterSupported === false) {
+              return { data: [] as any[] };
+            }
+
+            const { data, error } = await baseQuery()
+              .in('visibility', ['custom', 'public'])
+              // Prefer explicit PostgREST syntax for arrays (uuid[]):
+              // shared_friend_ids=cs.{<uuid>}
+              // If unsupported in this environment, we skip these results.
+              .filter('shared_friend_ids', 'cs', `{${user.id}}`)
+              .order('created_at', { ascending: false });
+
+            if (error) {
+              sharedFriendIdsFilterSupported = false;
+              persistSharedFriendIdsSupport(false);
+              logger.warn(
+                'Error fetching custom shared_friend_ids picks; continuing without them',
+                error as Error
+              );
+              return { data: [] as any[] };
+            }
+
+            sharedFriendIdsFilterSupported = true;
+            persistSharedFriendIdsSupport(true);
+            return { data: (data || []) as any[] };
+          })(),
+        ]);
+
+        const { data: ownedData, error: ownedError } = ownedResult as any;
+        if (ownedError) {
+          logger.error('Error fetching owned friends picks', ownedError as Error);
+          throw ownedError;
         }
+
+        const merged = new Map<string, any>();
+        (ownedData || []).forEach((p: any) => merged.set(p.id, p));
+        (sharedResult.data || []).forEach((p: any) => merged.set(p.id, p));
+
+        picksData = Array.from(merged.values()).sort((a, b) =>
+          String(b.created_at).localeCompare(String(a.created_at))
+        );
       } else if (filter === 'groups') {
         const groupIds = groups.map(g => g.id);
         if (groupIds.length === 0) return [];
-        
-        
-        
-        query = query
+
+        // NOTE:
+        // Using `shared_group_ids` array overlap was generating 404s in some environments
+        // (PostgREST operator/schema-cache quirks). We have a reliable single-value
+        // `shared_group_id` column, so filter on that instead.
+        const { data, error } = await baseQuery()
           .in('visibility', ['group', 'custom', 'public'])
-          .overlaps('shared_group_ids', groupIds);
+          .in('shared_group_id', groupIds)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          logger.error('Error fetching group community picks', error as Error);
+          throw error;
+        }
+
+        picksData = (data || []) as any[];
       } else if (filter === 'public') {
-        
-        
-        query = query.eq('visibility', 'public');
+        const { data, error } = await baseQuery()
+          .eq('visibility', 'public')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          logger.error('Error fetching public community picks', error as Error);
+          throw error;
+        }
+
+        picksData = (data || []) as any[];
+      } else {
+        const { data, error } = await baseQuery().order('created_at', { ascending: false });
+        if (error) {
+          logger.error('Error fetching community picks (fallback)', error as Error);
+          throw error;
+        }
+        picksData = (data || []) as any[];
       }
 
-      const { data: picksData, error: picksError } = await query.order('created_at', { ascending: false });
-
-      if (picksError) {
-        logger.error('Error fetching community picks', picksError as Error);
-        throw picksError;
-      }
       if (!picksData || picksData.length === 0) return [];
 
       

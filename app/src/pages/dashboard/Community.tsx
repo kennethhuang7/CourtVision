@@ -242,7 +242,7 @@ export default function Community() {
     
     if (isRateLimitError) {
       return (
-        <div className="flex items-center justify-center h-64 p-6">
+        <div className="flex min-h-[calc(100vh-10rem)] w-full items-start justify-center overflow-auto p-6 sm:items-center">
           <RateLimitError 
             error={error as Error} 
             onRetry={() => refetch()}
@@ -253,8 +253,21 @@ export default function Community() {
     }
     
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-destructive">Error loading community picks</div>
+      <div className="flex items-center justify-center h-64 p-6">
+        <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+            <XCircle className="h-6 w-6 text-destructive shrink-0" />
+          </div>
+          <h3 className="text-lg font-semibold text-foreground leading-tight">Error loading community picks</h3>
+          <p className="mt-1 text-sm text-muted-foreground leading-tight">
+            Please try again. If this keeps happening, it may be a temporary connectivity or server issue.
+          </p>
+          <div className="mt-4 flex justify-center">
+            <Button variant="outline" onClick={() => refetch()}>
+              Retry
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }
