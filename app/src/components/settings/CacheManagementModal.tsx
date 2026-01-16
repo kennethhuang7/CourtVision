@@ -15,6 +15,15 @@ import { toast } from 'sonner';
 import { useTheme } from '@/contexts/ThemeContext';
 import { formatTableDate } from '@/lib/dateUtils';
 
+function parseDateOnlyToLocal(dateStr: string): Date {
+  // `new Date('YYYY-MM-DD')` is UTC and can shift a day in local time.
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (m) {
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  }
+  return new Date(dateStr);
+}
+
 export interface CacheEntry {
   date: string;
   type: 'prediction' | 'pickFinder' | 'trends';
@@ -124,13 +133,13 @@ export function CacheManagementModal({
               entryDate = new Date(year, month - 1, day);
               entryDate.setHours(0, 0, 0, 0);
             } else {
-              entryDate = new Date(group.baseDate);
+              entryDate = parseDateOnlyToLocal(group.baseDate);
             }
           } else {
-            entryDate = new Date(group.baseDate);
+            entryDate = parseDateOnlyToLocal(group.baseDate);
           }
         } else {
-          entryDate = new Date(group.baseDate);
+          entryDate = parseDateOnlyToLocal(group.baseDate);
         }
 
         if (isNaN(entryDate.getTime())) {
@@ -504,7 +513,7 @@ export function CacheManagementModal({
                         </td>
                         <td className="p-3 text-muted-foreground text-sm">
                           {isNaN(entry.daysAgo) || entry.daysAgo < 0 ? (
-                            formatDistanceToNow(new Date(entry.baseDate), { addSuffix: true })
+                            formatDistanceToNow(parseDateOnlyToLocal(entry.baseDate), { addSuffix: true })
                           ) : entry.daysAgo === 0 ? (
                             'Today'
                           ) : entry.daysAgo === 1 ? (

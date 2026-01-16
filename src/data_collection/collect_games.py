@@ -77,8 +77,10 @@ def collect_games(season='2024-25'):
         
         game_status = 'completed' if home_score is not None else 'scheduled'
         
-        if game_id.startswith('004'):
-            game_type = 'playoffs'
+        if game_id.startswith('001'):
+            game_type = 'preseason'
+        elif game_id.startswith('004'):
+            game_type = 'playoff'
         elif game_id.startswith('005'):
             game_type = 'play_in'
         else:

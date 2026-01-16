@@ -50,30 +50,30 @@ contextBridge.exposeInMainWorld('electron', {
     return ipcRenderer.invoke('set-app-settings', validated);
   },
 
-  writeLogFile: (folderPath: string, content: string) => {
-
-    if (typeof folderPath !== 'string' || typeof content !== 'string') {
+  writeLogFile: (content: string) => {
+    if (typeof content !== 'string') {
       throw new Error('Invalid writeLogFile parameters');
     }
-    return ipcRenderer.invoke('write-log-file', folderPath, content);
+    return ipcRenderer.invoke('write-log-file', content);
   },
   selectFolder: () => ipcRenderer.invoke('select-folder'),
 
   getDefaultCourtVisionFolders: () => ipcRenderer.invoke('get-default-courtvision-folders'),
   ensureCourtVisionFolders: () => ipcRenderer.invoke('ensure-courtvision-folders'),
-  saveImageFile: (fileName: string, dataUrl: string, customFolder?: string) => {
+  getStoragePath: () => ipcRenderer.invoke('get-storage-path'),
+  selectStoragePath: () => ipcRenderer.invoke('select-storage-path'),
+  getCourtVisionFolders: () => ipcRenderer.invoke('get-courtvision-folders'),
+  openCourtVisionFolder: (folderType: 'base' | 'logs' | 'exports') => ipcRenderer.invoke('open-courtvision-folder', folderType),
+  saveImageFile: (fileName: string, dataUrl: string) => {
 
     if (typeof fileName !== 'string' || typeof dataUrl !== 'string') {
       throw new Error('Invalid saveImageFile parameters');
-    }
-    if (customFolder !== undefined && typeof customFolder !== 'string') {
-      throw new Error('Invalid customFolder parameter');
     }
 
     if (fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) {
       throw new Error('Invalid file name - path traversal detected');
     }
-    return ipcRenderer.invoke('save-image-file', fileName, dataUrl, customFolder);
+    return ipcRenderer.invoke('save-image-file', fileName, dataUrl);
   },
 
   discordSetActivity: (activity: any) => ipcRenderer.invoke('discord-set-activity', activity),

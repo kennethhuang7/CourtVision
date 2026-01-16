@@ -1,12 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase, queryWithTimeout } from '@/lib/supabase';
 import { cacheManager } from '@/lib/cache';
 import { useCache } from '@/contexts/CacheContext';
 import type { ModelId } from '@/contexts/EnsembleContext';
 import { Game, Prediction, Player, PlayerStats, FeatureExplanations } from '@/types/nba';
 import { logger } from '@/lib/logger';
+import { getRefreshIntervalMs } from './useAutoRefresh';
 
 type PredictionRow = {
   prediction_id: number;
@@ -85,24 +86,88 @@ function toActualStats(row: PredictionRow): PlayerStats | undefined {
   };
 }
 
+function isRateLimitError(error: unknown): boolean {
+  const e = error as any;
+  const msg = String(e?.message || '');
+  const code = e?.code;
+  return msg.includes('Rate limited') || msg.includes('429') || code === 429;
+}
+
+function signatureForPredictions(games: Game[]): string {
+  // Compact, deterministic signature so we can compare cached vs fresh without deep-equality cost.
+  const gameParts = games
+    .slice()
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .map((g) => {
+      const predParts = (g.predictions || [])
+        .slice()
+        .sort((a, b) => {
+          const aId = String((a as any).predictionId ?? a.id ?? '');
+          const bId = String((b as any).predictionId ?? b.id ?? '');
+          return aId.localeCompare(bId);
+        })
+        .map((p) => {
+          const id = String((p as any).predictionId ?? p.id ?? '');
+          const ps = p.predictedStats;
+          const as = p.actualStats;
+          const actualSig = as
+            ? `${as.points},${as.rebounds},${as.assists},${as.steals},${as.blocks},${as.turnovers},${as.threePointersMade}`
+            : 'na';
+          return [
+            id,
+            p.playerId,
+            p.gameId,
+            p.confidence,
+            ps.points,
+            ps.rebounds,
+            ps.assists,
+            ps.steals,
+            ps.blocks,
+            ps.turnovers,
+            ps.threePointersMade,
+            actualSig,
+            p.predictionError ?? 'na',
+          ].join(':');
+        });
+
+      return [
+        g.id,
+        g.date,
+        g.homeTeamAbbr,
+        g.awayTeamAbbr,
+        predParts.join('|'),
+      ].join('~');
+    });
+
+  return gameParts.join('||');
+}
+
 export function useSupabasePredictions(selectedDate: Date, selectedModels: ModelId[], options?: { enabled?: boolean }) {
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
-  const { isOnline } = useCache();
+  const { isOnline, retentionDays } = useCache();
   const sortedModels = selectedModels.slice().sort();
   
   const [placeholderData, setPlaceholderData] = useState<Game[] | undefined>(undefined);
+  const activeKeyRef = useRef<string>('');
+  const activeKey = `${dateStr}|${sortedModels.join(',')}`;
+  activeKeyRef.current = activeKey;
 
   useEffect(() => {
+    // Prevent cross-date “leaking” of cached data while quickly switching dates.
+    // We clear immediately on key change, then only apply the cached result if it's still current.
+    setPlaceholderData(undefined);
+
     const loadCached = async () => {
-      const cached = await cacheManager.getPredictions(dateStr, sortedModels);
-      if (cached) {
-        setPlaceholderData(cached as Game[]);
-      } else {
-        setPlaceholderData(undefined);
+      if (retentionDays === 'off') {
+        return;
       }
+
+      const cached = await cacheManager.getPredictions(dateStr, sortedModels);
+      if (activeKeyRef.current !== activeKey) return;
+      setPlaceholderData(cached ? (cached as Game[]) : undefined);
     };
     loadCached();
-  }, [dateStr, sortedModels.join(',')]);
+  }, [activeKey, dateStr, sortedModels.join(','), retentionDays]);
 
 
   return useQuery<Game[], Error>({
@@ -110,58 +175,76 @@ export function useSupabasePredictions(selectedDate: Date, selectedModels: Model
     enabled: options?.enabled !== false,
     placeholderData,
     queryFn: async () => {
-      if (!isOnline && !placeholderData) {
+      // Offline mode: prefer cached data and avoid hitting Supabase at all.
+      if (!isOnline) {
+        const cached = await cacheManager.getPredictions(dateStr, sortedModels);
+        if (cached) return cached as Game[];
         throw new Error('No cached data available and device is offline');
       }
 
-      
-      const { data: predictionRows, error: predError } = await queryWithTimeout(
-        supabase
+      try {
+        let predictionsQuery = supabase
           .from('predictions')
           .select(
             'prediction_id, player_id, game_id, prediction_date, predicted_points, predicted_rebounds, predicted_assists, predicted_steals, predicted_blocks, predicted_turnovers, predicted_three_pointers_made, actual_points, actual_rebounds, actual_assists, actual_steals, actual_blocks, actual_turnovers, actual_three_pointers_made, prediction_error, confidence_score, model_version, feature_explanations'
           )
           .gte('prediction_date', `${dateStr}T00:00:00`)
-          .lt('prediction_date', `${dateStr}T23:59:59`)
-      );
+          .lt('prediction_date', `${dateStr}T23:59:59`);
 
-      if (predError) throw predError;
-      if (!predictionRows || predictionRows.length === 0) {
-        return [];
-      }
-
-      const rows = predictionRows as unknown as PredictionRow[];
-
-      
-      const aggMap = new Map<
-        string,
-        {
-          player_id: number;
-          game_id: string;
-          prediction_date: string;
-          sample_prediction_id: number | null; 
-          sum: {
-            predicted_points: number;
-            predicted_rebounds: number;
-            predicted_assists: number;
-            predicted_steals: number;
-            predicted_blocks: number;
-            predicted_turnovers: number;
-            predicted_three_pointers_made: number;
-            confidence_score: number;
-          };
-          actual_points: number | null;
-          actual_rebounds: number | null;
-          actual_assists: number | null;
-          actual_steals: number | null;
-          actual_blocks: number | null;
-          actual_turnovers: number | null;
-          actual_three_pointers_made: number | null;
-          prediction_error: number | null;
-          count: number;
-          feature_explanations: any | null; 
+        // Filter server-side when possible to reduce load/rate-limits.
+        if (selectedModels.length > 0) {
+          predictionsQuery = predictionsQuery.in('model_version', selectedModels);
         }
-      >();
+
+        const { data: predictionRows, error: predError } = await queryWithTimeout(predictionsQuery);
+
+        if (predError) throw predError;
+        if (!predictionRows || predictionRows.length === 0) {
+          // Cache empty results too (prevents repeated fetches for dates with no data).
+          if (retentionDays !== 'off') {
+            const cutoffStr =
+              retentionDays === 'all'
+                ? null
+                : format(new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000), 'yyyy-MM-dd');
+            const shouldCache = retentionDays === 'all' || (cutoffStr ? dateStr >= cutoffStr : true);
+            if (shouldCache) {
+              await cacheManager.savePredictions(dateStr, [], sortedModels);
+            }
+          }
+          return [];
+        }
+
+        const rows = predictionRows as unknown as PredictionRow[];
+
+        const aggMap = new Map<
+          string,
+          {
+            player_id: number;
+            game_id: string;
+            prediction_date: string;
+            sample_prediction_id: number | null; 
+            sum: {
+              predicted_points: number;
+              predicted_rebounds: number;
+              predicted_assists: number;
+              predicted_steals: number;
+              predicted_blocks: number;
+              predicted_turnovers: number;
+              predicted_three_pointers_made: number;
+              confidence_score: number;
+            };
+            actual_points: number | null;
+            actual_rebounds: number | null;
+            actual_assists: number | null;
+            actual_steals: number | null;
+            actual_blocks: number | null;
+            actual_turnovers: number | null;
+            actual_three_pointers_made: number | null;
+            prediction_error: number | null;
+            count: number;
+            feature_explanations: any | null; 
+          }
+        >();
 
       
       const modelFilter = selectedModels.length > 0
@@ -367,35 +450,57 @@ export function useSupabasePredictions(selectedDate: Date, selectedModels: Model
         }
       }
 
-      const games = Array.from(gamesMap.values());
+        const games = Array.from(gamesMap.values());
 
-      const cachedGames = placeholderData || await cacheManager.getPredictions(dateStr, sortedModels);
-      
-      if (cachedGames && cachedGames.length > 0) {
-        const cachedGameIds = new Set(cachedGames.flatMap(g => g.predictions.map(p => p.gameId)));
-        const freshGameIds = new Set(games.flatMap(g => g.predictions.map(p => p.gameId)));
-        
-        const gameIdsChanged = cachedGameIds.size !== freshGameIds.size || 
-          Array.from(cachedGameIds).some(id => !freshGameIds.has(id));
-        
-        if (gameIdsChanged) {
-          logger.info(`Game IDs changed for ${dateStr} - updating cache`);
+        // Cache policy: respect retention setting; don't write entries that would be immediately expired.
+        if (retentionDays !== 'off') {
+          const cutoffStr =
+            retentionDays === 'all'
+              ? null
+              : format(new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000), 'yyyy-MM-dd');
+          const shouldCache = retentionDays === 'all' || (cutoffStr ? dateStr >= cutoffStr : true);
+
+          if (shouldCache) {
+            const cachedGames = placeholderData ?? await cacheManager.getPredictions(dateStr, sortedModels);
+            const cachedSig = cachedGames ? signatureForPredictions(cachedGames as Game[]) : null;
+            const freshSig = signatureForPredictions(games);
+
+            if (!cachedSig || cachedSig !== freshSig) {
+              await cacheManager.savePredictions(dateStr, games, sortedModels);
+              logger.info(`Updated predictions cache for ${dateStr}`);
+            } else {
+              logger.debug(`Predictions unchanged for ${dateStr} - cache not updated`);
+            }
+          }
         }
-      }
-      
-      await cacheManager.savePredictions(dateStr, games, sortedModels);
-      setPlaceholderData(games);
 
-      return games;
-    },
-    refetchInterval: false,
-    refetchOnWindowFocus: true,
-    staleTime: 0,
-    onSuccess: (data) => {
-      if (data) {
-        setPlaceholderData(data);
+        return games;
+      } catch (error) {
+        // If we hit rate limits (or transient failures), keep showing cached data if available.
+        const cached = await cacheManager.getPredictions(dateStr, sortedModels);
+        if (cached) {
+          if (isRateLimitError(error)) {
+            logger.warn(`Rate limited fetching predictions for ${dateStr}; using cached data`);
+          } else {
+            logger.warn(`Error fetching predictions for ${dateStr}; using cached data`, { error });
+          }
+          return cached as Game[];
+        }
+        throw error as Error;
       }
     },
+    refetchInterval: () => {
+      if (typeof window === 'undefined') return false;
+      const stored = localStorage.getItem('courtvision-auto-refresh-interval') || 'never';
+      return getRefreshIntervalMs(stored);
+    },
+    // Spec: refresh once when navigating to Predictions page (mount),
+    // but do NOT refetch on alt-tab/window focus.
+    refetchOnMount: 'always',
+    // Alt-tabbing should NOT trigger a re-fetch (this was causing flicker + rate-limit screens).
+    refetchOnWindowFocus: false,
+    // Allow background refreshes when queries are invalidated (e.g., new predictions/game updates).
+    refetchOnReconnect: true,
   });
 }
 

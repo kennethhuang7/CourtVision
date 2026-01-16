@@ -82,7 +82,9 @@ function setActivity(activity: any) {
     }
   }
 
-  discordClient.setActivity(cleanActivity).catch((error: Error) => {});
+  discordClient.setActivity(cleanActivity).catch((error: Error) => {
+    logMainError('Failed to set Discord activity', error);
+  });
 }
 
 function clearActivity() {
@@ -92,7 +94,9 @@ function clearActivity() {
     return;
   }
 
-  discordClient.clearActivity().catch((error: Error) => {});
+  discordClient.clearActivity().catch((error: Error) => {
+    logMainError('Failed to clear Discord activity', error);
+  });
 }
 
 function destroyDiscordRPC() {
@@ -106,7 +110,7 @@ function destroyDiscordRPC() {
       discordClient.clearActivity();
       discordClient.destroy();
     } catch (error) {
-      console.error('Error destroying Discord RPC:', error);
+      logMainError('Error destroying Discord RPC', error);
     }
     discordClient = null;
     isDiscordConnected = false;
@@ -193,10 +197,8 @@ async function createWindow() {
   
   Menu.setApplicationMenu(null);
 
-  
-  const minimizeToTray = store.get('minimizeToTray', false);
-  
   win.on('close', (event) => {
+    const minimizeToTray = store.get('minimizeToTray', false);
     if (minimizeToTray && !app.isQuitting) {
       event.preventDefault();
       win.hide();
@@ -213,6 +215,7 @@ async function createWindow() {
 
   
   win.on('minimize', () => {
+    const minimizeToTray = store.get('minimizeToTray', false);
     if (minimizeToTray) {
       win.hide();
     }
@@ -254,7 +257,7 @@ async function createWindow() {
           shell.openExternal(url);
         }
       } catch (error) {
-        console.error('Invalid URL blocked:', url);
+        logMainWarn('Invalid URL blocked', { url });
       }
     }
     return { action: 'deny' };
@@ -291,7 +294,7 @@ function registerDevShortcuts() {
     });
   } catch (err) {
     
-    console.error('Failed to register hard refresh shortcut:', err);
+    logMainWarn('Failed to register hard refresh shortcut', err);
   }
 
   
@@ -303,7 +306,7 @@ function registerDevShortcuts() {
       }
     });
   } catch (err) {
-    console.error('Failed to register dev tools shortcut:', err);
+    logMainWarn('Failed to register dev tools shortcut', err);
   }
 
   
@@ -315,7 +318,7 @@ function registerDevShortcuts() {
       }
     });
   } catch (err) {
-    console.error('Failed to register alternative dev tools shortcut:', err);
+    logMainWarn('Failed to register alternative dev tools shortcut', err);
   }
 }
 
@@ -462,6 +465,7 @@ if (!gotTheLock) {
   });
 
   app.whenReady().then(() => {
+    applyInstallerStoragePath();
     createWindow();
 
 
@@ -541,11 +545,11 @@ ipcMain.handle('get-app-settings', () => {
 });
 
 ipcMain.handle('set-app-settings', (event, settings) => {
-  if (settings.hasOwnProperty('hardwareAcceleration')) {
+  if (Object.prototype.hasOwnProperty.call(settings, 'hardwareAcceleration')) {
     store.set('hardwareAcceleration', settings.hardwareAcceleration);
   }
   
-  if (settings.hasOwnProperty('minimizeToTray')) {
+  if (Object.prototype.hasOwnProperty.call(settings, 'minimizeToTray')) {
     store.set('minimizeToTray', settings.minimizeToTray);
     
     
@@ -562,11 +566,11 @@ ipcMain.handle('set-app-settings', (event, settings) => {
     }
   }
   
-  if (settings.hasOwnProperty('startWithSystem') || settings.hasOwnProperty('startMinimized')) {
-    if (settings.hasOwnProperty('startWithSystem')) {
+  if (Object.prototype.hasOwnProperty.call(settings, 'startWithSystem') || Object.prototype.hasOwnProperty.call(settings, 'startMinimized')) {
+    if (Object.prototype.hasOwnProperty.call(settings, 'startWithSystem')) {
       store.set('startWithSystem', settings.startWithSystem);
     }
-    if (settings.hasOwnProperty('startMinimized')) {
+    if (Object.prototype.hasOwnProperty.call(settings, 'startMinimized')) {
       
       const minimizeToTray = store.get('minimizeToTray', false);
       if (settings.startMinimized && !minimizeToTray) {
@@ -578,14 +582,14 @@ ipcMain.handle('set-app-settings', (event, settings) => {
     setupAutoStart();
   }
   
-  if (settings.hasOwnProperty('alwaysOnTop')) {
+  if (Object.prototype.hasOwnProperty.call(settings, 'alwaysOnTop')) {
     store.set('alwaysOnTop', settings.alwaysOnTop);
     if (win) {
       win.setAlwaysOnTop(settings.alwaysOnTop);
     }
   }
 
-  if (settings.hasOwnProperty('discordRichPresence')) {
+  if (Object.prototype.hasOwnProperty.call(settings, 'discordRichPresence')) {
     store.set('discordRichPresence', settings.discordRichPresence);
     if (settings.discordRichPresence) {
       initDiscordRPC();
@@ -635,26 +639,100 @@ const fs = require('fs');
 const { dialog } = require('electron');
 const os = require('os');
 
+function getStoragePath() {
+  try {
+    const stored = store.get('storagePath', '');
+    if (stored && typeof stored === 'string') return stored;
+  } catch {
+  }
+  return app.getPath('documents');
+}
+
+function getCourtVisionFolders(storagePath) {
+  const base = path.join(storagePath, 'CourtVision');
+  return {
+    storagePath,
+    base,
+    logs: path.join(base, 'Logs'),
+    exports: path.join(base, 'Exports'),
+  };
+}
+
+function ensureFolders(folders) {
+  if (!fs.existsSync(folders.base)) fs.mkdirSync(folders.base, { recursive: true });
+  if (!fs.existsSync(folders.logs)) fs.mkdirSync(folders.logs, { recursive: true });
+  if (!fs.existsSync(folders.exports)) fs.mkdirSync(folders.exports, { recursive: true });
+  return folders;
+}
+
+function applyInstallerStoragePath() {
+  try {
+    const markerCandidates = [
+      path.join(app.getPath('userData'), 'installer-storage-path.txt'),
+      path.join(app.getPath('appData'), 'CourtVision', 'installer-storage-path.txt'),
+    ];
+    const markerPath = markerCandidates.find((p) => {
+      try {
+        return fs.existsSync(p);
+      } catch {
+        return false;
+      }
+    });
+    if (!markerPath) return;
+
+    const raw = fs.readFileSync(markerPath, 'utf8');
+    const chosen = typeof raw === 'string' ? raw.trim() : '';
+    if (chosen) {
+      store.set('storagePath', chosen);
+      ensureFolders(getCourtVisionFolders(getStoragePath()));
+    }
+    fs.unlinkSync(markerPath);
+  } catch (e) {
+    logMainError('Failed to apply installer storage path', e);
+  }
+}
+
+function writeMainLog(level, message, error) {
+  try {
+    const logsPath = getCourtVisionFolders(getStoragePath()).logs;
+    if (!fs.existsSync(logsPath)) {
+      fs.mkdirSync(logsPath, { recursive: true });
+    }
+    const logFileName = `courtvision-main-${new Date().toISOString().split('T')[0]}.txt`;
+    const logFilePath = path.join(logsPath, logFileName);
+    const err = error instanceof Error ? error : error ? new Error(String(error)) : null;
+    const line = [
+      `[${new Date().toISOString()}]`,
+      `[${level}]`,
+      message,
+      err ? `${err.name}: ${err.message}` : '',
+      err && err.stack ? err.stack : '',
+    ].filter(Boolean).join(' | ') + os.EOL;
+    fs.appendFileSync(logFilePath, line, 'utf8');
+  } catch {
+  }
+}
+
+function logMainError(message, error) {
+  writeMainLog('ERROR', message, error);
+}
+
+function logMainWarn(message, error) {
+  writeMainLog('WARN', message, error);
+}
+
 ipcMain.handle('write-log-file', async (event, folderPath, content) => {
   try {
-    if (!folderPath) return;
+    const actualContent = typeof content === 'string' ? content : typeof folderPath === 'string' ? folderPath : '';
+    if (!actualContent) return;
 
-    
-    const documentsPath = app.getPath('documents');
-    const courtVisionPath = path.join(documentsPath, 'CourtVision', 'Logs');
-    const resolvedPath = path.resolve(folderPath);
-
-    
-    if (!resolvedPath.startsWith(courtVisionPath)) {
-      console.error('Invalid log folder path - security violation attempt:', resolvedPath);
-      throw new Error('Invalid log folder path');
-    }
+    const folders = ensureFolders(getCourtVisionFolders(getStoragePath()));
+    const resolvedPath = path.resolve(folders.logs);
 
     const logFileName = `courtvision-error-${new Date().toISOString().split('T')[0]}.txt`;
-    const logFilePath = path.join(folderPath, logFileName);
+    const logFilePath = path.join(resolvedPath, logFileName);
 
-    
-    fs.appendFileSync(logFilePath, content, 'utf8');
+    fs.appendFileSync(logFilePath, actualContent, 'utf8');
 
     
     const stats = fs.statSync(logFilePath);
@@ -665,7 +743,7 @@ ipcMain.handle('write-log-file', async (event, folderPath, content) => {
       fs.renameSync(logFilePath, rotatedPath);
     }
   } catch (error) {
-    console.error('Failed to write log file:', error);
+    logMainError('Failed to write log file', error);
     throw error;
   }
 });
@@ -683,24 +761,87 @@ ipcMain.handle('select-folder', async () => {
 
     return result.filePaths[0];
   } catch (error) {
-    console.error('Failed to select folder:', error);
+    logMainError('Failed to select folder', error);
     return null;
+  }
+});
+
+ipcMain.handle('get-storage-path', () => {
+  try {
+    return getStoragePath();
+  } catch (error) {
+    logMainError('Failed to get storage path', error);
+    return null;
+  }
+});
+
+ipcMain.handle('set-storage-path', async (event, storagePath) => {
+  try {
+    if (typeof storagePath !== 'string' || !storagePath) return { success: false };
+    store.set('storagePath', storagePath);
+    ensureFolders(getCourtVisionFolders(getStoragePath()));
+    return { success: true };
+  } catch (error) {
+    logMainError('Failed to set storage path', error);
+    return { success: false };
+  }
+});
+
+ipcMain.handle('select-storage-path', async () => {
+  try {
+    const result = await dialog.showOpenDialog(win, {
+      properties: ['openDirectory'],
+      title: 'Select data storage location',
+    });
+    if (result.canceled || result.filePaths.length === 0) {
+      return null;
+    }
+    const selected = result.filePaths[0];
+    store.set('storagePath', selected);
+    ensureFolders(getCourtVisionFolders(getStoragePath()));
+    return selected;
+  } catch (error) {
+    logMainError('Failed to select storage path', error);
+    return null;
+  }
+});
+
+ipcMain.handle('get-courtvision-folders', () => {
+  try {
+    return ensureFolders(getCourtVisionFolders(getStoragePath()));
+  } catch (error) {
+    logMainError('Failed to get CourtVision folders', error);
+    return null;
+  }
+});
+
+ipcMain.handle('open-courtvision-folder', async (event, folderType) => {
+  try {
+    const folders = ensureFolders(getCourtVisionFolders(getStoragePath()));
+    const type = typeof folderType === 'string' ? folderType : 'base';
+    const target =
+      type === 'logs' ? folders.logs :
+      type === 'exports' ? folders.exports :
+      folders.base;
+    await shell.openPath(target);
+    return { success: true };
+  } catch (error) {
+    logMainError('Failed to open CourtVision folder', error);
+    return { success: false };
   }
 });
 
 
 ipcMain.handle('get-default-courtvision-folders', () => {
   try {
-    const documentsPath = app.getPath('documents');
-    const courtVisionPath = path.join(documentsPath, 'CourtVision');
-
+    const folders = getCourtVisionFolders(getStoragePath());
     return {
-      base: courtVisionPath,
-      logs: path.join(courtVisionPath, 'Logs'),
-      exports: path.join(courtVisionPath, 'Exports'),
+      base: folders.base,
+      logs: folders.logs,
+      exports: folders.exports,
     };
   } catch (error) {
-    console.error('Failed to get default CourtVision folders:', error);
+    logMainError('Failed to get default CourtVision folders', error);
     return null;
   }
 });
@@ -708,44 +849,23 @@ ipcMain.handle('get-default-courtvision-folders', () => {
 
 ipcMain.handle('ensure-courtvision-folders', () => {
   try {
-    const documentsPath = app.getPath('documents');
-    const courtVisionPath = path.join(documentsPath, 'CourtVision');
-    const logsPath = path.join(courtVisionPath, 'Logs');
-    const exportsPath = path.join(courtVisionPath, 'Exports');
-
-    
-    if (!fs.existsSync(courtVisionPath)) {
-      fs.mkdirSync(courtVisionPath, { recursive: true });
-    }
-    if (!fs.existsSync(logsPath)) {
-      fs.mkdirSync(logsPath, { recursive: true });
-    }
-    if (!fs.existsSync(exportsPath)) {
-      fs.mkdirSync(exportsPath, { recursive: true });
-    }
-
+    const folders = ensureFolders(getCourtVisionFolders(getStoragePath()));
     return {
-      base: courtVisionPath,
-      logs: logsPath,
-      exports: exportsPath,
+      base: folders.base,
+      logs: folders.logs,
+      exports: folders.exports,
     };
   } catch (error) {
-    console.error('Failed to ensure CourtVision folders:', error);
+    logMainError('Failed to ensure CourtVision folders', error);
     return null;
   }
 });
 
 
-ipcMain.handle('save-image-file', async (event, fileName, dataUrl, customFolder) => {
+ipcMain.handle('save-image-file', async (event, fileName, dataUrl) => {
   try {
 
-    let exportsPath;
-    if (customFolder) {
-      exportsPath = customFolder;
-    } else {
-      const documentsPath = app.getPath('documents');
-      exportsPath = path.join(documentsPath, 'CourtVision', 'Exports');
-    }
+    const exportsPath = ensureFolders(getCourtVisionFolders(getStoragePath())).exports;
 
 
     if (!fs.existsSync(exportsPath)) {
@@ -764,7 +884,7 @@ ipcMain.handle('save-image-file', async (event, fileName, dataUrl, customFolder)
 
     return { success: true, filePath };
   } catch (error) {
-    console.error('Failed to save image file:', error);
+    logMainError('Failed to save image file', error);
     return { success: false, error: error.message };
   }
 });

@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useConfidenceComponents } from '@/hooks/useConfidenceComponents';
 import { useEnsemble } from '@/contexts/EnsembleContext';
+import { toDateOnlyString } from '@/lib/dateUtils';
 
 interface PlayerDetailModalProps {
   prediction: Prediction;
@@ -581,7 +582,7 @@ export function PlayerDetailModal({ prediction, open, onOpenChange }: PlayerDeta
     if (gameDate) {
       const gameDateObj = new Date(gameDate);
       gameDateObj.setHours(0, 0, 0, 0);
-      sessionStorage.setItem('shared-selected-date', gameDateObj.toISOString());
+      sessionStorage.setItem('shared-selected-date', toDateOnlyString(gameDateObj));
     }
     localStorage.setItem('player-analysis-selected-game', gameId);
     localStorage.setItem('player-analysis-selected-player', playerId);

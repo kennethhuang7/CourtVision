@@ -22,7 +22,8 @@ const DoNotDisturbContext = createContext<DoNotDisturbContextType | undefined>(u
 
 export function DoNotDisturbProvider({ children }: { children: ReactNode }) {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const suppressionEndTimeRef = useRef<number | null>(null);
   
   const [state, setState] = useState(() => {
     if (typeof window === 'undefined') {
@@ -65,11 +66,6 @@ export function DoNotDisturbProvider({ children }: { children: ReactNode }) {
       activeSuppressionDuration: null,
     };
   });
-
-  
-  const remainingMinutes = state.suppressionEndTime
-    ? Math.max(0, Math.ceil((state.suppressionEndTime - Date.now()) / 60000))
-    : null;
 
   
   useEffect(() => {
@@ -144,6 +140,53 @@ export function DoNotDisturbProvider({ children }: { children: ReactNode }) {
 
     return () => clearInterval(interval);
   }, [state.isEnabled, state.isPermanent, state.suppressionEndTime]);
+
+  
+  suppressionEndTimeRef.current = state.suppressionEndTime;
+  
+  const [remainingMinutes, setRemainingMinutes] = useState<number | null>(() => {
+    if (!state.suppressionEndTime) return null;
+    return Math.max(0, Math.ceil((state.suppressionEndTime - Date.now()) / 60000));
+  });
+
+  
+  useEffect(() => {
+    if (!state.suppressionEndTime || state.isPermanent) {
+      setRemainingMinutes(null);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
+    }
+
+    
+    const updateRemaining = () => {
+      const currentSuppressionEndTime = suppressionEndTimeRef.current;
+      if (!currentSuppressionEndTime) {
+        setRemainingMinutes(null);
+        return;
+      }
+      const calculated = Math.max(0, Math.ceil((currentSuppressionEndTime - Date.now()) / 60000));
+      setRemainingMinutes(calculated);
+    };
+
+    
+    updateRemaining();
+
+    
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+    intervalRef.current = setInterval(updateRemaining, 60000);
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [state.suppressionEndTime, state.isPermanent]);
 
   const enable = useCallback(() => {
     
@@ -220,8 +263,8 @@ export function DoNotDisturbProvider({ children }: { children: ReactNode }) {
   }, [state.isEnabled, state.isPermanent, disable]);
 
   
-  const value = useMemo(
-    () => ({
+  const value = useMemo(() => {
+    return {
       isEnabled: state.isEnabled,
       isPermanent: state.isPermanent,
       suppressionEndTime: state.suppressionEndTime,
@@ -231,9 +274,8 @@ export function DoNotDisturbProvider({ children }: { children: ReactNode }) {
       disable,
       suppressFor,
       cancelSuppression,
-    }),
-    [state.isEnabled, state.isPermanent, state.suppressionEndTime, state.activeSuppressionDuration, remainingMinutes, enable, disable, suppressFor, cancelSuppression]
-  );
+    };
+  }, [state.isEnabled, state.isPermanent, state.suppressionEndTime, state.activeSuppressionDuration, remainingMinutes, enable, disable, suppressFor, cancelSuppression]);
 
   return (
     <DoNotDisturbContext.Provider value={value}>
