@@ -14,7 +14,7 @@ import { useSavePick } from '@/hooks/useSavePick';
 import { useOpponentDefense, useStarPlayersOut, useRestDays, usePlayoffExperience, usePaceComparison } from '@/hooks/useContextCards';
 import { useEnsemble } from '@/contexts/EnsembleContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { formatUserDate } from '@/lib/dateUtils';
+import { formatUserDate, parseStoredDate, toDateOnlyString } from '@/lib/dateUtils';
 import { supabase } from '@/lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine, Cell, Rectangle } from 'recharts';
 import { Shield, Users, Clock, Trophy, Zap, TrendingUp, TrendingDown, Brain, ChevronDown, GripVertical, Calendar, HelpCircle, Image, Save, RefreshCw, AlertCircle } from 'lucide-react';
@@ -66,7 +66,7 @@ export default function PlayerAnalysis() {
           const gameDate = new Date(gameData.game_date);
           if (!isNaN(gameDate.getTime())) {
             setSelectedDate(gameDate);
-            sessionStorage.setItem('shared-selected-date', gameDate.toISOString());
+            sessionStorage.setItem('shared-selected-date', toDateOnlyString(gameDate));
             setIsInitializingDate(false);
             return;
           }
@@ -75,8 +75,8 @@ export default function PlayerAnalysis() {
 
       const stored = sessionStorage.getItem('shared-selected-date');
       if (stored) {
-        const parsed = new Date(stored);
-        if (!isNaN(parsed.getTime())) {
+        const parsed = parseStoredDate(stored);
+        if (parsed) {
           setSelectedDate(parsed);
           setIsInitializingDate(false);
           return;
@@ -87,7 +87,7 @@ export default function PlayerAnalysis() {
       const mostRecent = await getMostRecentDateWithPredictions();
       if (mostRecent) {
         setSelectedDate(mostRecent);
-        sessionStorage.setItem('shared-selected-date', mostRecent.toISOString());
+        sessionStorage.setItem('shared-selected-date', toDateOnlyString(mostRecent));
       }
       setIsInitializingDate(false);
     };
@@ -97,7 +97,7 @@ export default function PlayerAnalysis() {
 
   
   useEffect(() => {
-    sessionStorage.setItem('shared-selected-date', selectedDate.toISOString());
+    sessionStorage.setItem('shared-selected-date', toDateOnlyString(selectedDate));
   }, [selectedDate]);
 
   
@@ -168,9 +168,6 @@ export default function PlayerAnalysis() {
     selectedDate,
     selectedModels,
     { enabled: !isInitializingDate }
-  );
-    selectedDate,
-    selectedModels
   );
 
   
@@ -617,10 +614,7 @@ export default function PlayerAnalysis() {
       
       if (window.electron) {
         
-        const customExportFolder = localStorage.getItem('courtvision-export-folder');
-
-        
-        const result = await window.electron.saveImageFile(fileName, dataUrl, customExportFolder || undefined);
+        const result = await window.electron.saveImageFile(fileName, dataUrl);
 
         if (result.success && result.filePath) {
           toast.success(`Image saved to ${result.filePath}`);

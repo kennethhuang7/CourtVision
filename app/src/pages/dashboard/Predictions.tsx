@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Calendar, Target, Trophy, TrendingUp, BarChart3, Search, Filter, Brain, RefreshCw, Clock, Loader2 } from 'lucide-react';
-import { formatUserDate } from '@/lib/dateUtils';
+import { formatUserDate, parseStoredDate, toDateOnlyString } from '@/lib/dateUtils';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCache } from '@/contexts/CacheContext';
 import { Button } from '@/components/ui/button';
@@ -28,8 +28,8 @@ export default function Predictions() {
     const initializeDate = async () => {
       const stored = sessionStorage.getItem('shared-selected-date');
       if (stored) {
-        const parsed = new Date(stored);
-        if (!isNaN(parsed.getTime())) {
+        const parsed = parseStoredDate(stored);
+        if (parsed) {
           setSelectedDate(parsed);
           setIsInitializing(false);
           return;
@@ -40,7 +40,7 @@ export default function Predictions() {
       const mostRecent = await getMostRecentDateWithPredictions();
       if (mostRecent) {
         setSelectedDate(mostRecent);
-        sessionStorage.setItem('shared-selected-date', mostRecent.toISOString());
+        sessionStorage.setItem('shared-selected-date', toDateOnlyString(mostRecent));
       }
       setIsInitializing(false);
     };
@@ -50,7 +50,7 @@ export default function Predictions() {
 
   
   useEffect(() => {
-    sessionStorage.setItem('shared-selected-date', selectedDate.toISOString());
+    sessionStorage.setItem('shared-selected-date', toDateOnlyString(selectedDate));
   }, [selectedDate]);
   const [confidenceFilter, setConfidenceFilter] = useState<string>('all');
   const [playerSearch, setPlayerSearch] = useState('');
@@ -79,6 +79,7 @@ export default function Predictions() {
   const {
     data: games = [],
     isLoading,
+    isFetching,
     isError,
     error,
     refetch,
@@ -299,7 +300,7 @@ export default function Predictions() {
       </div>
 
       <div className="space-y-4">
-        {isLoading ? (
+        {isLoading && games.length === 0 ? (
           <>
             {[...Array(2)].map((_, i) => (
               <div key={i} className="section-gradient">
@@ -337,7 +338,7 @@ export default function Predictions() {
               </div>
             ))}
           </>
-        ) : isError ? (
+        ) : isError && games.length === 0 ? (
           <>
             {isOfflineError ? (
               <OfflineState
@@ -420,11 +421,21 @@ export default function Predictions() {
               </div>
             )}
           </>
-        ) : filteredGames.length > 0 ? (
+        ) : (
+          <>
+            {/* If we already have data, keep showing it while background refreshes happen */}
+            {isFetching && (
+              <div className="rounded-lg border border-border bg-card/50 px-3 py-2 text-xs text-muted-foreground flex items-center gap-2">
+                <Clock className="h-3.5 w-3.5 shrink-0" />
+                <span className="whitespace-nowrap">Refreshing in background…</span>
+              </div>
+            )}
+
+            {filteredGames.length > 0 ? (
           filteredGames.map(game => (
             <GameSection key={game.id} game={game} showCompare={isPastDate} />
           ))
-        ) : (
+            ) : (
           <div className="rounded-xl border border-border bg-card p-12 text-center">
             <Brain className="mx-auto h-12 w-12 text-muted-foreground mb-4 shrink-0" />
             <h3 className="text-lg font-semibold text-foreground mb-2">No Predictions Found</h3>
@@ -432,6 +443,8 @@ export default function Predictions() {
               Try adjusting your filters or selecting a different date.
             </p>
           </div>
+            )}
+          </>
         )}
       </div>
     </div>

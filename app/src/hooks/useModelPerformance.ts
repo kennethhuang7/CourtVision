@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { withBackoff } from '@/lib/backoff';
 import { supabase } from '@/lib/supabase';
 import type { ModelId } from '@/contexts/EnsembleContext';
@@ -105,19 +105,19 @@ export function useModelPerformance(
   const cacheKey = `${validatedTimePeriod}|${validatedStat}|${validatedModels.join(',')}`;
 
   const [placeholderData, setPlaceholderData] = useState<ModelPerformanceResult | undefined>(undefined);
+  const activeKeyRef = useRef<string>('');
+  activeKeyRef.current = cacheKey;
 
   useEffect(() => {
-    if (modelPerfRetentionDays !== 'off') {
-      cacheManager.getModelPerformance(cacheKey).then(cached => {
-        if (cached) {
-          setPlaceholderData(cached as ModelPerformanceResult);
-        } else {
-          setPlaceholderData(undefined);
-        }
-      });
-    } else {
-      setPlaceholderData(undefined);
-    }
+    // Avoid stale async results overwriting the placeholder when switching filters quickly.
+    setPlaceholderData(undefined);
+
+    if (modelPerfRetentionDays === 'off') return;
+
+    cacheManager.getModelPerformance(cacheKey).then((cached) => {
+      if (activeKeyRef.current !== cacheKey) return;
+      setPlaceholderData(cached ? (cached as ModelPerformanceResult) : undefined);
+    });
   }, [cacheKey, modelPerfRetentionDays]);
 
   return useQuery<ModelPerformanceResult, Error>({

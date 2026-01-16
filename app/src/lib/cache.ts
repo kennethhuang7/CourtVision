@@ -36,6 +36,13 @@ interface CourtVisionDB extends DBSchema {
 class CacheManager {
   private db: IDBPDatabase<CourtVisionDB> | null = null;
 
+  private toLocalDateOnlyString(date: Date): string {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
   
   async init(): Promise<void> {
     try {
@@ -70,7 +77,9 @@ class CacheManager {
 
   
   isCacheableDate(dateString: string): boolean {
-    const date = new Date(dateString);
+    // Date-only strings should be treated as local calendar dates.
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateString);
+    const date = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(dateString);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -204,6 +213,18 @@ class CacheManager {
 
   
   async cleanup(retentionDays: CacheRetentionDays): Promise<void> {
+    if (retentionDays === 'off') {
+      // Off means "don't keep prediction cache at all".
+      // Clear just predictions (leave model_performance policy separate).
+      try {
+        const db = await this.ensureInit();
+        await db.clear('predictions');
+        logger.info('Prediction cache disabled ("off") - cleared all prediction cache entries');
+      } catch (error) {
+        logger.error('Failed to clear predictions cache when retention is off', error as Error);
+      }
+      return;
+    }
     if (retentionDays === 'all') {
       logger.info('Retention set to "all" - skipping cleanup');
       return;
@@ -212,8 +233,9 @@ class CacheManager {
     try {
       const db = await this.ensureInit();
       const cutoffDate = new Date();
+      cutoffDate.setHours(0, 0, 0, 0);
       cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
-      const cutoffDateStr = cutoffDate.toISOString().split('T')[0];
+      const cutoffDateStr = this.toLocalDateOnlyString(cutoffDate);
 
       let deletedCount = 0;
 

@@ -125,6 +125,7 @@ def calculate_confidence(features_df, recent_games_df, conn=None, player_id=None
                 JOIN games g ON pgs.game_id = g.game_id
                 WHERE pgs.player_id = {player_id}
                 AND g.game_status = 'completed'
+                AND g.game_type IN ('regular_season', 'playoff')
                 AND g.game_date < '{target_date}'
                 ORDER BY g.game_date DESC
                 LIMIT 100
@@ -207,6 +208,7 @@ def calculate_confidence(features_df, recent_games_df, conn=None, player_id=None
                 JOIN games g ON pgs.game_id = g.game_id
                 WHERE pgs.player_id = {player_id}
                 AND g.game_status = 'completed'
+                AND g.game_type IN ('regular_season', 'playoff')
                 AND g.game_date < '{target_date}'
             """
             career_count = pd.read_sql(career_count_query, conn)
@@ -327,6 +329,7 @@ def calculate_confidence_new(
             JOIN games g ON pgs.game_id = g.game_id
             WHERE pgs.player_id = {player_id}
             AND g.game_status = 'completed'
+            AND g.game_type IN ('regular_season', 'playoff')
             AND g.game_date < '{target_date}'
         """
         career_games_df = pd.read_sql(career_games_query, conn)
@@ -438,6 +441,12 @@ def predict_upcoming_games(target_date=None, model_type='xgboost'):
     
     conn = get_db_connection()
     cur = conn.cursor()
+    # Prevent sporadic failures on inserts/upserts in hosted Postgres environments
+    # that have a low default statement_timeout.
+    try:
+        cur.execute("SET statement_timeout TO 0")
+    except Exception:
+        pass
     
     print("Loading upcoming games...")
     games_query = f"""
@@ -445,6 +454,7 @@ def predict_upcoming_games(target_date=None, model_type='xgboost'):
         FROM games
         WHERE game_date = '{target_date}'
             AND game_status = 'scheduled'
+            AND game_type IN ('regular_season', 'playoff')
     """
     
     games_df = pd.read_sql(games_query, conn)
@@ -1043,6 +1053,7 @@ def build_features_for_player(conn, player_id, team_id, opponent_id,
             AND g.game_date < '{target_date}'
             AND g.game_status = 'completed'
             AND g.season = '{season}'
+            AND g.game_type IN ('regular_season', 'playoff')
         ORDER BY g.game_date DESC
         LIMIT 20
     """
@@ -1657,6 +1668,12 @@ def recalculate_all_confidence_scores(prediction_date):
     
     conn = get_db_connection()
     cur = conn.cursor()
+    # Same rationale as in predict_upcoming_games(): confidence recomputation writes
+    # per-prediction confidence component rows and should not be killed by a low timeout.
+    try:
+        cur.execute("SET statement_timeout TO 0")
+    except Exception:
+        pass
     
     try:
         script_dir = os.path.dirname(os.path.abspath(__file__))

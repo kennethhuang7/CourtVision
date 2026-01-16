@@ -15,7 +15,8 @@ export function useErrorLoggingInit() {
         try {
           await window.electron.ensureCourtVisionFolders();
         } catch (e) {
-          
+          const err = e instanceof Error ? e : new Error(String(e));
+          logger.error('Failed to initialize CourtVision folders', err);
         }
       }
     };
@@ -33,23 +34,8 @@ export function useErrorLoggingInit() {
           const existingConfig = existingConfigStr ? JSON.parse(existingConfigStr) : {};
 
           
-          let logFolder = existingConfig.logFolder || '';
-          if (window.electron && !logFolder) {
-            try {
-              const folders = await window.electron.getDefaultCourtVisionFolders();
-              if (folders) {
-                logFolder = folders.logs;
-              }
-            } catch (e) {
-              
-            }
-          }
-
-          
-          
           const loggerConfig = {
             enabled: (profile as any).error_logging_enabled !== null ? (profile as any).error_logging_enabled : true,
-            logFolder: logFolder,
             logLevel: existingConfig.logLevel || 'error',
           };
 
@@ -59,7 +45,8 @@ export function useErrorLoggingInit() {
           
           logger.reloadConfig();
         } catch (e) {
-          
+          const err = e instanceof Error ? e : new Error(String(e));
+          logger.error('Failed to initialize logger config', err);
         }
       };
 

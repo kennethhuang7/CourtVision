@@ -220,12 +220,10 @@ export function PickShareMessageCard({ metadata, isOwn }: PickShareMessageCardPr
       
       const dateStr = typeof pickData.game.game_date === 'string' 
         ? pickData.game.game_date 
-        : pickData.game.game_date.toISOString().split('T')[0];
+        : pickData.game.game_date.toISOString();
       
-      const [year, month, day] = dateStr.split('-').map(Number);
-      
-      const isoString = new Date(Date.UTC(year, month - 1, day)).toISOString();
-      sessionStorage.setItem('shared-selected-date', isoString);
+      const dateOnly = dateStr.split('T')[0];
+      sessionStorage.setItem('shared-selected-date', dateOnly);
     }
     localStorage.setItem('player-analysis-selected-game', metadata.game_id || '');
     localStorage.setItem('player-analysis-selected-player', metadata.player_id?.toString() || '');

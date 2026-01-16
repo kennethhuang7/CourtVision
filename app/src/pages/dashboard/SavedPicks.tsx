@@ -70,14 +70,11 @@ export default function SavedPicks() {
     
     if (pick.game?.game_date) {
       
-      const dateStr = typeof pick.game.game_date === 'string' 
-        ? pick.game.game_date 
-        : pick.game.game_date.toISOString().split('T')[0];
-      
-      const [year, month, day] = dateStr.split('-').map(Number);
-      
-      const isoString = new Date(Date.UTC(year, month - 1, day)).toISOString();
-      sessionStorage.setItem('shared-selected-date', isoString);
+      const dateStr = typeof pick.game.game_date === 'string'
+        ? pick.game.game_date
+        : pick.game.game_date.toISOString();
+      const dateOnly = dateStr.split('T')[0];
+      sessionStorage.setItem('shared-selected-date', dateOnly);
     }
     
     

@@ -20,6 +20,7 @@ interface UserSettings {
 }
 
 const SETTINGS_STORAGE_KEY = 'courtvision-user-settings';
+const EMPTY_SETTINGS: UserSettings = {};
 
 function getLocalSettings(): UserSettings {
   try {
@@ -43,7 +44,8 @@ export function useUserSettings() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: settings = {} } = useQuery({
+  // Important: keep a stable reference while loading to avoid effect loops in consumers.
+  const { data: settings = EMPTY_SETTINGS } = useQuery({
     queryKey: ['user-settings', user?.id],
     queryFn: async () => {
       if (!user?.id) return {};
@@ -83,6 +85,7 @@ export function useUserSettings() {
       return merged;
     },
     enabled: !!user?.id,
+    initialData: typeof window !== 'undefined' ? getLocalSettings() : {},
     staleTime: 60000,
     retry: false,
   });

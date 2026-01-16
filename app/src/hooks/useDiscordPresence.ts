@@ -1,5 +1,6 @@
 import { useEffect, useCallback } from 'react';
 import type { DiscordActivity } from '@/types/electron';
+import { logger } from '@/lib/logger';
 
 export function useDiscordPresence() {
   const isElectron = typeof window !== 'undefined' && window.electron;
@@ -8,7 +9,7 @@ export function useDiscordPresence() {
     if (!isElectron || !window.electron) return;
 
     window.electron.discordSetActivity(activity).catch((error) => {
-      console.error('Failed to set Discord activity:', error);
+      logger.error('Failed to set Discord activity', error as Error);
     });
   }, [isElectron]);
 
@@ -16,7 +17,7 @@ export function useDiscordPresence() {
     if (!isElectron || !window.electron) return;
 
     window.electron.discordClearActivity().catch((error) => {
-      console.error('Failed to clear Discord activity:', error);
+      logger.error('Failed to clear Discord activity', error as Error);
     });
   }, [isElectron]);
 
@@ -38,7 +39,9 @@ export function useDiscordPresence() {
   useEffect(() => {
     return () => {
       if (isElectron && window.electron) {
-        window.electron.discordClearActivity().catch(() => {});
+        window.electron.discordClearActivity().catch((error) => {
+          logger.error('Failed to clear Discord activity on cleanup', error as Error);
+        });
       }
     };
   }, [isElectron]);
