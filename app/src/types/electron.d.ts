@@ -8,6 +8,7 @@ export interface AppSettings {
 }
 
 export interface CourtVisionFolders {
+  storagePath?: string;
   base: string;
   logs: string;
   exports: string;
@@ -34,11 +35,15 @@ export interface ElectronAPI {
   onRestore: (callback: () => void) => () => void;
   getAppSettings: () => Promise<AppSettings>;
   setAppSettings: (settings: Partial<AppSettings>) => Promise<{ success: boolean }>;
-  writeLogFile: (folderPath: string, content: string) => Promise<void>;
+  writeLogFile: (content: string) => Promise<void>;
   selectFolder: () => Promise<string | null>;
   getDefaultCourtVisionFolders: () => Promise<CourtVisionFolders | null>;
   ensureCourtVisionFolders: () => Promise<CourtVisionFolders | null>;
-  saveImageFile: (fileName: string, dataUrl: string, customFolder?: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+  getStoragePath: () => Promise<string | null>;
+  selectStoragePath: () => Promise<string | null>;
+  getCourtVisionFolders: () => Promise<CourtVisionFolders | null>;
+  openCourtVisionFolder: (folderType: 'base' | 'logs' | 'exports') => Promise<{ success: boolean }>;
+  saveImageFile: (fileName: string, dataUrl: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
   discordSetActivity: (activity: DiscordActivity) => Promise<void>;
   discordClearActivity: () => Promise<void>;
   discordIsConnected: () => Promise<boolean>;

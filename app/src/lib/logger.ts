@@ -140,7 +140,7 @@ class Logger {
 
   private async writeToFile(entries: LogEntry[]) {
     
-    if (!this.isElectron || !this.config.logFolder || entries.length === 0) {
+    if (!this.isElectron || entries.length === 0) {
       
       if (!this.isElectron && this.config.enabled && this.config.consoleFallback) {
         entries.forEach(entry => {
@@ -180,7 +180,7 @@ class Logger {
         return parts.join(' | ');
       }).join('\n') + '\n';
 
-      await window.electron.writeLogFile(this.config.logFolder, logContent);
+      await window.electron.writeLogFile(logContent);
     } catch (error) {
       
       

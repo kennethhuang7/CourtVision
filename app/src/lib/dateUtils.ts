@@ -2,6 +2,28 @@ import { format } from 'date-fns';
 import { supabase } from './supabase';
 import { logger } from './logger';
 
+function parseDateStringToLocalDate(dateStr: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (m) {
+    const year = Number(m[1]);
+    const month = Number(m[2]);
+    const day = Number(m[3]);
+    return new Date(year, month - 1, day);
+  }
+  return new Date(dateStr);
+}
+
+export function parseStoredDate(stored: string): Date | null {
+  if (!stored) return null;
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(stored);
+  const parsed = dateOnly ? parseDateStringToLocalDate(stored) : new Date(stored);
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export function toDateOnlyString(date: Date): string {
+  return format(date, 'yyyy-MM-dd');
+}
+
 export function formatUserDate(date: Date, formatStr: string, includeYear?: boolean): string {
   if (formatStr === 'MM/DD/YYYY') {
     return format(date, includeYear ? 'MM/dd/yyyy' : 'MM/dd');
@@ -10,6 +32,28 @@ export function formatUserDate(date: Date, formatStr: string, includeYear?: bool
   } else {
     return format(date, includeYear ? 'yyyy-MM-dd' : 'MM-dd');
   }
+}
+
+export function formatTableDate(dateStr: string, formatStr: string): string {
+  const date = parseDateStringToLocalDate(dateStr);
+  if (isNaN(date.getTime())) {
+    return dateStr; // Return original string if date is invalid
+  }
+  return formatUserDate(date, formatStr, true); // Always include year for table dates
+}
+
+export function formatUserTime(date: Date, timeFormat: '12h' | '24h'): string {
+  if (timeFormat === '24h') {
+    return format(date, 'HH:mm');
+  } else {
+    return format(date, 'h:mm a');
+  }
+}
+
+export function formatUserDateTime(date: Date, dateFormat: string, timeFormat: '12h' | '24h'): string {
+  const dateStr = formatUserDate(date, dateFormat, true);
+  const timeStr = formatUserTime(date, timeFormat);
+  return `${dateStr} ${timeStr}`;
 }
 
 export async function getMostRecentDateWithPredictions(): Promise<Date | null> {
@@ -34,7 +78,7 @@ export async function getMostRecentDateWithPredictions(): Promise<Date | null> {
       ? data.prediction_date 
       : data.prediction_date.toISOString().split('T')[0];
     
-    const date = new Date(dateStr);
+    const date = parseDateStringToLocalDate(dateStr);
     if (isNaN(date.getTime())) {
       return null;
     }

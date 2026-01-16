@@ -106,13 +106,10 @@ export default function Community() {
       
       const dateStr = typeof pick.game.game_date === 'string' 
         ? pick.game.game_date 
-        : pick.game.game_date.toISOString().split('T')[0];
+        : pick.game.game_date.toISOString();
       
-      const [year, month, day] = dateStr.split('-').map(Number);
-      const localDate = new Date(year, month - 1, day); 
-      
-      const isoString = new Date(Date.UTC(year, month - 1, day)).toISOString();
-      sessionStorage.setItem('shared-selected-date', isoString);
+      const dateOnly = dateStr.split('T')[0];
+      sessionStorage.setItem('shared-selected-date', dateOnly);
     }
     
     localStorage.setItem('player-analysis-selected-game', pick.game_id);

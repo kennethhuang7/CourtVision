@@ -90,15 +90,37 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    if (user && userSettings) {
-      setSettings(prev => ({
+    if (!user) return;
+
+    const nextSoundType =
+      (userSettings?.notification_sound_type as NotificationSoundType | undefined) || undefined;
+    const nextSoundVolume = userSettings?.notification_sound_volume;
+    const nextSoundEnabled = userSettings?.sound_effects_enabled;
+
+    setSettings((prev) => {
+      const updated = {
         ...prev,
-        soundType: (userSettings.notification_sound_type as NotificationSoundType) || prev.soundType,
-        soundVolume: userSettings.notification_sound_volume !== undefined ? userSettings.notification_sound_volume : prev.soundVolume,
-        sound: userSettings.sound_effects_enabled !== undefined ? userSettings.sound_effects_enabled : prev.sound,
-      }));
-    }
-  }, [user, userSettings]);
+        soundType: nextSoundType ?? prev.soundType,
+        soundVolume: nextSoundVolume !== undefined ? nextSoundVolume : prev.soundVolume,
+        sound: nextSoundEnabled !== undefined ? nextSoundEnabled : prev.sound,
+      };
+
+      // Avoid useless state updates (prevents render loops if upstream deps are unstable).
+      if (
+        updated.soundType === prev.soundType &&
+        updated.soundVolume === prev.soundVolume &&
+        updated.sound === prev.sound
+      ) {
+        return prev;
+      }
+      return updated;
+    });
+  }, [
+    user?.id,
+    userSettings?.notification_sound_type,
+    userSettings?.notification_sound_volume,
+    userSettings?.sound_effects_enabled,
+  ]);
 
   const [hasDesktopPermission, setHasDesktopPermission] = useState<boolean | null>(() => {
     if (typeof window === 'undefined' || !('Notification' in window)) return null;

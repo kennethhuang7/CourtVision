@@ -319,11 +319,9 @@ export default function Settings() {
   
   
   const [errorLoggingEnabled, setErrorLoggingEnabled] = useState(true);
-  const [errorLogFolder, setErrorLogFolder] = useState<string>('');
   const [errorLogLevel, setErrorLogLevel] = useState<'debug' | 'info' | 'warn' | 'error'>('error');
-
-  
-  const [exportFolder, setExportFolder] = useState<string>('');
+  const [storagePath, setStoragePath] = useState<string>('');
+  const [courtVisionFolders, setCourtVisionFolders] = useState<{ base: string; logs: string; exports: string } | null>(null);
 
   
   const [appSettings, setAppSettings] = useState<{
@@ -375,34 +373,10 @@ export default function Settings() {
         const loggerConfig = localStorage.getItem('courtvision-logger-config');
         if (loggerConfig) {
           const config = JSON.parse(loggerConfig);
-          setErrorLogFolder(config.logFolder || '');
           setErrorLogLevel(config.logLevel || 'error');
         }
       } catch (e) {
         logger.warn('Failed to load error logging config from localStorage', { error: e });
-      }
-
-      
-      try {
-        const storedExportFolder = localStorage.getItem('courtvision-export-folder');
-        if (storedExportFolder) {
-          setExportFolder(storedExportFolder);
-        }
-      } catch (e) {
-        logger.warn('Failed to load export folder from localStorage', { error: e });
-      }
-
-      
-      try {
-        const loggerConfig = {
-          enabled: (profile as any).error_logging_enabled !== null ? (profile as any).error_logging_enabled : true,
-          logFolder: errorLogFolder || '',
-          logLevel: errorLogLevel || 'error',
-        };
-        localStorage.setItem('courtvision-logger-config', JSON.stringify(loggerConfig));
-        logger.reloadConfig();
-      } catch (e) {
-        logger.warn('Failed to sync error logging config to localStorage', { error: e });
       }
       
       setInstagramUsername((profile as any).instagram_username || '');
@@ -428,6 +402,24 @@ export default function Settings() {
       setShowRedditOnProfile((profile as any).show_reddit_on_profile || false);
     }
   }, [profile]);
+
+  const refreshStorageInfo = useCallback(async () => {
+    if (!window.electron) return;
+    try {
+      const [pathValue, folders] = await Promise.all([
+        window.electron.getStoragePath(),
+        window.electron.getCourtVisionFolders(),
+      ]);
+      setStoragePath(pathValue || '');
+      setCourtVisionFolders(folders ? { base: folders.base, logs: folders.logs, exports: folders.exports } : null);
+    } catch (e) {
+      logger.error('Failed to refresh storage info', e as Error);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshStorageInfo();
+  }, [refreshStorageInfo]);
 
   
   useEffect(() => {
@@ -1079,37 +1071,30 @@ export default function Settings() {
     setDraggedIndex(null);
   };
 
-  const handleSelectLogFolder = async () => {
+  const handleSelectStoragePath = async () => {
     if (!window.electron) {
       toast.error('Folder selection is only available in the Electron app');
       return;
     }
-
     try {
-      const folder = await window.electron.selectFolder();
+      const folder = await window.electron.selectStoragePath();
       if (folder) {
-        setErrorLogFolder(folder);
-        toast.success('Log folder selected');
+        await refreshStorageInfo();
+        toast.success('Storage location updated');
       }
     } catch (err) {
       toast.error('Failed to select folder');
+      logger.error('Failed to select storage path', err as Error);
     }
   };
 
-  const handleSelectExportFolder = async () => {
-    if (!window.electron) {
-      toast.error('Folder selection is only available in the Electron app');
-      return;
-    }
-
+  const handleOpenFolder = async (type: 'base' | 'logs' | 'exports') => {
+    if (!window.electron) return;
     try {
-      const folder = await window.electron.selectFolder();
-      if (folder) {
-        setExportFolder(folder);
-        toast.success('Export folder selected');
-      }
+      await window.electron.openCourtVisionFolder(type);
     } catch (err) {
-      toast.error('Failed to select folder');
+      logger.error('Failed to open folder', err as Error);
+      toast.error('Failed to open folder');
     }
   };
 
@@ -1134,7 +1119,6 @@ export default function Settings() {
       try {
         const loggerConfig = {
           enabled: errorLoggingEnabled,
-          logFolder: errorLogFolder || '',
           logLevel: errorLogLevel,
         };
         localStorage.setItem('courtvision-logger-config', JSON.stringify(loggerConfig));
@@ -1142,17 +1126,6 @@ export default function Settings() {
         logger.reloadConfig();
       } catch (e) {
         logger.warn('Failed to sync error logging config to localStorage', { error: e });
-      }
-
-      
-      try {
-        if (exportFolder) {
-          localStorage.setItem('courtvision-export-folder', exportFolder);
-        } else {
-          localStorage.removeItem('courtvision-export-folder');
-        }
-      } catch (e) {
-        logger.warn('Failed to save export folder to localStorage', { error: e });
       }
 
       toast.success('Preferences saved successfully');
@@ -2466,11 +2439,10 @@ export default function Settings() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="never">Never - Manual refresh only</SelectItem>
-                    <SelectItem value="30">Every 30 minutes</SelectItem>
-                    <SelectItem value="60">Every hour</SelectItem>
-                    <SelectItem value="120">Every 2 hours</SelectItem>
-                    <SelectItem value="180">Every 3 hours</SelectItem>
                     <SelectItem value="360">Every 6 hours</SelectItem>
+                    <SelectItem value="720">Every 12 hours</SelectItem>
+                    <SelectItem value="1440">Every 24 hours</SelectItem>
+                    <SelectItem value="2880">Every 48 hours</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -2681,6 +2653,73 @@ export default function Settings() {
           </AlertDialog>
 
           <SettingsSection
+            title="Storage & Data"
+            description="Choose where CourtVision stores logs and exports."
+          >
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Data Storage Location</Label>
+                {window.electron ? (
+                  <>
+                    <div className="flex gap-2">
+                      <Input
+                        value={storagePath}
+                        placeholder="Select a storage location..."
+                        readOnly
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleSelectStoragePath}
+                      >
+                        <FolderOpen className="h-4 w-4 mr-2" />
+                        Change Location
+                      </Button>
+                    </div>
+                    {courtVisionFolders ? (
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <Button type="button" variant="outline" className="gap-2 justify-start" onClick={() => handleOpenFolder('base')}>
+                          <FolderOpen className="h-4 w-4" />
+                          Open Data Folder
+                        </Button>
+                        <Button type="button" variant="outline" className="gap-2 justify-start" onClick={() => handleOpenFolder('logs')}>
+                          <FileText className="h-4 w-4" />
+                          Open Error Logs
+                        </Button>
+                        <Button type="button" variant="outline" className="gap-2 justify-start" onClick={() => handleOpenFolder('exports')}>
+                          <ImageIcon className="h-4 w-4" />
+                          Open Exports
+                        </Button>
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <div className="rounded-lg border border-blue-500/50 bg-blue-500/10 p-3 text-sm text-blue-600 dark:text-blue-400">
+                    Storage location settings are available in the Electron desktop app.
+                  </div>
+                )}
+              </div>
+              {courtVisionFolders ? (
+                <div className="grid gap-2 md:grid-cols-3">
+                  <div className="rounded-lg border border-border bg-muted/30 p-3">
+                    <p className="text-xs text-muted-foreground">Logs</p>
+                    <p className="text-sm font-medium break-all">{courtVisionFolders.logs}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/30 p-3">
+                    <p className="text-xs text-muted-foreground">Exports</p>
+                    <p className="text-sm font-medium break-all">{courtVisionFolders.exports}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/30 p-3">
+                    <p className="text-xs text-muted-foreground">Base</p>
+                    <p className="text-sm font-medium break-all">{courtVisionFolders.base}</p>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </SettingsSection>
+
+          <SettingsSection
             title="Error Logging"
             description="Configure error and debug logging to help diagnose issues."
           >
@@ -2704,36 +2743,6 @@ export default function Settings() {
                 <>
                   {window.electron ? (
                     <>
-                      <div className="space-y-2">
-                        <Label>Log Folder</Label>
-                        <div className="flex gap-2">
-                          <Input
-                            value={errorLogFolder}
-                            placeholder="Select a folder for error logs..."
-                            readOnly
-                            className="flex-1"
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={handleSelectLogFolder}
-                          >
-                            <FolderOpen className="h-4 w-4 mr-2" />
-                            Select Folder
-                          </Button>
-                        </div>
-                        {errorLogFolder ? (
-                          <p className="text-xs text-muted-foreground">
-                            Logs will be saved to: {errorLogFolder}
-                          </p>
-                        ) : (
-                          <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-3 text-sm text-red-600 dark:text-red-400">
-                            <AlertTriangle className="h-4 w-4 inline mr-2" />
-                            You must select a file destination for error logs to be saved.
-                          </div>
-                        )}
-                      </div>
-
                       <div className="space-y-2">
                         <Label>Log Level</Label>
                         <Select value={errorLogLevel} onValueChange={(value: 'debug' | 'info' | 'warn' | 'error') => setErrorLogLevel(value)}>
