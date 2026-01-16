@@ -254,29 +254,31 @@ export default function PickFinder() {
   if (page === 'results') {
     return (
       <div className="flex h-full flex-col bg-background">
-        <div className="border-b border-border bg-card px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button onClick={handleBackToConstructor} variant="ghost" size="sm">
-                <ArrowLeft className="mr-2 h-4 w-4 shrink-0" />
-                <span className="whitespace-nowrap">Back to Filters</span>
-              </Button>
-              <div className="h-6 w-px bg-border" />
-              <div>
-                <h1 className="text-xl font-bold text-foreground">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+          {results.length > 0 ? (
+            <div className="max-w-6xl space-y-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-3">
+                  <Button onClick={handleBackToConstructor} variant="ghost" size="sm">
+                    <ArrowLeft className="mr-2 h-4 w-4 shrink-0" />
+                    <span className="whitespace-nowrap">Back to Filters</span>
+                  </Button>
+                </div>
+                <h1 className="mt-2 text-3xl font-bold text-foreground leading-tight truncate">
                   Found {results.length} {results.length === 1 ? 'Pick' : 'Picks'}
                 </h1>
-                <p className="text-sm text-muted-foreground">
-                  {filters.statType} {filters.overUnder}s • L{filters.timeWindow} window • Sorted by strength
-                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className="inline-flex items-center rounded-full border border-border bg-secondary/20 px-2 py-0.5 text-xs text-muted-foreground">
+                    {filters.statType} {filters.overUnder}s
+                  </span>
+                  <span className="inline-flex items-center rounded-full border border-border bg-secondary/20 px-2 py-0.5 text-xs text-muted-foreground">
+                    L{filters.timeWindow} window
+                  </span>
+                  <span className="inline-flex items-center rounded-full border border-border bg-secondary/20 px-2 py-0.5 text-xs text-muted-foreground">
+                    Sorted by strength
+                  </span>
+                </div>
               </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6">
-          {results.length > 0 ? (
-            <div className="max-w-5xl mx-auto space-y-3">
               {results.map((result, index) => (
                 <PickResultCard key={`${result.playerId}-${result.gameId}-${index}`} result={result} />
               ))}
@@ -479,16 +481,19 @@ export default function PickFinder() {
 
   
   return (
-    <div className="min-h-screen bg-zinc-950 text-white p-6">
-      <div className="max-w-6xl">
-        <div className="mb-8 min-w-0">
-          <h1 className="text-2xl font-bold mb-1 leading-tight truncate">Pick Finder</h1>
-          <p className="text-zinc-500 leading-tight truncate">Configure filters to find high-confidence picks</p>
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-3xl font-bold text-foreground leading-tight truncate">Pick Finder</h1>
+          <p className="text-muted-foreground leading-tight truncate">
+            Configure filters to find high-confidence picks
+          </p>
         </div>
+      </div>
 
-        <div className="space-y-6">
+      <div className="space-y-6">
           <div className="border border-zinc-800 rounded-xl p-5 bg-zinc-900/50">
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <label className="block text-zinc-400 text-sm">Stat Type</label>
@@ -1027,7 +1032,7 @@ export default function PickFinder() {
                           </div>
                         </label>
                         {filters.enablePositionDefense && (
-                          <div className="w-[140px]">
+                          <div className="w-full sm:w-[140px]">
                             <Select value={filters.positionDefenseRank.toString()} onValueChange={(v) => updateFilter('positionDefenseRank', parseInt(v))}>
                               <SelectTrigger className="bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-white">
                                 <SelectValue />
@@ -1061,7 +1066,7 @@ export default function PickFinder() {
                           </div>
                         </label>
                         {filters.enableTeamDefense && (
-                          <div className="w-[140px]">
+                          <div className="w-full sm:w-[140px]">
                             <Select value={filters.teamDefenseRank.toString()} onValueChange={(v) => updateFilter('teamDefenseRank', parseInt(v))}>
                               <SelectTrigger className="bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-white">
                                 <SelectValue />
@@ -1096,7 +1101,7 @@ export default function PickFinder() {
                           </div>
                         </label>
                         {filters.enablePace && (
-                          <div className="w-[140px]">
+                          <div className="w-full sm:w-[140px]">
                             <Select value={filters.paceRequirement} onValueChange={(v) => updateFilter('paceRequirement', v as any)}>
                               <SelectTrigger className="bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-white">
                                 <SelectValue />
@@ -1253,7 +1258,6 @@ export default function PickFinder() {
               <span className="whitespace-nowrap">Reset</span>
             </button>
           </div>
-        </div>
       </div>
     </div>
   );

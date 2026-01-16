@@ -40,7 +40,27 @@ export function useCreateDM() {
       queryClient.invalidateQueries({ queryKey: ['conversations', user?.id] });
     },
     onError: (error: any) => {
-      toast.error(error?.message || 'Failed to create DM');
+      const message = typeof error?.message === 'string' ? error.message : '';
+      const code = typeof error?.code === 'string' ? error.code : '';
+      if (code === '42883') {
+        if (message.includes('uuid_generate_v5') || message.includes('uuid_nil')) {
+          toast.error(
+            'Messaging setup is incomplete. Your DB function is calling uuid_generate_v5/uuid_nil but can’t see it. In Supabase SQL editor: (1) create extension if not exists "uuid-ossp"; (2) ensure BOTH functions have search_path: alter function public.get_or_create_dm_conversation(uuid, uuid) set search_path = public, extensions; alter function public.get_dm_conversation_id(uuid, uuid) set search_path = public, extensions;'
+          );
+          return;
+        }
+        toast.error(message || 'Failed to create DM (missing database function)');
+        return;
+      }
+
+      if (message.includes('uuid_generate_v5') || message.includes('uuid_nil')) {
+        toast.error(
+          'Messaging setup is incomplete. Your DB function is calling uuid_generate_v5/uuid_nil but can’t see it. In Supabase SQL editor: (1) create extension if not exists "uuid-ossp"; (2) ensure BOTH functions have search_path: alter function public.get_or_create_dm_conversation(uuid, uuid) set search_path = public, extensions; alter function public.get_dm_conversation_id(uuid, uuid) set search_path = public, extensions;'
+        );
+        return;
+      }
+
+      toast.error(message || 'Failed to create DM');
     },
   });
 }

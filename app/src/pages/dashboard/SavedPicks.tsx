@@ -91,6 +91,8 @@ export default function SavedPicks() {
     data: picks = [],
     isLoading,
     isError,
+    error,
+    refetch,
   } = useUserPicks();
 
   
