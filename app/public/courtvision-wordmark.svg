@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="200" viewBox="0 0 900 200" role="img" aria-label="CourtVision">
+  <defs>
+    <linearGradient id="cvWord" x1="0" y1="0" x2="900" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="hsl(252 90% 66%)"/>
+      <stop offset="0.55" stop-color="hsl(210 100% 58%)"/>
+      <stop offset="1" stop-color="hsl(262 85% 58%)"/>
+    </linearGradient>
+  </defs>
+
+  <text x="0" y="132"
+        font-family="Inter, system-ui, -apple-system, Segoe UI, sans-serif"
+        font-size="112"
+        font-weight="800"
+        letter-spacing="-2"
+        fill="url(#cvWord)">
+    CourtVision
+  </text>
+</svg>
+

@@ -1,0 +1,63 @@
+CUSTOM EMOJI INSTRUCTIONS
+=========================
+
+How to add custom emojis to CourtVision:
+
+1. SUPPORTED FORMATS
+   - PNG (recommended for transparency)
+   - JPG/JPEG
+   - GIF (animated emojis supported!)
+   - WEBP
+
+2. RECOMMENDED SPECIFICATIONS
+   - Dimensions: 128x128 pixels (will auto-scale)
+   - Max file size: 1MB per emoji
+   - Background: Transparent (PNG) or solid color
+
+3. FILE NAMING
+   - Use lowercase letters, numbers, and hyphens only
+   - Example: happy-cat.png, party-time.gif, cool-emoji.png
+
+4. HOW TO ADD EMOJIS
+
+   Step 1: Add your image file to this folder
+           Example: custom-emojis/party-parrot.gif
+
+   Step 2: Create or edit "manifest.json" in this folder
+
+   Step 3: Add your emoji to the manifest:
+
+   [
+     {
+       "name": "party-parrot",
+       "filename": "party-parrot.gif"
+     },
+     {
+       "name": "custom-smile",
+       "filename": "custom-smile.png"
+     }
+   ]
+
+5. MANIFEST.JSON FORMAT
+   - Must be valid JSON
+   - Each emoji needs "name" and "filename"
+   - Name is how users search for it
+   - Filename is the actual file in this folder
+
+6. EXAMPLE STRUCTURE
+
+   custom-emojis/
+   ├── INSTRUCTIONS.txt (this file)
+   ├── manifest.json
+   ├── party-parrot.gif
+   ├── custom-smile.png
+   └── cool-cat.png
+
+7. RESTART REQUIRED
+   - After adding emojis, refresh the app
+   - New emojis will appear in the emoji picker
+
+8. TROUBLESHOOTING
+   - Emoji not showing? Check manifest.json syntax
+   - File too large? Compress to under 1MB
+   - Check browser console for error messages

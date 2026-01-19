@@ -40,86 +40,63 @@ def update_team_defensive_stats_for_yesterday(target_date=None):
     print(f"Found {len(teams)} teams to update for season {season}\n")
     
     for team_id in teams:
-        cur.execute("""
-            SELECT games_played, opp_points_per_game, opp_rebounds_per_game, opp_assists_per_game,
-                   opp_steals_per_game, opp_blocks_per_game, opp_turnovers_per_game,
-                   opp_field_goal_pct, opp_three_point_pct, opp_two_point_pct,
-                   opp_free_throw_pct, opp_three_point_attempts_pg, opp_free_throw_attempts_pg, opp_free_throw_rate
-            FROM team_defensive_stats
-            WHERE team_id = %s AND season = %s
-        """, (team_id, season))
-        
-        existing = cur.fetchone()
-        
-        if existing:
-            old_games = existing[0] or 0
-            old_ppg = existing[1] or 0
-            old_rpg = existing[2] or 0
-            old_apg = existing[3] or 0
-            old_spg = existing[4] or 0
-            old_bpg = existing[5] or 0
-            old_tpg = existing[6] or 0
-            old_fg_pct = existing[7] or 0
-            old_3p_pct = existing[8] or 0
-            old_2p_pct = existing[9] or 0
-            old_ft_pct = existing[10] or 0
-            old_3pa_pg = existing[11] or 0
-            old_fta_pg = existing[12] or 0
-            old_ft_rate = existing[13] or 0
-            
-            cur.execute("""
-                SELECT 
-                    SUM(pgs.points) as points,
-                    SUM(pgs.rebounds_total) as rebounds,
-                    SUM(pgs.assists) as assists,
-                    SUM(pgs.steals) as steals,
-                    SUM(pgs.blocks) as blocks,
-                    SUM(pgs.turnovers) as turnovers,
-                    SUM(pgs.field_goals_made) as fgm,
-                    SUM(pgs.field_goals_attempted) as fga,
-                    SUM(pgs.three_pointers_made) as "3pm",
-                    SUM(pgs.three_pointers_attempted) as "3pa",
-                    SUM(pgs.free_throws_made) as ftm,
-                    SUM(pgs.free_throws_attempted) as fta
-                FROM player_game_stats pgs
-                JOIN games g ON pgs.game_id = g.game_id
-                WHERE g.season = %s
-                    AND g.game_status = 'completed'
-                    AND g.game_type = 'regular_season'
-                    AND pgs.team_id != %s
-                    AND (g.home_team_id = %s OR g.away_team_id = %s)
-                    AND g.game_date < %s
-            """, (season, team_id, team_id, team_id, target_date))
-            
-            old_opp_stats = cur.fetchone()
-            if old_opp_stats and old_opp_stats[7]:
-                old_total_points = old_opp_stats[0] or 0
-                old_total_rebounds = old_opp_stats[1] or 0
-                old_total_assists = old_opp_stats[2] or 0
-                old_total_steals = old_opp_stats[3] or 0
-                old_total_blocks = old_opp_stats[4] or 0
-                old_total_turnovers = old_opp_stats[5] or 0
-                old_total_fgm = old_opp_stats[6] or 0
-                old_total_fga = old_opp_stats[7] or 0
-                old_total_3pm = old_opp_stats[8] or 0
-                old_total_3pa = old_opp_stats[9] or 0
-                old_total_ftm = old_opp_stats[10] or 0
-                old_total_fta = old_opp_stats[11] or 0
-            else:
-                old_total_points = old_ppg * old_games if old_games > 0 else 0
-                old_total_rebounds = old_rpg * old_games if old_games > 0 else 0
-                old_total_assists = old_apg * old_games if old_games > 0 else 0
-                old_total_steals = old_spg * old_games if old_games > 0 else 0
-                old_total_blocks = old_bpg * old_games if old_games > 0 else 0
-                old_total_turnovers = old_tpg * old_games if old_games > 0 else 0
-                old_total_3pa = old_3pa_pg * old_games if old_games > 0 else 0
-                old_total_fta = old_fta_pg * old_games if old_games > 0 else 0
-                old_total_fga = old_total_fta / old_ft_rate if old_ft_rate > 0 else (old_total_3pa / 0.35) if old_total_3pa > 0 else 0
-                old_total_fgm = (old_fg_pct / 100) * old_total_fga if old_total_fga > 0 else 0
-                old_total_3pm = (old_3p_pct / 100) * old_total_3pa if old_total_3pa > 0 else 0
-                old_total_ftm = (old_ft_pct / 100) * old_total_fta if old_total_fta > 0 else 0
+        # IMPORTANT: make this safe to re-run for past dates.
+        # Compute "old" totals directly from DB, not from existing season aggregates.
+        cur.execute(
+            """
+            SELECT COUNT(DISTINCT g.game_id)
+            FROM games g
+            WHERE g.season = %s
+              AND (g.home_team_id = %s OR g.away_team_id = %s)
+              AND g.game_status = 'completed'
+              AND g.game_type = 'regular_season'
+              AND g.game_date < %s
+            """,
+            (season, team_id, team_id, target_date),
+        )
+        old_games = cur.fetchone()[0] or 0
+
+        cur.execute(
+            """
+            SELECT 
+                SUM(pgs.points) as points,
+                SUM(pgs.rebounds_total) as rebounds,
+                SUM(pgs.assists) as assists,
+                SUM(pgs.steals) as steals,
+                SUM(pgs.blocks) as blocks,
+                SUM(pgs.turnovers) as turnovers,
+                SUM(pgs.field_goals_made) as fgm,
+                SUM(pgs.field_goals_attempted) as fga,
+                SUM(pgs.three_pointers_made) as "3pm",
+                SUM(pgs.three_pointers_attempted) as "3pa",
+                SUM(pgs.free_throws_made) as ftm,
+                SUM(pgs.free_throws_attempted) as fta
+            FROM player_game_stats pgs
+            JOIN games g ON pgs.game_id = g.game_id
+            WHERE g.season = %s
+              AND g.game_status = 'completed'
+              AND g.game_type = 'regular_season'
+              AND pgs.team_id != %s
+              AND (g.home_team_id = %s OR g.away_team_id = %s)
+              AND g.game_date < %s
+            """,
+            (season, team_id, team_id, team_id, target_date),
+        )
+        old_opp_stats = cur.fetchone()
+        if old_opp_stats and old_opp_stats[7]:
+            old_total_points = old_opp_stats[0] or 0
+            old_total_rebounds = old_opp_stats[1] or 0
+            old_total_assists = old_opp_stats[2] or 0
+            old_total_steals = old_opp_stats[3] or 0
+            old_total_blocks = old_opp_stats[4] or 0
+            old_total_turnovers = old_opp_stats[5] or 0
+            old_total_fgm = old_opp_stats[6] or 0
+            old_total_fga = old_opp_stats[7] or 0
+            old_total_3pm = old_opp_stats[8] or 0
+            old_total_3pa = old_opp_stats[9] or 0
+            old_total_ftm = old_opp_stats[10] or 0
+            old_total_fta = old_opp_stats[11] or 0
         else:
-            old_games = 0
             old_total_points = 0
             old_total_rebounds = 0
             old_total_assists = 0
