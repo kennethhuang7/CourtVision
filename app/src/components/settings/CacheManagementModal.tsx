@@ -660,7 +660,7 @@ export function CacheManagementModal({
                           {formatTimePeriod(entry.timePeriod)}
                         </td>
                         <td className="p-3">
-                          <span className="px-2 py-1 rounded text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                          <span className="px-2 py-1 rounded text-xs bg-primary/10 text-primary">
                             {formatStat(entry.stat)}
                           </span>
                         </td>

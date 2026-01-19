@@ -118,8 +118,8 @@ export function Sidebar() {
           )}
         >
           <item.icon className={cn(
-            'h-5 w-5 shrink-0 transition-colors',
-            isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'
+            'h-5 w-5 shrink-0 transition-all duration-200',
+            isActive ? 'text-primary scale-110' : 'text-muted-foreground group-hover:text-foreground group-hover:scale-105'
           )} />
           <span className={cn(
             'font-medium truncate min-w-0',
@@ -136,15 +136,15 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="fixed left-0 top-10 z-40 h-[calc(100vh-2.5rem)] w-64 border-r border-border bg-sidebar overflow-hidden">
+    <aside className="fixed left-0 top-10 z-40 h-[calc(100vh-2.5rem)] w-64 border-r border-border/50 bg-sidebar/95 backdrop-blur-md overflow-hidden animate-in slide-in-from-left-2 fade-in duration-300">
       <div className="flex h-full flex-col">
-        <div className="flex min-h-[3.5rem] items-center gap-3 border-b border-sidebar-border px-6 py-2 shrink-0">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg overflow-hidden">
+        <div className="flex min-h-[3.5rem] items-center gap-3 border-b border-sidebar-border/50 px-6 py-2 shrink-0">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg overflow-hidden shadow-lg shadow-primary/10">
             <img src="/courtvision.png" alt="CourtVision" className="h-full w-full object-contain" />
           </div>
           <div className="overflow-hidden flex-1 min-w-0">
             <h1 className="text-lg font-bold text-foreground truncate leading-tight">CourtVision</h1>
-            <p className="text-xs text-muted-foreground truncate leading-tight">NBA Player Predictions</p>
+            <p className="text-xs text-muted-foreground/80 truncate leading-tight">NBA Player Predictions</p>
           </div>
         </div>
 
@@ -153,22 +153,22 @@ export function Sidebar() {
             {renderNavItems(mainNavigation)}
           </div>
 
-          <div className="my-3 border-t border-sidebar-border" />
+          <div className="my-3 border-t border-sidebar-border/40" />
 
           <div className="mb-3">
             <div className="px-3 py-2">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Social</h3>
+              <h3 className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">Social</h3>
             </div>
             <div className="space-y-1">
               {renderNavItems(socialNavigation)}
             </div>
           </div>
 
-          <div className="my-3 border-t border-sidebar-border" />
+          <div className="my-3 border-t border-sidebar-border/40" />
 
           <div>
             <div className="px-3 py-2">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Insights</h3>
+              <h3 className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">Insights</h3>
             </div>
             <div className="space-y-1">
               {renderNavItems(insightsNavigation)}
@@ -176,10 +176,10 @@ export function Sidebar() {
           </div>
         </nav>
 
-        <div className="border-t border-sidebar-border p-4 shrink-0">
+        <div className="border-t border-sidebar-border/40 p-4 shrink-0 bg-gradient-to-t from-background/50 to-transparent">
           <div className="mb-3 flex items-center gap-2">
             <div className="flex items-center gap-2 min-w-0 flex-1">
-              <Avatar className="h-9 w-9 shrink-0">
+              <Avatar className="h-9 w-9 shrink-0 ring-2 ring-primary/20 shadow-lg shadow-primary/10">
                 {profilePictureUrl ? (
                   <AvatarImage src={profilePictureUrl} alt={displayName} />
                 ) : null}
@@ -191,7 +191,7 @@ export function Sidebar() {
                 <p className="truncate text-sm font-medium text-foreground leading-tight">
                   {displayName}
                 </p>
-                <p className="truncate text-xs text-muted-foreground leading-tight">
+                <p className="truncate text-xs text-muted-foreground/80 leading-tight">
                   {username}
                 </p>
               </div>

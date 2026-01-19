@@ -179,8 +179,8 @@ export function ExportDataSection() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-4">
-        <p className="text-sm text-blue-700 dark:text-blue-400">
+      <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+        <p className="text-sm text-primary">
           <strong>Note:</strong> Your data will be exported as a JSON file. This file contains all your personal information and should be stored securely.
         </p>
       </div>

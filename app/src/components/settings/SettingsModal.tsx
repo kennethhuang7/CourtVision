@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import Settings from '@/pages/dashboard/Settings';
 import { Button } from '@/components/ui/button';
 
@@ -34,7 +35,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div
         className="absolute inset-0 bg-background/80 backdrop-blur-sm"
@@ -59,6 +60,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
           <Settings />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

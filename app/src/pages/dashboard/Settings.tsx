@@ -1135,12 +1135,32 @@ export default function Settings() {
     }
   };
 
-  const themes: { id: ThemeMode; label: string; color: string; bgClass: string }[] = [
-    { id: 'light', label: 'Light', color: 'bg-white', bgClass: 'bg-white border-border' },
-    { id: 'dark', label: 'Dark', color: 'bg-zinc-700', bgClass: 'bg-zinc-700' },
-    { id: 'midnight', label: 'Midnight', color: 'bg-slate-800', bgClass: 'bg-slate-800' },
-    { id: 'amoled', label: 'AMOLED', color: 'bg-black', bgClass: 'bg-black border border-zinc-800' },
-    { id: 'sync', label: 'Sync', color: '', bgClass: '' },
+  const themes: { id: ThemeMode; label: string; colors: { bg: string; sidebar: string; card: string; text: string; textMuted: string; primary: string; border: string } }[] = [
+    {
+      id: 'light',
+      label: 'Light',
+      colors: { bg: '#f8f9fa', sidebar: '#ffffff', card: '#ffffff', text: '#1a1a2e', textMuted: '#64748b', primary: '#6366f1', border: '#e2e8f0' }
+    },
+    {
+      id: 'dark',
+      label: 'Dark',
+      colors: { bg: '#0f1219', sidebar: '#161b26', card: '#1a2133', text: '#f1f5f9', textMuted: '#94a3b8', primary: '#818cf8', border: '#2d3a52' }
+    },
+    {
+      id: 'midnight',
+      label: 'Midnight',
+      colors: { bg: '#0a0a12', sidebar: '#12121f', card: '#16162a', text: '#f1f5f9', textMuted: '#8b8fa8', primary: '#a78bfa', border: '#252540' }
+    },
+    {
+      id: 'amoled',
+      label: 'AMOLED',
+      colors: { bg: '#000000', sidebar: '#0a0a0a', card: '#121212', text: '#ffffff', textMuted: '#a1a1aa', primary: '#c084fc', border: '#27272a' }
+    },
+    {
+      id: 'sync',
+      label: 'System',
+      colors: { bg: '', sidebar: '', card: '', text: '', textMuted: '', primary: '', border: '' }
+    },
   ];
 
   const fontScaleOptions = [
@@ -1933,44 +1953,84 @@ export default function Settings() {
             </div>
           </div>
 
-          <div className="pt-6">
-            <DangerZone />
-          </div>
+          <DangerZone />
         </TabsContent>
 
         <TabsContent value="display" className="space-y-4">
-          <SettingsSection title="Theme" description="Adjust the color of the interface for better visibility.">
-            <div className="flex flex-wrap items-start gap-4">
+          <SettingsSection title="Theme" description="Choose how CourtVision looks to you.">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               {themes.map((t) => (
-                <div key={t.id} className="flex flex-col items-center gap-2 min-w-[3.5rem]">
                 <button
+                  key={t.id}
                   onClick={() => setTheme(t.id)}
                   className={cn(
-                      "relative w-14 h-14 rounded-lg transition-all duration-200 flex items-center justify-center flex-shrink-0",
-                    t.id === 'sync' 
-                      ? "bg-gradient-to-br from-white via-zinc-400 to-black border border-border"
-                      : t.bgClass,
-                    theme === t.id && "ring-2 ring-primary ring-offset-2 ring-offset-background"
+                    "group relative flex flex-col rounded-xl overflow-hidden transition-all duration-200 border-2",
+                    theme === t.id
+                      ? "border-primary ring-2 ring-primary/20"
+                      : "border-border hover:border-primary/50"
                   )}
-                  title={t.label}
                 >
-                  {t.id === 'sync' && (
-                    <RefreshCw className="h-5 w-5 text-foreground" />
-                  )}
-                  {theme === t.id && t.id !== 'sync' && (
-                    <Check className={cn(
-                      "h-5 w-5",
-                      t.id === 'light' ? "text-zinc-900" : "text-white"
-                    )} />
-                  )}
-                  {theme === t.id && t.id === 'sync' && (
-                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full flex items-center justify-center">
-                      <Check className="h-3 w-3 text-white" />
-                    </div>
-                  )}
+                  {/* Theme Preview Card */}
+                  <div
+                    className="relative h-24 w-full overflow-hidden"
+                    style={{ backgroundColor: t.id === 'sync' ? undefined : t.colors.bg }}
+                  >
+                    {t.id === 'sync' ? (
+                      /* System sync gradient preview */
+                      <div className="absolute inset-0 bg-gradient-to-br from-white via-zinc-400 to-zinc-900 flex items-center justify-center">
+                        <RefreshCw className="h-6 w-6 text-foreground drop-shadow-md" />
+                      </div>
+                    ) : (
+                      /* Mini app mockup */
+                      <div className="absolute inset-0 flex">
+                        {/* Mini sidebar */}
+                        <div
+                          className="w-6 h-full flex flex-col gap-1 p-1"
+                          style={{ backgroundColor: t.colors.sidebar, borderRight: `1px solid ${t.colors.border}` }}
+                        >
+                          <div className="w-full h-2 rounded-sm" style={{ backgroundColor: t.colors.primary, opacity: 0.8 }} />
+                          <div className="w-full h-1.5 rounded-sm" style={{ backgroundColor: t.colors.textMuted, opacity: 0.3 }} />
+                          <div className="w-full h-1.5 rounded-sm" style={{ backgroundColor: t.colors.textMuted, opacity: 0.3 }} />
+                        </div>
+                        {/* Mini content area */}
+                        <div className="flex-1 p-1.5 flex flex-col gap-1.5">
+                          {/* Mini header */}
+                          <div className="flex gap-1">
+                            <div className="h-2 w-8 rounded-sm" style={{ backgroundColor: t.colors.text, opacity: 0.8 }} />
+                            <div className="h-2 w-4 rounded-sm ml-auto" style={{ backgroundColor: t.colors.primary }} />
+                          </div>
+                          {/* Mini cards */}
+                          <div className="flex gap-1 flex-1">
+                            <div
+                              className="flex-1 rounded-sm p-1"
+                              style={{ backgroundColor: t.colors.card, border: `1px solid ${t.colors.border}` }}
+                            >
+                              <div className="h-1 w-4 rounded-sm mb-1" style={{ backgroundColor: t.colors.textMuted, opacity: 0.5 }} />
+                              <div className="h-2 w-6 rounded-sm" style={{ backgroundColor: t.colors.primary }} />
+                            </div>
+                            <div
+                              className="flex-1 rounded-sm p-1"
+                              style={{ backgroundColor: t.colors.card, border: `1px solid ${t.colors.border}` }}
+                            >
+                              <div className="h-1 w-3 rounded-sm mb-1" style={{ backgroundColor: t.colors.textMuted, opacity: 0.5 }} />
+                              <div className="h-2 w-5 rounded-sm" style={{ backgroundColor: t.colors.text, opacity: 0.6 }} />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {/* Selected checkmark */}
+                    {theme === t.id && (
+                      <div className="absolute top-1 right-1 w-5 h-5 bg-primary rounded-full flex items-center justify-center shadow-lg">
+                        <Check className="h-3 w-3 text-primary-foreground" />
+                      </div>
+                    )}
+                  </div>
+                  {/* Label section */}
+                  <div className="px-3 py-2 bg-card border-t border-border">
+                    <p className="text-sm font-medium text-foreground">{t.label}</p>
+                  </div>
                 </button>
-                  <span className="text-xs text-muted-foreground text-center w-full break-words">{t.label}</span>
-            </div>
               ))}
             </div>
           </SettingsSection>
@@ -2594,7 +2654,7 @@ export default function Settings() {
                 </Button>
               </div>
 
-              <div className="rounded-lg border border-blue-500/50 bg-blue-500/10 p-3 text-sm text-blue-600 dark:text-blue-400 flex items-start gap-2">
+              <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 text-sm text-primary flex items-start gap-2">
                 <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="font-medium mb-1">How caching works:</p>
@@ -2695,7 +2755,7 @@ export default function Settings() {
                     ) : null}
                   </>
                 ) : (
-                  <div className="rounded-lg border border-blue-500/50 bg-blue-500/10 p-3 text-sm text-blue-600 dark:text-blue-400">
+                  <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 text-sm text-primary">
                     Storage location settings are available in the Electron desktop app.
                   </div>
                 )}
@@ -2765,7 +2825,7 @@ export default function Settings() {
                       </div>
                     </>
                   ) : (
-                    <div className="rounded-lg border border-blue-500/50 bg-blue-500/10 p-3 text-sm text-blue-600 dark:text-blue-400">
+                    <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 text-sm text-primary">
                       Error logging is enabled. Logs will appear in the browser console. 
                       For file logging, use the Electron desktop app.
                     </div>

@@ -75,7 +75,7 @@ export function PickResultCard({ result }: PickResultCardProps) {
       return { color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' };
     }
     if (result.strengthScore >= 70) {
-      return { color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' };
+      return { color: 'text-primary', bg: 'bg-primary/10 border-primary/20' };
     }
     if (result.strengthScore >= 50) {
       return { color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' };
@@ -128,7 +128,7 @@ export function PickResultCard({ result }: PickResultCardProps) {
         key: 'ai',
         icon: isPositive ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />,
         text: delta || 'AI edge',
-        className: 'text-blue-300 border-blue-500/20 bg-blue-500/10',
+        className: 'text-primary/80 border-primary/20 bg-primary/10',
       });
     }
 
@@ -169,7 +169,7 @@ export function PickResultCard({ result }: PickResultCardProps) {
   }, [result.reasons]);
 
   return (
-    <div className="group overflow-hidden rounded-2xl border border-border/40 bg-card transition-colors hover:border-border/70 hover:bg-accent/10 hover:shadow-sm">
+    <div className="group overflow-hidden rounded-2xl border border-border/40 bg-card transition-all duration-200 hover:border-border/70 hover:bg-accent/10 hover:shadow-sm hover:-translate-y-0.5 animate-in fade-in slide-in-from-bottom-2">
       <div className="flex flex-col gap-4 px-4 pt-4 pb-3 sm:flex-row sm:items-center sm:px-6 sm:pt-6 sm:pb-3">
         <div className="flex flex-1 gap-3 min-w-0">
           <div className="relative shrink-0">
@@ -277,7 +277,7 @@ export function PickResultCard({ result }: PickResultCardProps) {
         )}
 
         {expanded && (
-          <div className="mt-3 space-y-3">
+          <div className="mt-3 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
             {strengthBreakdownChips.length > 0 ? (
               <TooltipProvider delayDuration={150}>
                 <div className="flex flex-wrap gap-1.5">

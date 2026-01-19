@@ -96,24 +96,30 @@ export function DangerZone() {
   };
 
   return (
-    <div className="rounded-lg border-2 border-destructive/50 bg-destructive/5 p-6">
-      <div className="space-y-4">
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="h-6 w-6 text-destructive shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <h3 className="text-lg font-semibold text-destructive">Danger Zone</h3>
-            <p className="text-sm text-foreground">
-              Once you delete your account, there is no going back. Please be certain.
-            </p>
-          </div>
-        </div>
+    <div className="rounded-lg border border-border/60 bg-card/50 p-6 relative overflow-hidden">
+      {/* Subtle danger accent */}
+      <div className="absolute left-0 top-0 bottom-0 w-1 bg-destructive/60" />
 
-        <AlertDialog open={open} onOpenChange={setOpen}>
-          <AlertDialogTrigger asChild>
-            <Button variant="destructive" className="w-full sm:w-auto">
-              Delete My Account
-            </Button>
-          </AlertDialogTrigger>
+      <div className="space-y-4 pl-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-destructive/10">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Delete Account</h3>
+              <p className="text-xs text-muted-foreground">
+                Permanently delete your account and all data
+              </p>
+            </div>
+          </div>
+
+          <AlertDialog open={open} onOpenChange={setOpen}>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:border-destructive/50">
+                Delete Account
+              </Button>
+            </AlertDialogTrigger>
           <AlertDialogContent className="max-w-2xl">
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2">
@@ -203,6 +209,7 @@ export function DangerZone() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        </div>
       </div>
     </div>
   );
