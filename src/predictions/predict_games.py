@@ -125,6 +125,7 @@ def calculate_confidence(features_df, recent_games_df, conn=None, player_id=None
                 JOIN games g ON pgs.game_id = g.game_id
                 WHERE pgs.player_id = {player_id}
                 AND g.game_status = 'completed'
+                AND g.game_type IN ('regular_season', 'playoff')
                 AND g.game_date < '{target_date}'
                 ORDER BY g.game_date DESC
                 LIMIT 100
@@ -207,6 +208,7 @@ def calculate_confidence(features_df, recent_games_df, conn=None, player_id=None
                 JOIN games g ON pgs.game_id = g.game_id
                 WHERE pgs.player_id = {player_id}
                 AND g.game_status = 'completed'
+                AND g.game_type IN ('regular_season', 'playoff')
                 AND g.game_date < '{target_date}'
             """
             career_count = pd.read_sql(career_count_query, conn)
@@ -327,6 +329,7 @@ def calculate_confidence_new(
             JOIN games g ON pgs.game_id = g.game_id
             WHERE pgs.player_id = {player_id}
             AND g.game_status = 'completed'
+            AND g.game_type IN ('regular_season', 'playoff')
             AND g.game_date < '{target_date}'
         """
         career_games_df = pd.read_sql(career_games_query, conn)
@@ -438,6 +441,12 @@ def predict_upcoming_games(target_date=None, model_type='xgboost'):
     
     conn = get_db_connection()
     cur = conn.cursor()
+    # Prevent sporadic failures on inserts/upserts in hosted Postgres environments
+    # that have a low default statement_timeout.
+    try:
+        cur.execute("SET statement_timeout TO 0")
+    except Exception:
+        pass
     
     print("Loading upcoming games...")
     games_query = f"""
@@ -445,6 +454,7 @@ def predict_upcoming_games(target_date=None, model_type='xgboost'):
         FROM games
         WHERE game_date = '{target_date}'
             AND game_status = 'scheduled'
+            AND game_type IN ('regular_season', 'playoff')
     """
     
     games_df = pd.read_sql(games_query, conn)
@@ -670,34 +680,36 @@ def predict_upcoming_games(target_date=None, model_type='xgboost'):
                             if col not in features_ordered.columns:
                                 if 'team_id' not in col and 'player_id' not in col and 'game_id' not in col:
                                     if 'team' in col or 'opp' in col or 'pace' in col:
-                                        features_ordered[col] = league_means.get(col, np.nan)
-                                    elif col.startswith('is_') or col.startswith('position_') or 'trend' in col:
+                                        features_ordered[col] = league_means.get(col, 0)
+                                    elif col.startswith('is_') or col.startswith('position_') or 'trend' in col or col in ['west_to_east', 'east_to_west', 'post_asb_bounce']:
                                         features_ordered[col] = 0
                                     else:
-                                        player_avg = league_means.get(col, np.nan)
+                                        player_avg = league_means.get(col, 0)
                                         if recent_games is not None and len(recent_games) > 0:
                                             if col.startswith('points_'):
-                                                player_avg = recent_games['points'].mean()
+                                                player_avg = recent_games['points'].mean() if len(recent_games) > 0 else league_means.get(col, 0)
                                             elif col.startswith('rebounds_total_'):
-                                                player_avg = recent_games['rebounds_total'].mean()
+                                                player_avg = recent_games['rebounds_total'].mean() if len(recent_games) > 0 else league_means.get(col, 0)
                                             elif col.startswith('assists_'):
-                                                player_avg = recent_games['assists'].mean()
+                                                player_avg = recent_games['assists'].mean() if len(recent_games) > 0 else league_means.get(col, 0)
                                             elif col.startswith('steals_'):
-                                                player_avg = recent_games['steals'].mean()
+                                                player_avg = recent_games['steals'].mean() if len(recent_games) > 0 else league_means.get(col, 0)
                                             elif col.startswith('blocks_'):
-                                                player_avg = recent_games['blocks'].mean()
+                                                player_avg = recent_games['blocks'].mean() if len(recent_games) > 0 else league_means.get(col, 0)
                                             elif col.startswith('turnovers_'):
-                                                player_avg = recent_games['turnovers'].mean()
+                                                player_avg = recent_games['turnovers'].mean() if len(recent_games) > 0 else league_means.get(col, 0)
                                             elif col.startswith('three_pointers_made_'):
-                                                player_avg = recent_games['three_pointers_made'].mean()
+                                                player_avg = recent_games['three_pointers_made'].mean() if len(recent_games) > 0 else league_means.get(col, 0)
                                             elif 'minutes_played' in col and 'per_36' not in col:
-                                                player_avg = recent_games['minutes_played'].mean()
+                                                player_avg = recent_games['minutes_played'].mean() if len(recent_games) > 0 else league_means.get(col, 0)
                                             elif 'usage_rate' in col:
-                                                player_avg = recent_games['usage_rate'].mean() if 'usage_rate' in recent_games.columns else league_means.get(col, 0)
+                                                player_avg = recent_games['usage_rate'].mean() if 'usage_rate' in recent_games.columns and len(recent_games) > 0 else league_means.get(col, 0)
                                             elif 'offensive_rating' in col and 'team' not in col and 'opp' not in col:
-                                                player_avg = recent_games['offensive_rating'].mean() if 'offensive_rating' in recent_games.columns else league_means.get(col, 0)
+                                                player_avg = recent_games['offensive_rating'].mean() if 'offensive_rating' in recent_games.columns and len(recent_games) > 0 else league_means.get(col, 0)
                                             elif 'defensive_rating' in col and 'team' not in col and 'opp' not in col:
-                                                player_avg = recent_games['defensive_rating'].mean() if 'defensive_rating' in recent_games.columns else league_means.get(col, 0)
+                                                player_avg = recent_games['defensive_rating'].mean() if 'defensive_rating' in recent_games.columns and len(recent_games) > 0 else league_means.get(col, 0)
+                                        if pd.isna(player_avg):
+                                            player_avg = league_means.get(col, 0)
                                         features_ordered[col] = player_avg
                         
                         features_ordered = features_ordered[[col for col in model_feature_names if col in features_ordered.columns]]
@@ -735,11 +747,49 @@ def predict_upcoming_games(target_date=None, model_type='xgboost'):
                                             player_avg = recent_games['defensive_rating'].mean() if 'defensive_rating' in recent_games.columns else league_means.get(col, 0)
                                     features_ordered[col] = features_ordered[col].fillna(player_avg)
                         
+                        for col in features_ordered.columns:
+                            if features_ordered[col].isna().any():
+                                if 'team' in col or 'opp' in col or 'pace' in col:
+                                    features_ordered[col] = features_ordered[col].fillna(league_means.get(col, 0))
+                                elif col.startswith('is_') or col.startswith('position_') or 'trend' in col or col in ['west_to_east', 'east_to_west', 'post_asb_bounce']:
+                                    features_ordered[col] = features_ordered[col].fillna(0)
+                                else:
+                                    player_avg = league_means.get(col, 0)
+                                    if recent_games is not None and len(recent_games) > 0:
+                                        if col.startswith('points_'):
+                                            player_avg = recent_games['points'].mean() if len(recent_games) > 0 else league_means.get(col, 0)
+                                        elif col.startswith('rebounds_total_'):
+                                            player_avg = recent_games['rebounds_total'].mean() if len(recent_games) > 0 else league_means.get(col, 0)
+                                        elif col.startswith('assists_'):
+                                            player_avg = recent_games['assists'].mean() if len(recent_games) > 0 else league_means.get(col, 0)
+                                        elif col.startswith('steals_'):
+                                            player_avg = recent_games['steals'].mean() if len(recent_games) > 0 else league_means.get(col, 0)
+                                        elif col.startswith('blocks_'):
+                                            player_avg = recent_games['blocks'].mean() if len(recent_games) > 0 else league_means.get(col, 0)
+                                        elif col.startswith('turnovers_'):
+                                            player_avg = recent_games['turnovers'].mean() if len(recent_games) > 0 else league_means.get(col, 0)
+                                        elif col.startswith('three_pointers_made_'):
+                                            player_avg = recent_games['three_pointers_made'].mean() if len(recent_games) > 0 else league_means.get(col, 0)
+                                        elif 'minutes_played' in col and 'per_36' not in col:
+                                            player_avg = recent_games['minutes_played'].mean() if len(recent_games) > 0 else league_means.get(col, 0)
+                                        elif 'usage_rate' in col:
+                                            player_avg = recent_games['usage_rate'].mean() if 'usage_rate' in recent_games.columns and len(recent_games) > 0 else league_means.get(col, 0)
+                                        elif 'offensive_rating' in col and 'team' not in col and 'opp' not in col:
+                                            player_avg = recent_games['offensive_rating'].mean() if 'offensive_rating' in recent_games.columns and len(recent_games) > 0 else league_means.get(col, 0)
+                                        elif 'defensive_rating' in col and 'team' not in col and 'opp' not in col:
+                                            player_avg = recent_games['defensive_rating'].mean() if 'defensive_rating' in recent_games.columns and len(recent_games) > 0 else league_means.get(col, 0)
+                                    if pd.isna(player_avg):
+                                        player_avg = league_means.get(col, 0)
+                                    features_ordered[col] = features_ordered[col].fillna(player_avg)
+                        
+                        features_ordered = features_ordered.fillna(0)
+                        
                         if scalers[stat_name] is not None:
                             features_scaled = pd.DataFrame(
                                 scalers[stat_name].transform(features_ordered),
                                 columns=features_ordered.columns
                             )
+                            features_scaled = features_scaled.fillna(0)
                         else:
                             features_scaled = features_ordered
                         
@@ -1003,6 +1053,7 @@ def build_features_for_player(conn, player_id, team_id, opponent_id,
             AND g.game_date < '{target_date}'
             AND g.game_status = 'completed'
             AND g.season = '{season}'
+            AND g.game_type IN ('regular_season', 'playoff')
         ORDER BY g.game_date DESC
         LIMIT 20
     """
@@ -1617,6 +1668,12 @@ def recalculate_all_confidence_scores(prediction_date):
     
     conn = get_db_connection()
     cur = conn.cursor()
+    # Same rationale as in predict_upcoming_games(): confidence recomputation writes
+    # per-prediction confidence component rows and should not be killed by a low timeout.
+    try:
+        cur.execute("SET statement_timeout TO 0")
+    except Exception:
+        pass
     
     try:
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -1669,10 +1726,9 @@ def recalculate_all_confidence_scores(prediction_date):
         for (player_id, game_id), group in grouped:
             try:
                 conn, cur = ensure_connection(conn, cur)
-                
+
                 player_id = int(player_id)
-                game_id = int(game_id)
-                
+
                 if len(group) < 2:
                     skipped_insufficient_models += 1
                     continue
@@ -1811,7 +1867,7 @@ def recalculate_all_confidence_scores(prediction_date):
                             """, (
                                 int(prediction_id),
                                 int(player_id),
-                                int(game_id),
+                                game_id,
                                 prediction_date,
                                 row['model_version'],
                                 stat_name,

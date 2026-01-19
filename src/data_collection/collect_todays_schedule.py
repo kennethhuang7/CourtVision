@@ -8,6 +8,16 @@ import time
 from nba_api.stats.endpoints import leaguegamefinder
 import pandas as pd
 
+def _game_type_from_game_id(game_id: str) -> str:
+    gid = str(game_id)
+    if gid.startswith("001"):
+        return "preseason"
+    if gid.startswith("004"):
+        return "playoff"
+    if gid.startswith("005"):
+        return "play_in"
+    return "regular_season"
+
 def collect_schedule(target_date=None):
     if target_date is None:
         target_date = datetime.now().date()
@@ -81,6 +91,11 @@ def collect_schedule(target_date=None):
         
         for row in rows:
             game_id = str(row[header_map['GAME_ID']])
+            game_type = _game_type_from_game_id(game_id)
+
+            # Never persist preseason games (we delete them and keep DB regular-season only).
+            if game_type == 'preseason':
+                continue
             
             home_team_id_val = row[header_map['HOME_TEAM_ID']]
             away_team_id_val = row[header_map['VISITOR_TEAM_ID']]
@@ -167,7 +182,8 @@ def collect_schedule(target_date=None):
                 ON CONFLICT (game_id) DO UPDATE SET
                     game_status = EXCLUDED.game_status,
                     home_score = EXCLUDED.home_score,
-                    away_score = EXCLUDED.away_score
+                    away_score = EXCLUDED.away_score,
+                    game_type = EXCLUDED.game_type
             """, (
                 game_id,
                 target_date,
@@ -177,7 +193,7 @@ def collect_schedule(target_date=None):
                 home_score,
                 away_score,
                 status,
-                'regular_season'
+                game_type
             ))
             
             print(f"  {away_abbr} @ {home_abbr} - {status} ({game_status_text})")
