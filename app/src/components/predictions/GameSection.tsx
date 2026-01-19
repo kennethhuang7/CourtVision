@@ -27,7 +27,7 @@ export function GameSection({ game, showCompare = false }: GameSectionProps) {
   const awayPredictions = sortedPredictions.filter(p => !p.isHome);
 
   return (
-    <div className="section-gradient">
+    <div className="section-gradient animate-in fade-in slide-in-from-bottom-2 duration-300">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex w-full items-center justify-between p-3 hover:bg-gradient-to-r hover:from-primary/5 hover:to-transparent rounded-lg transition-all duration-200"

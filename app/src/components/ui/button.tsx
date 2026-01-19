@@ -5,19 +5,43 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 overflow-hidden [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 active:scale-[0.98] active:transition-transform active:duration-75",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/25",
-        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        outline: "border border-border bg-transparent hover:bg-secondary hover:text-secondary-foreground",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost: "hover:bg-secondary hover:text-secondary-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
-        hero: "bg-primary text-primary-foreground font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.02] active:scale-[0.98]",
-        glass: "bg-card/50 backdrop-blur-sm border border-border/50 text-foreground hover:bg-card/70 hover:border-border",
-        success: "bg-success text-success-foreground hover:bg-success/90 shadow-lg shadow-success/25",
+        default:
+          "bg-primary text-primary-foreground shadow-lg shadow-primary/20 " +
+          "before:absolute before:inset-0 before:bg-gradient-to-b before:from-white/20 before:via-white/5 before:to-transparent before:opacity-60 before:transition-opacity " +
+          "hover:shadow-primary/40 hover:before:opacity-80 active:before:opacity-40",
+        destructive:
+          "bg-destructive text-destructive-foreground shadow-lg shadow-destructive/20 " +
+          "before:absolute before:inset-0 before:bg-gradient-to-b before:from-white/15 before:to-transparent before:opacity-50 before:transition-opacity " +
+          "hover:bg-destructive/90 hover:shadow-destructive/35 hover:before:opacity-70",
+        outline:
+          "border border-border/60 bg-card/40 backdrop-blur-sm text-foreground " +
+          "before:absolute before:inset-0 before:bg-gradient-to-b before:from-white/8 before:to-transparent before:opacity-0 before:transition-opacity " +
+          "hover:bg-card/60 hover:border-primary/40 hover:before:opacity-100",
+        secondary:
+          "bg-secondary text-secondary-foreground " +
+          "before:absolute before:inset-0 before:bg-gradient-to-b before:from-white/8 before:to-transparent before:opacity-40 before:transition-opacity " +
+          "hover:bg-secondary/80 hover:before:opacity-60",
+        ghost:
+          "hover:bg-secondary/70 hover:text-secondary-foreground " +
+          "before:absolute before:inset-0 before:bg-gradient-to-b before:from-white/5 before:to-transparent before:opacity-0 before:transition-opacity " +
+          "hover:before:opacity-100",
+        link: "text-primary underline-offset-4 hover:underline hover:text-primary/80",
+        hero:
+          "bg-primary text-primary-foreground font-semibold shadow-lg shadow-primary/30 " +
+          "before:absolute before:inset-0 before:bg-gradient-to-b before:from-white/25 before:via-white/10 before:to-transparent before:opacity-70 before:transition-opacity " +
+          "hover:shadow-primary/50 hover:scale-[1.02] hover:before:opacity-90 active:scale-[0.98] active:before:opacity-50",
+        glass:
+          "bg-card/50 backdrop-blur-md border border-border/40 text-foreground " +
+          "before:absolute before:inset-0 before:bg-gradient-to-b before:from-white/10 before:to-transparent before:opacity-50 before:transition-opacity " +
+          "hover:bg-card/70 hover:border-primary/30 hover:before:opacity-70",
+        success:
+          "bg-success text-success-foreground shadow-lg shadow-success/20 " +
+          "before:absolute before:inset-0 before:bg-gradient-to-b before:from-white/15 before:to-transparent before:opacity-50 before:transition-opacity " +
+          "hover:bg-success/90 hover:shadow-success/35 hover:before:opacity-70",
       },
       size: {
         default: "h-10 px-4 py-2",

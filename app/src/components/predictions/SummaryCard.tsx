@@ -11,9 +11,9 @@ interface SummaryCardProps {
 
 export function SummaryCard({ title, value, icon: Icon, trend, className }: SummaryCardProps) {
   return (
-    <div className={cn('stat-card flex items-center density-gap group', className)}>
+    <div className={cn('stat-card flex items-center density-gap group hover-lift', className)}>
       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 via-primary/10 to-accent/10 text-primary group-hover:from-primary/30 group-hover:to-accent/20 transition-all duration-300">
-        <Icon className="h-6 w-6 shrink-0" />
+        <Icon className="h-6 w-6 shrink-0 group-hover:scale-110 transition-transform duration-200" />
       </div>
       <div className="flex-1 min-w-0">
         <p className="data-label truncate leading-tight">{title}</p>

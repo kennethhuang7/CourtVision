@@ -1878,9 +1878,12 @@ export default function PlayerAnalysis() {
                     strokeWidth={2}
                     className={isDragging ? "opacity-100" : ""}
                   />
-                  <Bar 
-                    dataKey="value" 
+                  <Bar
+                    dataKey="value"
                     radius={[4, 4, 0, 0]}
+                    isAnimationActive={true}
+                    animationDuration={600}
+                    animationEasing="ease-out"
                     shape={(props: any) => {
                       const { x, y, width, height, payload } = props;
                       const isAI = payload.isAIPrediction;

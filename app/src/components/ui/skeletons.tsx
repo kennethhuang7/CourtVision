@@ -43,7 +43,7 @@ export function PlayerCardSkeleton() {
 
 export function GameSectionSkeleton() {
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 animate-in fade-in duration-300">
       <div className="stat-card p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -58,9 +58,9 @@ export function GameSectionSkeleton() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <PlayerCardSkeleton />
-        <PlayerCardSkeleton />
-        <PlayerCardSkeleton />
+        <div className="stagger-1"><PlayerCardSkeleton /></div>
+        <div className="stagger-2"><PlayerCardSkeleton /></div>
+        <div className="stagger-3"><PlayerCardSkeleton /></div>
       </div>
     </div>
   );
@@ -91,7 +91,7 @@ export function SavedPickSkeleton() {
 
 export function PlayerAnalysisSkeleton() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-300">
       <div>
         <Skeleton className="h-8 w-48 mb-2" />
         <Skeleton className="h-4 w-64" />
@@ -103,17 +103,17 @@ export function PlayerAnalysisSkeleton() {
         <Skeleton className="h-10 w-32" />
       </div>
 
-      <div className="stat-card p-6">
+      <div className="stat-card p-6 stagger-1">
         <Skeleton className="h-64 w-full" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <StatCardSkeleton />
-        <StatCardSkeleton />
-        <StatCardSkeleton />
+        <div className="stagger-2"><StatCardSkeleton /></div>
+        <div className="stagger-3"><StatCardSkeleton /></div>
+        <div className="stagger-4"><StatCardSkeleton /></div>
       </div>
 
-      <div className="stat-card">
+      <div className="stat-card stagger-5">
         <div className="p-4 border-b">
           <Skeleton className="h-6 w-32" />
         </div>
@@ -131,32 +131,32 @@ export function PlayerAnalysisSkeleton() {
 
 export function ModelPerformanceSkeleton() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-300">
       <div>
         <Skeleton className="h-8 w-56 mb-2" />
         <Skeleton className="h-4 w-80" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCardSkeleton />
-        <StatCardSkeleton />
-        <StatCardSkeleton />
-        <StatCardSkeleton />
+        <div className="stagger-1"><StatCardSkeleton /></div>
+        <div className="stagger-2"><StatCardSkeleton /></div>
+        <div className="stagger-3"><StatCardSkeleton /></div>
+        <div className="stagger-4"><StatCardSkeleton /></div>
       </div>
 
-      <div className="stat-card p-6">
+      <div className="stat-card p-6 stagger-5">
         <Skeleton className="h-6 w-48 mb-4" />
         <Skeleton className="h-80 w-full" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="stat-card p-4 space-y-3">
+        <div className="stat-card p-4 space-y-3 stagger-6">
           <Skeleton className="h-6 w-32" />
           <Skeleton className="h-4 w-full" />
           <Skeleton className="h-4 w-full" />
           <Skeleton className="h-4 w-3/4" />
         </div>
-        <div className="stat-card p-4 space-y-3">
+        <div className="stat-card p-4 space-y-3 stagger-7">
           <Skeleton className="h-6 w-32" />
           <Skeleton className="h-4 w-full" />
           <Skeleton className="h-4 w-full" />

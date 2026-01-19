@@ -45,9 +45,9 @@ export function AuthTitleBar() {
   };
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 flex h-10 items-center justify-between bg-background/95 backdrop-blur-sm border-b border-border/30 px-2 select-none" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+    <div className="fixed top-0 left-0 right-0 z-50 flex h-10 items-center justify-between bg-background/90 backdrop-blur-md border-b border-border/20 px-2 select-none shadow-sm shadow-black/10" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
       <div className="flex items-center gap-2 pl-2">
-        <span className="text-sm font-medium text-foreground/80">CourtVision</span>
+        <span className="text-sm font-medium text-foreground/70">CourtVision</span>
       </div>
 
       <div className="flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>

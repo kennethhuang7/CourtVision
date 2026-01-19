@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, BellOff, HelpCircle, Minus, Square, X, Settings, LogOut, Check, ChevronRight, Inbox, Trash2 } from 'lucide-react';
+import { SettingsModal } from '@/components/settings/SettingsModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -36,6 +37,7 @@ export function TitleBar() {
   const navigate = useNavigate();
   const [isMaximized, setIsMaximized] = useState(false);
   const [clearAllDialogOpen, setClearAllDialogOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   
   const { data: recentNotifications = [] } = useRecentNotifications(10);
@@ -158,9 +160,9 @@ export function TitleBar() {
 
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 flex h-10 items-center justify-between bg-background/95 backdrop-blur-sm border-b border-border/30 px-2 select-none" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+    <div className="fixed top-0 left-0 right-0 z-50 flex h-10 items-center justify-between bg-background/90 backdrop-blur-md border-b border-border/20 px-2 select-none shadow-sm shadow-black/10" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
       <div className="flex items-center gap-2 pl-2 overflow-hidden flex-1 min-w-0 mr-2">
-        <span className="text-sm font-medium text-foreground/80 whitespace-nowrap truncate">CourtVision</span>
+        <span className="text-sm font-medium text-foreground/70 whitespace-nowrap truncate">CourtVision</span>
       </div>
 
       <div className="flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
@@ -180,7 +182,7 @@ export function TitleBar() {
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="end"
-            className="w-48 bg-card border-border/50 shadow-xl"
+            className="w-48 bg-card/95 backdrop-blur-md border-border/40 shadow-xl shadow-black/20"
             sideOffset={8}
           >
             <DropdownMenuItem
@@ -226,7 +228,7 @@ export function TitleBar() {
             >
               <Inbox className="h-4 w-4 shrink-0" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground px-1">
+                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground px-1 animate-in zoom-in-50 duration-200">
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               )}
@@ -234,10 +236,10 @@ export function TitleBar() {
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="end"
-            className="w-96 max-h-[500px] overflow-y-auto bg-card border-border/50 shadow-xl"
+            className="w-96 max-h-[500px] overflow-y-auto bg-card/95 backdrop-blur-md border-border/40 shadow-xl shadow-black/20"
             sideOffset={8}
           >
-            <div className="flex items-center justify-between px-3 py-2 border-b border-border/50">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border/30">
               <h3 className="text-sm font-semibold text-foreground">Notifications</h3>
               {recentNotifications.length > 0 && (
                 <div className="flex items-center gap-2">
@@ -336,7 +338,7 @@ export function TitleBar() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ring-2 ring-transparent hover:ring-primary/50 transition-all">
+            <button className="ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ring-2 ring-primary/20 hover:ring-primary/50 transition-all shadow-lg shadow-primary/10">
               <Avatar className="h-7 w-7 shrink-0">
                 {profilePictureUrl ? (
                   <AvatarImage src={profilePictureUrl} alt={displayName} />
@@ -347,14 +349,14 @@ export function TitleBar() {
               </Avatar>
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent 
-            align="end" 
-            className="w-48 bg-card border-border/50 shadow-xl text-sm"
+          <DropdownMenuContent
+            align="end"
+            className="w-48 bg-card/95 backdrop-blur-md border-border/40 shadow-xl shadow-black/20 text-sm"
             sideOffset={8}
           >
             <DropdownMenuItem
               className="gap-2 cursor-pointer text-sm"
-              onClick={() => navigate('/dashboard/settings')}
+              onClick={() => setSettingsOpen(true)}
             >
               <Settings className="h-4 w-4 shrink-0" />
               <span className="text-sm min-w-0 truncate">Settings</span>
@@ -428,6 +430,8 @@ export function TitleBar() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

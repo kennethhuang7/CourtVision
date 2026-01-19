@@ -945,7 +945,10 @@ export default function ModelPerformance() {
         ) : (
         <div className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={timeSeriesData} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
+            <LineChart
+              data={timeSeriesData}
+              margin={{ top: 20, right: 30, left: 0, bottom: 20 }}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis 
                 dataKey="date" 
@@ -979,17 +982,17 @@ export default function ModelPerformance() {
                     return [`${Number(value).toFixed(4)}`, modelLabel];
                   }}
                 />
-                {modelsToCompare.map(model => (
-              <Line 
+                {modelsToCompare.map((model) => (
+                  <Line
                     key={model}
                     type="linear"
                     dataKey={model}
                     name={model === 'ensemble' ? 'Ensemble' : modelOptions.find(o => o.value === model)?.label}
                     stroke={modelColors[model]}
-                strokeWidth={2}
+                    strokeWidth={2}
                     dot={{ fill: modelColors[model], strokeWidth: 0, r: 3 }}
-                activeDot={{ r: 6, strokeWidth: 0 }}
-              />
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                  />
                 ))}
                 {modelsToCompare.length > 1 && <Legend />}
             </LineChart>

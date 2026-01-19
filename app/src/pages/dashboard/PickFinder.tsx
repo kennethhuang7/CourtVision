@@ -221,16 +221,16 @@ export default function PickFinder() {
       return (
         <div className="flex h-full flex-col bg-background">
           <div className="flex-1 flex items-center justify-center p-6">
-            <RateLimitError 
-              error={error} 
+            <RateLimitError
+              error={error}
               onRetry={handleSearch}
               showRetry={true}
             />
           </div>
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2">
-            <Button onClick={handleCancel} variant="outline" size="lg">
-              <X className="mr-2 h-4 w-4 shrink-0" />
-              <span className="whitespace-nowrap">Cancel</span>
+          <div className="flex justify-center pb-8">
+            <Button onClick={handleCancel} variant="outline" size="lg" className="gap-2">
+              <X className="h-4 w-4" />
+              Cancel
             </Button>
           </div>
         </div>
@@ -239,13 +239,12 @@ export default function PickFinder() {
     
     return (
       <div className="flex h-full flex-col bg-background">
-        <PickFinderLoading filters={filters} currentStage={loadingStage} progress={loadingProgress} />
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2">
-          <Button onClick={handleCancel} variant="outline" size="lg">
-            <X className="mr-2 h-4 w-4 shrink-0" />
-            <span className="whitespace-nowrap">Cancel</span>
-          </Button>
-        </div>
+        <PickFinderLoading
+          filters={filters}
+          currentStage={loadingStage}
+          progress={loadingProgress}
+          onCancel={handleCancel}
+        />
       </div>
     );
   }
@@ -318,21 +317,21 @@ export default function PickFinder() {
     <button
       onClick={onClick}
       className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors relative ${
-        isActive ? 'text-blue-400' : 'text-zinc-400 hover:text-white'
+        isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
       }`}
     >
       <span className="flex items-center justify-center gap-2">
         {label}
         {showIndicator && (
           enabled ? (
-            <span className="bg-blue-500/20 text-blue-400 text-xs px-1.5 py-0.5 rounded font-medium">ON</span>
+            <span className="bg-primary/20 text-primary text-xs px-1.5 py-0.5 rounded font-medium">ON</span>
           ) : (
-            <span className="text-zinc-500 text-xs px-1.5 py-0.5 rounded bg-zinc-800">OFF</span>
+            <span className="text-muted-foreground/80 text-xs px-1.5 py-0.5 rounded bg-secondary">OFF</span>
           )
         )}
       </span>
       {isActive && (
-        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
+        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
       )}
     </button>
   );
@@ -375,20 +374,20 @@ export default function PickFinder() {
             onChange={(e) => onEnabledChange(e.target.checked)}
             className="sr-only"
           />
-          <div className={`w-10 h-6 rounded-full transition-colors ${enabled ? 'bg-blue-500' : 'bg-zinc-700'}`}>
+          <div className={`w-10 h-6 rounded-full transition-colors ${enabled ? 'bg-primary' : 'bg-secondary/80'}`}>
             <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${enabled ? 'translate-x-5' : 'translate-x-1'}`} />
           </div>
         </div>
-        <span className="text-white text-sm">Minimum hit rate</span>
+        <span className="text-foreground text-sm">Minimum hit rate</span>
         <InfoTooltip content="Percentage of games where player hit this line." />
       </label>
 
       {enabled && (
         <div className="ml-13 space-y-4">
           <div>
-            <label className="block text-zinc-400 text-sm mb-2">Mode</label>
+            <label className="block text-muted-foreground text-sm mb-2">Mode</label>
             <Select value={mode} onValueChange={(v) => onModeChange(v as 'percentage' | 'count')}>
-              <SelectTrigger className="bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-white">
+              <SelectTrigger className="bg-secondary border border-border/80 rounded-lg px-4 py-2.5 text-foreground">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -401,8 +400,8 @@ export default function PickFinder() {
           {mode === 'percentage' ? (
             <div>
               <div className="flex justify-between items-center mb-2">
-                <label className="text-zinc-400 text-sm">Threshold</label>
-                <span className="text-white text-sm font-medium">{threshold}%</span>
+                <label className="text-muted-foreground text-sm">Threshold</label>
+                <span className="text-foreground text-sm font-medium">{threshold}%</span>
               </div>
               <input
                 type="range"
@@ -410,16 +409,16 @@ export default function PickFinder() {
                 max={100}
                 value={threshold}
                 onChange={(e) => onThresholdChange(Number(e.target.value))}
-                className="w-full h-2 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                className="w-full h-2 bg-secondary/80 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
-              <div className="flex justify-between text-xs text-zinc-500 mt-1">
+              <div className="flex justify-between text-xs text-muted-foreground/80 mt-1">
                 <span>40%</span>
                 <span>100%</span>
               </div>
             </div>
           ) : (
             <div>
-              <label className="block text-zinc-400 text-sm mb-2">Minimum Hits</label>
+              <label className="block text-muted-foreground text-sm mb-2">Minimum Hits</label>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
@@ -430,9 +429,9 @@ export default function PickFinder() {
                     const val = Math.min(timeWindow, Math.max(0, Number(e.target.value)));
                     onCountChange(val);
                   }}
-                  className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-white"
+                  className="flex-1 bg-secondary border border-border/80 rounded-lg px-4 py-2.5 text-foreground"
                 />
-                <span className="text-zinc-400 text-sm">out of {timeWindow}</span>
+                <span className="text-muted-foreground text-sm">out of {timeWindow}</span>
               </div>
             </div>
           )}
@@ -450,17 +449,17 @@ export default function PickFinder() {
             }}
             className="sr-only"
           />
-          <div className={`w-10 h-6 rounded-full transition-colors ${enableConsecutive ? 'bg-blue-500' : 'bg-zinc-700'}`}>
+          <div className={`w-10 h-6 rounded-full transition-colors ${enableConsecutive ? 'bg-primary' : 'bg-secondary/80'}`}>
             <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${enableConsecutive ? 'translate-x-5' : 'translate-x-1'}`} />
           </div>
         </div>
-        <span className="text-white text-sm">Consecutive hits</span>
+        <span className="text-foreground text-sm">Consecutive hits</span>
         <InfoTooltip content="Require N consecutive hits in recent games." />
       </label>
 
       {enableConsecutive && (
         <div className="ml-13">
-          <label className="block text-zinc-400 text-sm mb-2">Consecutive</label>
+          <label className="block text-muted-foreground text-sm mb-2">Consecutive</label>
           <input
             type="number"
             min={1}
@@ -472,7 +471,7 @@ export default function PickFinder() {
               else if (val > timeWindow) onConsecutiveHitsChange(timeWindow);
               else onConsecutiveHitsChange(val);
             }}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-blue-500"
+            className="w-full bg-secondary border border-border/80 rounded-lg px-4 py-2.5 text-foreground focus:outline-none focus:border-primary"
           />
         </div>
       )}
@@ -492,15 +491,15 @@ export default function PickFinder() {
       </div>
 
       <div className="space-y-6">
-          <div className="border border-zinc-800 rounded-xl p-5 bg-zinc-900/50">
+          <div className="border border-border/60 rounded-xl p-5 bg-card/50">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <label className="block text-zinc-400 text-sm">Stat Type</label>
+                  <label className="block text-muted-foreground text-sm">Stat Type</label>
                   <InfoTooltip content="Choose which player stat to analyze. Select 'All Stats' to find picks across all categories." />
                 </div>
                 <Select value={filters.statType} onValueChange={(v) => updateFilter('statType', v as any)}>
-                  <SelectTrigger className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-white h-11">
+                  <SelectTrigger className="w-full bg-secondary border border-border/80 rounded-lg px-4 py-2.5 text-foreground h-11">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -513,16 +512,16 @@ export default function PickFinder() {
 
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <label className="block text-zinc-400 text-sm">Direction</label>
+                  <label className="block text-muted-foreground text-sm">Direction</label>
                   <InfoTooltip content="Choose whether to find Over picks, Under picks, or both." />
                 </div>
-                <div className="flex gap-1 bg-zinc-800 p-1 rounded-lg">
+                <div className="flex gap-1 bg-secondary p-1 rounded-lg">
                   <button
                     onClick={() => updateFilter('overUnder', 'over')}
                     className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                       filters.overUnder === 'over'
-                        ? 'bg-blue-500 text-white'
-                        : 'text-zinc-400 hover:text-white hover:bg-zinc-700'
+                        ? 'bg-primary text-foreground'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80'
                     }`}
                   >
                     Over
@@ -531,8 +530,8 @@ export default function PickFinder() {
                     onClick={() => updateFilter('overUnder', 'both')}
                     className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                       filters.overUnder === 'both'
-                        ? 'bg-blue-500 text-white'
-                        : 'text-zinc-400 hover:text-white hover:bg-zinc-700'
+                        ? 'bg-primary text-foreground'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80'
                     }`}
                   >
                     Both
@@ -541,8 +540,8 @@ export default function PickFinder() {
                     onClick={() => updateFilter('overUnder', 'under')}
                     className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                       filters.overUnder === 'under'
-                        ? 'bg-blue-500 text-white'
-                        : 'text-zinc-400 hover:text-white hover:bg-zinc-700'
+                        ? 'bg-primary text-foreground'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80'
                     }`}
                   >
                     Under
@@ -552,11 +551,11 @@ export default function PickFinder() {
 
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <label className="block text-zinc-400 text-sm">Line Method</label>
+                  <label className="block text-muted-foreground text-sm">Line Method</label>
                   <InfoTooltip content="Player Average uses the player's season average. AI Prediction uses machine learning to predict their performance." />
                 </div>
                 <Select value={filters.lineMethod} onValueChange={(v) => updateFilter('lineMethod', v as any)}>
-                  <SelectTrigger className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-white h-11">
+                  <SelectTrigger className="w-full bg-secondary border border-border/80 rounded-lg px-4 py-2.5 text-foreground h-11">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -568,11 +567,11 @@ export default function PickFinder() {
 
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <label className="block text-zinc-400 text-sm">Line Adjustment</label>
+                  <label className="block text-muted-foreground text-sm">Line Adjustment</label>
                   <InfoTooltip content="Standard: use the line as-is. Favorable: adjust the line to make picks easier to hit. Custom: set your own adjustments per stat." />
                 </div>
                 <Select value={filters.lineAdjustment} onValueChange={(v) => updateFilter('lineAdjustment', v as any)}>
-                  <SelectTrigger className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-white h-11">
+                  <SelectTrigger className="w-full bg-secondary border border-border/80 rounded-lg px-4 py-2.5 text-foreground h-11">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -587,11 +586,11 @@ export default function PickFinder() {
             <div className={`overflow-hidden transition-all duration-300 ease-in-out ${
               filters.lineAdjustment === 'custom' ? 'max-h-[500px] opacity-100 mt-4' : 'max-h-0 opacity-0'
             }`}>
-              <div className="pt-4 border-t border-zinc-800">
-                <p className="text-zinc-400 text-xs mb-3">Custom line modifiers by stat type</p>
+              <div className="pt-4 border-t border-border/60">
+                <p className="text-muted-foreground text-xs mb-3">Custom line modifiers by stat type</p>
                 <div className="grid grid-cols-7 gap-3">
                   <div>
-                    <label className="block text-zinc-400 text-xs mb-1">Points</label>
+                    <label className="block text-muted-foreground text-xs mb-1">Points</label>
                     <input
                       type="number"
                       step="0.5"
@@ -599,11 +598,11 @@ export default function PickFinder() {
                       max="10"
                       value={filters.customModifiers.points}
                       onChange={(e) => updateFilter('customModifiers', { ...filters.customModifiers, points: Number(e.target.value) })}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500"
+                      className="w-full bg-secondary border border-border/80 rounded-lg px-3 py-1.5 text-foreground text-sm focus:outline-none focus:border-primary"
                     />
                   </div>
                   <div>
-                    <label className="block text-zinc-400 text-xs mb-1">Rebounds</label>
+                    <label className="block text-muted-foreground text-xs mb-1">Rebounds</label>
                     <input
                       type="number"
                       step="0.5"
@@ -611,11 +610,11 @@ export default function PickFinder() {
                       max="10"
                       value={filters.customModifiers.rebounds}
                       onChange={(e) => updateFilter('customModifiers', { ...filters.customModifiers, rebounds: Number(e.target.value) })}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500"
+                      className="w-full bg-secondary border border-border/80 rounded-lg px-3 py-1.5 text-foreground text-sm focus:outline-none focus:border-primary"
                     />
                   </div>
                   <div>
-                    <label className="block text-zinc-400 text-xs mb-1">Assists</label>
+                    <label className="block text-muted-foreground text-xs mb-1">Assists</label>
                     <input
                       type="number"
                       step="0.5"
@@ -623,11 +622,11 @@ export default function PickFinder() {
                       max="10"
                       value={filters.customModifiers.assists}
                       onChange={(e) => updateFilter('customModifiers', { ...filters.customModifiers, assists: Number(e.target.value) })}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500"
+                      className="w-full bg-secondary border border-border/80 rounded-lg px-3 py-1.5 text-foreground text-sm focus:outline-none focus:border-primary"
                     />
                   </div>
                   <div>
-                    <label className="block text-zinc-400 text-xs mb-1">Steals</label>
+                    <label className="block text-muted-foreground text-xs mb-1">Steals</label>
                     <input
                       type="number"
                       step="0.5"
@@ -635,11 +634,11 @@ export default function PickFinder() {
                       max="10"
                       value={filters.customModifiers.steals}
                       onChange={(e) => updateFilter('customModifiers', { ...filters.customModifiers, steals: Number(e.target.value) })}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500"
+                      className="w-full bg-secondary border border-border/80 rounded-lg px-3 py-1.5 text-foreground text-sm focus:outline-none focus:border-primary"
                     />
                   </div>
                   <div>
-                    <label className="block text-zinc-400 text-xs mb-1">Blocks</label>
+                    <label className="block text-muted-foreground text-xs mb-1">Blocks</label>
                     <input
                       type="number"
                       step="0.5"
@@ -647,11 +646,11 @@ export default function PickFinder() {
                       max="10"
                       value={filters.customModifiers.blocks}
                       onChange={(e) => updateFilter('customModifiers', { ...filters.customModifiers, blocks: Number(e.target.value) })}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500"
+                      className="w-full bg-secondary border border-border/80 rounded-lg px-3 py-1.5 text-foreground text-sm focus:outline-none focus:border-primary"
                     />
                   </div>
                   <div>
-                    <label className="block text-zinc-400 text-xs mb-1">Turnovers</label>
+                    <label className="block text-muted-foreground text-xs mb-1">Turnovers</label>
                     <input
                       type="number"
                       step="0.5"
@@ -659,11 +658,11 @@ export default function PickFinder() {
                       max="10"
                       value={filters.customModifiers.turnovers}
                       onChange={(e) => updateFilter('customModifiers', { ...filters.customModifiers, turnovers: Number(e.target.value) })}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500"
+                      className="w-full bg-secondary border border-border/80 rounded-lg px-3 py-1.5 text-foreground text-sm focus:outline-none focus:border-primary"
                     />
                   </div>
                   <div>
-                    <label className="block text-zinc-400 text-xs mb-1">3PM</label>
+                    <label className="block text-muted-foreground text-xs mb-1">3PM</label>
                     <input
                       type="number"
                       step="0.5"
@@ -671,7 +670,7 @@ export default function PickFinder() {
                       max="10"
                       value={filters.customModifiers.threePointersMade}
                       onChange={(e) => updateFilter('customModifiers', { ...filters.customModifiers, threePointersMade: Number(e.target.value) })}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500"
+                      className="w-full bg-secondary border border-border/80 rounded-lg px-3 py-1.5 text-foreground text-sm focus:outline-none focus:border-primary"
                     />
                   </div>
                 </div>
@@ -681,13 +680,13 @@ export default function PickFinder() {
 
           <div className="grid lg:grid-cols-2 gap-3">
             <div className="space-y-3">
-              <div className="border border-zinc-800 rounded-xl overflow-hidden bg-zinc-900/50">
-                <div className="px-5 py-4 border-b border-zinc-800">
-                  <h3 className="text-white font-medium">Recent Performance</h3>
-                  <p className="text-zinc-500 text-sm">Historical hit rates and trends</p>
+              <div className="border border-border/60 rounded-xl overflow-hidden bg-card/50">
+                <div className="px-5 py-4 border-b border-border/60">
+                  <h3 className="text-foreground font-medium">Recent Performance</h3>
+                  <p className="text-muted-foreground/80 text-sm">Historical hit rates and trends</p>
                 </div>
 
-                <div className="flex border-b border-zinc-800">
+                <div className="flex border-b border-border/60">
                   <TabButton
                     id="overall"
                     label="Overall"
@@ -719,7 +718,7 @@ export default function PickFinder() {
                     <div className="space-y-4">
                         <div>
                           <div className="flex items-center gap-2 mb-2">
-                            <label className="block text-zinc-400 text-sm">Time Window</label>
+                            <label className="block text-muted-foreground text-sm">Time Window</label>
                             <InfoTooltip content="Number of recent games to analyze for hit rate and trends." />
                           </div>
                           <Select value={filters.timeWindow.toString()} onValueChange={(v) => {
@@ -729,7 +728,7 @@ export default function PickFinder() {
                               updateFilter('consecutiveHits', 0);
                             }
                           }}>
-                            <SelectTrigger className="bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-white">
+                            <SelectTrigger className="bg-secondary border border-border/80 rounded-lg px-4 py-2.5 text-foreground">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -770,18 +769,18 @@ export default function PickFinder() {
                             onChange={(e) => updateFilter('enableContextSplit', e.target.checked)}
                             className="sr-only"
                           />
-                          <div className={`w-10 h-6 rounded-full transition-colors ${filters.enableContextSplit ? 'bg-blue-500' : 'bg-zinc-700'}`}>
+                          <div className={`w-10 h-6 rounded-full transition-colors ${filters.enableContextSplit ? 'bg-primary' : 'bg-secondary/80'}`}>
                             <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${filters.enableContextSplit ? 'translate-x-5' : 'translate-x-1'}`} />
                           </div>
                         </div>
-                        <span className="text-white text-sm font-medium">Enable Home/Away Split</span>
+                        <span className="text-foreground text-sm font-medium">Enable Home/Away Split</span>
                         <InfoTooltip content="Checks last X home games if playing at home today, or last X away games if playing away." />
                       </label>
 
                       {filters.enableContextSplit && (
                         <div className="ml-13 space-y-4">
                           <div>
-                            <label className="block text-zinc-400 text-sm mb-2">Time Window</label>
+                            <label className="block text-muted-foreground text-sm mb-2">Time Window</label>
                             <Select value={filters.contextTimeWindow.toString()} onValueChange={(v) => {
                               const newWindow = parseInt(v) as 3 | 5 | 10 | 15 | 20;
                               updateFilter('contextTimeWindow', newWindow);
@@ -789,7 +788,7 @@ export default function PickFinder() {
                                 updateFilter('contextConsecutiveHits', 0);
                               }
                             }}>
-                              <SelectTrigger className="bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-white">
+                              <SelectTrigger className="bg-secondary border border-border/80 rounded-lg px-4 py-2.5 text-foreground">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -832,18 +831,18 @@ export default function PickFinder() {
                             onChange={(e) => updateFilter('enableH2H', e.target.checked)}
                             className="sr-only"
                           />
-                          <div className={`w-10 h-6 rounded-full transition-colors ${filters.enableH2H ? 'bg-blue-500' : 'bg-zinc-700'}`}>
+                          <div className={`w-10 h-6 rounded-full transition-colors ${filters.enableH2H ? 'bg-primary' : 'bg-secondary/80'}`}>
                             <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${filters.enableH2H ? 'translate-x-5' : 'translate-x-1'}`} />
                           </div>
                         </div>
-                        <span className="text-white text-sm font-medium">Enable Head-to-Head</span>
+                        <span className="text-foreground text-sm font-medium">Enable Head-to-Head</span>
                         <InfoTooltip content="Analyzes last X games vs today's specific opponent only." />
                       </label>
 
                       {filters.enableH2H && (
                         <div className="ml-13 space-y-4">
                           <div>
-                            <label className="block text-zinc-400 text-sm mb-2">Time Window</label>
+                            <label className="block text-muted-foreground text-sm mb-2">Time Window</label>
                             <Select value={filters.h2hTimeWindow.toString()} onValueChange={(v) => {
                               const newWindow = parseInt(v) as 3 | 5 | 10 | 15 | 20;
                               updateFilter('h2hTimeWindow', newWindow);
@@ -851,7 +850,7 @@ export default function PickFinder() {
                                 updateFilter('h2hConsecutiveHits', 0);
                               }
                             }}>
-                              <SelectTrigger className="bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-white">
+                              <SelectTrigger className="bg-secondary border border-border/80 rounded-lg px-4 py-2.5 text-foreground">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -885,7 +884,7 @@ export default function PickFinder() {
                   )}
                 </div>
 
-                <div className="px-5 py-4 border-t border-zinc-800 bg-zinc-900/30">
+                <div className="px-5 py-4 border-t border-border/60 bg-card/30">
                   <label className="flex items-center gap-2 cursor-pointer group">
                     <div className="relative">
                       <input
@@ -894,29 +893,29 @@ export default function PickFinder() {
                         onChange={(e) => updateFilter('separatePlayoffStats', e.target.checked)}
                         className="sr-only"
                       />
-                      <div className={`w-10 h-6 rounded-full transition-colors ${filters.separatePlayoffStats ? 'bg-blue-500' : 'bg-zinc-700'}`}>
+                      <div className={`w-10 h-6 rounded-full transition-colors ${filters.separatePlayoffStats ? 'bg-primary' : 'bg-secondary/80'}`}>
                         <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${filters.separatePlayoffStats ? 'translate-x-5' : 'translate-x-1'}`} />
                       </div>
                     </div>
                     <div>
-                      <span className="text-white text-sm">Separate playoff and regular season</span>
-                      <p className="text-zinc-500 text-xs mt-0.5">Only use matching game type in historical analysis</p>
+                      <span className="text-foreground text-sm">Separate playoff and regular season</span>
+                      <p className="text-muted-foreground/80 text-xs mt-0.5">Only use matching game type in historical analysis</p>
                     </div>
                   </label>
                 </div>
               </div>
 
-            <div className="border border-zinc-800 rounded-xl overflow-hidden bg-zinc-900/50">
+            <div className="border border-border/60 rounded-xl overflow-hidden bg-card/50">
                 <button
                   onClick={() => toggleSection('ai')}
-                  className="w-full px-5 py-4 flex items-center justify-between hover:bg-zinc-800/50 transition-colors"
+                  className="w-full px-5 py-4 flex items-center justify-between hover:bg-secondary/50 transition-colors"
                 >
                   <div className="text-left">
-                    <h3 className="text-white font-medium">AI & Confidence</h3>
-                    <p className="text-zinc-500 text-sm">Model prediction settings</p>
+                    <h3 className="text-foreground font-medium">AI & Confidence</h3>
+                    <p className="text-muted-foreground/80 text-sm">Model prediction settings</p>
                   </div>
                   <svg
-                    className={`w-5 h-5 text-zinc-400 transition-transform ${expandedSections.ai ? 'rotate-180' : ''}`}
+                    className={`w-5 h-5 text-muted-foreground transition-transform ${expandedSections.ai ? 'rotate-180' : ''}`}
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -925,15 +924,15 @@ export default function PickFinder() {
                   </svg>
                 </button>
                 {expandedSections.ai && (
-                  <div className="px-5 pb-5 pt-2 border-t border-zinc-800">
+                  <div className="px-5 pb-5 pt-2 border-t border-border/60">
                     <div className="space-y-5">
                       <div>
                         <div className="flex items-center gap-2 mb-2">
-                          <label className="block text-zinc-400 text-sm">AI Agreement</label>
+                          <label className="block text-muted-foreground text-sm">AI Agreement</label>
                           <InfoTooltip content="Require the AI prediction to agree with your pick direction. Higher levels require stronger agreement with larger margins." />
                         </div>
                         <Select value={filters.aiAgreement} onValueChange={(v) => updateFilter('aiAgreement', v as any)}>
-                          <SelectTrigger className="bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-white">
+                          <SelectTrigger className="bg-secondary border border-border/80 rounded-lg px-4 py-2.5 text-foreground">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -954,21 +953,21 @@ export default function PickFinder() {
                               onChange={(e) => updateFilter('enableMinConfidence', e.target.checked)}
                               className="sr-only"
                             />
-                            <div className={`w-10 h-6 rounded-full transition-colors ${filters.enableMinConfidence ? 'bg-blue-500' : 'bg-zinc-700'}`}>
+                            <div className={`w-10 h-6 rounded-full transition-colors ${filters.enableMinConfidence ? 'bg-primary' : 'bg-secondary/80'}`}>
                               <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${filters.enableMinConfidence ? 'translate-x-5' : 'translate-x-1'}`} />
                             </div>
                           </div>
                           <div>
-                            <span className="text-white text-sm">Minimum confidence requirement</span>
-                            <p className="text-zinc-500 text-xs mt-0.5">Require AI predictions to meet confidence threshold</p>
+                            <span className="text-foreground text-sm">Minimum confidence requirement</span>
+                            <p className="text-muted-foreground/80 text-xs mt-0.5">Require AI predictions to meet confidence threshold</p>
                           </div>
                         </label>
 
                         {filters.enableMinConfidence && (
                           <div className="ml-13">
                             <div className="flex justify-between items-center mb-2">
-                              <label className="text-zinc-400 text-sm">AI Prediction Confidence</label>
-                              <span className="text-white text-sm font-medium">{filters.minConfidence}%</span>
+                              <label className="text-muted-foreground text-sm">AI Prediction Confidence</label>
+                              <span className="text-foreground text-sm font-medium">{filters.minConfidence}%</span>
                             </div>
                             <input
                               type="range"
@@ -976,9 +975,9 @@ export default function PickFinder() {
                               max={100}
                               value={filters.minConfidence}
                               onChange={(e) => updateFilter('minConfidence', Number(e.target.value))}
-                              className="w-full h-2 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                              className="w-full h-2 bg-secondary/80 rounded-lg appearance-none cursor-pointer accent-blue-500"
                             />
-                            <div className="flex justify-between text-xs text-zinc-500 mt-1">
+                            <div className="flex justify-between text-xs text-muted-foreground/80 mt-1">
                               <span>0%</span>
                               <span>100%</span>
                             </div>
@@ -992,17 +991,17 @@ export default function PickFinder() {
             </div>
 
             <div className="space-y-3">
-              <div className="border border-zinc-800 rounded-xl overflow-hidden bg-zinc-900/50">
+              <div className="border border-border/60 rounded-xl overflow-hidden bg-card/50">
                 <button
                   onClick={() => toggleSection('matchup')}
-                  className="w-full px-5 py-4 flex items-center justify-between hover:bg-zinc-800/50 transition-colors"
+                  className="w-full px-5 py-4 flex items-center justify-between hover:bg-secondary/50 transition-colors"
                 >
                   <div className="text-left">
-                    <h3 className="text-white font-medium">Matchup Advantage</h3>
-                    <p className="text-zinc-500 text-sm">Defense rankings and pace factors</p>
+                    <h3 className="text-foreground font-medium">Matchup Advantage</h3>
+                    <p className="text-muted-foreground/80 text-sm">Defense rankings and pace factors</p>
                   </div>
                   <svg
-                    className={`w-5 h-5 text-zinc-400 transition-transform ${expandedSections.matchup ? 'rotate-180' : ''}`}
+                    className={`w-5 h-5 text-muted-foreground transition-transform ${expandedSections.matchup ? 'rotate-180' : ''}`}
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -1011,7 +1010,7 @@ export default function PickFinder() {
                   </svg>
                 </button>
                 {expandedSections.matchup && (
-                  <div className="px-5 pb-5 pt-2 border-t border-zinc-800">
+                  <div className="px-5 pb-5 pt-2 border-t border-border/60">
                     <div className="space-y-4">
                       <div className="flex items-center justify-between gap-3">
                         <label className="flex items-start gap-3 cursor-pointer group flex-1">
@@ -1022,19 +1021,19 @@ export default function PickFinder() {
                               onChange={(e) => updateFilter('enablePositionDefense', e.target.checked)}
                               className="sr-only"
                             />
-                            <div className={`w-10 h-6 rounded-full transition-colors ${filters.enablePositionDefense ? 'bg-blue-500' : 'bg-zinc-700'}`}>
+                            <div className={`w-10 h-6 rounded-full transition-colors ${filters.enablePositionDefense ? 'bg-primary' : 'bg-secondary/80'}`}>
                               <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${filters.enablePositionDefense ? 'translate-x-5' : 'translate-x-1'}`} />
                             </div>
                           </div>
                           <div>
-                            <span className="text-white text-sm">Positional Defense Filter</span>
-                            <p className="text-zinc-500 text-xs mt-0.5">Target weak defenses at the player's position</p>
+                            <span className="text-foreground text-sm">Positional Defense Filter</span>
+                            <p className="text-muted-foreground/80 text-xs mt-0.5">Target weak defenses at the player's position</p>
                           </div>
                         </label>
                         {filters.enablePositionDefense && (
                           <div className="w-full sm:w-[140px]">
                             <Select value={filters.positionDefenseRank.toString()} onValueChange={(v) => updateFilter('positionDefenseRank', parseInt(v))}>
-                              <SelectTrigger className="bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-white">
+                              <SelectTrigger className="bg-secondary border border-border/80 rounded-lg px-4 py-2.5 text-foreground">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -1056,19 +1055,19 @@ export default function PickFinder() {
                               onChange={(e) => updateFilter('enableTeamDefense', e.target.checked)}
                               className="sr-only"
                             />
-                            <div className={`w-10 h-6 rounded-full transition-colors ${filters.enableTeamDefense ? 'bg-blue-500' : 'bg-zinc-700'}`}>
+                            <div className={`w-10 h-6 rounded-full transition-colors ${filters.enableTeamDefense ? 'bg-primary' : 'bg-secondary/80'}`}>
                               <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${filters.enableTeamDefense ? 'translate-x-5' : 'translate-x-1'}`} />
                             </div>
                           </div>
                           <div>
-                            <span className="text-white text-sm">Overall Team Defense Filter</span>
-                            <p className="text-zinc-500 text-xs mt-0.5">Consider overall team defensive rating</p>
+                            <span className="text-foreground text-sm">Overall Team Defense Filter</span>
+                            <p className="text-muted-foreground/80 text-xs mt-0.5">Consider overall team defensive rating</p>
                           </div>
                         </label>
                         {filters.enableTeamDefense && (
                           <div className="w-full sm:w-[140px]">
                             <Select value={filters.teamDefenseRank.toString()} onValueChange={(v) => updateFilter('teamDefenseRank', parseInt(v))}>
-                              <SelectTrigger className="bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-white">
+                              <SelectTrigger className="bg-secondary border border-border/80 rounded-lg px-4 py-2.5 text-foreground">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -1091,19 +1090,19 @@ export default function PickFinder() {
                               onChange={(e) => updateFilter('enablePace', e.target.checked)}
                               className="sr-only"
                             />
-                            <div className={`w-10 h-6 rounded-full transition-colors ${filters.enablePace ? 'bg-blue-500' : 'bg-zinc-700'}`}>
+                            <div className={`w-10 h-6 rounded-full transition-colors ${filters.enablePace ? 'bg-primary' : 'bg-secondary/80'}`}>
                               <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${filters.enablePace ? 'translate-x-5' : 'translate-x-1'}`} />
                             </div>
                           </div>
                           <div>
-                            <span className="text-white text-sm">Pace Filter</span>
-                            <p className="text-zinc-500 text-xs mt-0.5">Filter by game pace (recommended)</p>
+                            <span className="text-foreground text-sm">Pace Filter</span>
+                            <p className="text-muted-foreground/80 text-xs mt-0.5">Filter by game pace (recommended)</p>
                           </div>
                         </label>
                         {filters.enablePace && (
                           <div className="w-full sm:w-[140px]">
                             <Select value={filters.paceRequirement} onValueChange={(v) => updateFilter('paceRequirement', v as any)}>
-                              <SelectTrigger className="bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-white">
+                              <SelectTrigger className="bg-secondary border border-border/80 rounded-lg px-4 py-2.5 text-foreground">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -1122,17 +1121,17 @@ export default function PickFinder() {
               </div>
 
               
-              <div className="border border-zinc-800 rounded-xl overflow-hidden bg-zinc-900/50">
+              <div className="border border-border/60 rounded-xl overflow-hidden bg-card/50">
                 <button
                   onClick={() => toggleSection('reliability')}
-                  className="w-full px-5 py-4 flex items-center justify-between hover:bg-zinc-800/50 transition-colors"
+                  className="w-full px-5 py-4 flex items-center justify-between hover:bg-secondary/50 transition-colors"
                 >
                   <div className="text-left">
-                    <h3 className="text-white font-medium">Player & Schedule</h3>
-                    <p className="text-zinc-500 text-sm">Minutes, role, and rest considerations</p>
+                    <h3 className="text-foreground font-medium">Player & Schedule</h3>
+                    <p className="text-muted-foreground/80 text-sm">Minutes, role, and rest considerations</p>
                   </div>
                   <svg
-                    className={`w-5 h-5 text-zinc-400 transition-transform ${expandedSections.reliability ? 'rotate-180' : ''}`}
+                    className={`w-5 h-5 text-muted-foreground transition-transform ${expandedSections.reliability ? 'rotate-180' : ''}`}
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -1141,7 +1140,7 @@ export default function PickFinder() {
                   </svg>
                 </button>
                 {expandedSections.reliability && (
-                  <div className="px-5 pb-5 pt-2 border-t border-zinc-800">
+                  <div className="px-5 pb-5 pt-2 border-t border-border/60">
                     <div className="space-y-5">
                       <div className="space-y-4">
                         <label className="flex items-start gap-3 cursor-pointer group">
@@ -1152,22 +1151,22 @@ export default function PickFinder() {
                               onChange={(e) => updateFilter('enableMinMinutes', e.target.checked)}
                               className="sr-only"
                             />
-                            <div className={`w-10 h-6 rounded-full transition-colors ${filters.enableMinMinutes ? 'bg-blue-500' : 'bg-zinc-700'}`}>
+                            <div className={`w-10 h-6 rounded-full transition-colors ${filters.enableMinMinutes ? 'bg-primary' : 'bg-secondary/80'}`}>
                               <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${filters.enableMinMinutes ? 'translate-x-5' : 'translate-x-1'}`} />
                             </div>
                           </div>
                           <div>
-                            <span className="text-white text-sm">Minimum minutes requirement</span>
-                            <p className="text-zinc-500 text-xs mt-0.5">Require players to average minimum minutes played</p>
+                            <span className="text-foreground text-sm">Minimum minutes requirement</span>
+                            <p className="text-muted-foreground/80 text-xs mt-0.5">Require players to average minimum minutes played</p>
                           </div>
                         </label>
 
                         {filters.enableMinMinutes && (
                           <div className="ml-13 grid grid-cols-2 gap-4">
                             <div>
-                              <label className="block text-zinc-400 text-sm mb-2">Min. Minutes</label>
+                              <label className="block text-muted-foreground text-sm mb-2">Min. Minutes</label>
                               <Select value={filters.minMinutes.toString()} onValueChange={(v) => updateFilter('minMinutes', parseInt(v))}>
-                                <SelectTrigger className="bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-white">
+                                <SelectTrigger className="bg-secondary border border-border/80 rounded-lg px-4 py-2.5 text-foreground">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1179,9 +1178,9 @@ export default function PickFinder() {
                               </Select>
                             </div>
                             <div>
-                              <label className="block text-zinc-400 text-sm mb-2">Over Last</label>
+                              <label className="block text-muted-foreground text-sm mb-2">Over Last</label>
                               <Select value={filters.minMinutesWindow.toString()} onValueChange={(v) => updateFilter('minMinutesWindow', parseInt(v) as any)}>
-                                <SelectTrigger className="bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-white">
+                                <SelectTrigger className="bg-secondary border border-border/80 rounded-lg px-4 py-2.5 text-foreground">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1200,11 +1199,11 @@ export default function PickFinder() {
 
                       <div>
                         <div className="flex items-center gap-2 mb-2">
-                          <label className="block text-zinc-400 text-sm">Usage Rate</label>
+                          <label className="block text-muted-foreground text-sm">Usage Rate</label>
                           <InfoTooltip content="Filter by how much the player is involved in their team's plays. High usage players touch the ball more often." />
                         </div>
                         <Select value={filters.playerRole} onValueChange={(v) => updateFilter('playerRole', v as any)}>
-                          <SelectTrigger className="bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-white">
+                          <SelectTrigger className="bg-secondary border border-border/80 rounded-lg px-4 py-2.5 text-foreground">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1214,7 +1213,7 @@ export default function PickFinder() {
                         </Select>
                       </div>
 
-                      <div className="pt-3 border-t border-zinc-800">
+                      <div className="pt-3 border-t border-border/60">
                         <label className="flex items-start gap-3 cursor-pointer group">
                           <div className="relative mt-0.5">
                             <input
@@ -1223,13 +1222,13 @@ export default function PickFinder() {
                               onChange={(e) => updateFilter('excludeTiredVsRested', e.target.checked)}
                               className="sr-only"
                             />
-                            <div className={`w-10 h-6 rounded-full transition-colors ${filters.excludeTiredVsRested ? 'bg-blue-500' : 'bg-zinc-700'}`}>
+                            <div className={`w-10 h-6 rounded-full transition-colors ${filters.excludeTiredVsRested ? 'bg-primary' : 'bg-secondary/80'}`}>
                               <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${filters.excludeTiredVsRested ? 'translate-x-5' : 'translate-x-1'}`} />
                             </div>
                           </div>
                           <div>
-                            <span className="text-white text-sm">Exclude tired vs well-rested matchups</span>
-                            <p className="text-zinc-500 text-xs mt-0.5">Skip picks where player is on back-to-back and opponent is rested</p>
+                            <span className="text-foreground text-sm">Exclude tired vs well-rested matchups</span>
+                            <p className="text-muted-foreground/80 text-xs mt-0.5">Skip picks where player is on back-to-back and opponent is rested</p>
                           </div>
                         </label>
                       </div>
@@ -1244,7 +1243,7 @@ export default function PickFinder() {
           <div className="mt-6 flex gap-3">
             <button
               onClick={handleSearch}
-              className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2"
+              className="flex-1 bg-primary hover:bg-primary/90 text-foreground font-medium py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2"
             >
               <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -1253,7 +1252,7 @@ export default function PickFinder() {
             </button>
             <button
               onClick={handleReset}
-              className="px-6 py-3 text-zinc-400 hover:text-white border border-zinc-700 hover:border-zinc-600 rounded-xl transition-colors shrink-0"
+              className="px-6 py-3 text-muted-foreground hover:text-foreground border border-border/80 hover:border-border rounded-xl transition-colors shrink-0"
             >
               <span className="whitespace-nowrap">Reset</span>
             </button>
