@@ -4,6 +4,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from nba_api.stats.endpoints import leaguegamefinder, boxscoretraditionalv3, commonplayerinfo
 from utils import get_db_connection
 from datetime import datetime, timedelta
+from typing import Optional
 import time
 from requests.exceptions import ReadTimeout
 import math
@@ -54,7 +55,7 @@ def _relation_exists(cur, table_name: str, schema: str = "public") -> bool:
         return False
 
 
-def _exec_with_savepoint(cur, sql: str, params: tuple | None = None, sp_name: str = "sp_tmp") -> int:
+def _exec_with_savepoint(cur, sql: str, params: Optional[tuple] = None, sp_name: str = "sp_tmp") -> int:
     """
     Execute one statement inside a savepoint, so failures don't abort the whole transaction.
     Returns rowcount on success, 0 on failure (and clears the aborted state via rollback to savepoint).
