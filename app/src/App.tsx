@@ -27,6 +27,7 @@ import Friends from "./pages/dashboard/Friends";
 import MyGroups from "./pages/dashboard/MyGroups";
 import ModelPerformance from "./pages/dashboard/ModelPerformance";
 import Analytics from "./pages/dashboard/Analytics";
+import HowItWorks from "./pages/dashboard/HowItWorks";
 import Settings from "./pages/dashboard/Settings";
 import Notifications from "./pages/dashboard/Notifications";
 import NotFound from "./pages/NotFound";
@@ -135,6 +136,11 @@ const App = () => (
                     <Route path="analytics" element={
                       <ErrorBoundary>
                         <Analytics />
+                      </ErrorBoundary>
+                    } />
+                    <Route path="how-it-works" element={
+                      <ErrorBoundary>
+                        <HowItWorks />
                       </ErrorBoundary>
                     } />
                     <Route path="notifications" element={
