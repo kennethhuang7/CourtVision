@@ -55,7 +55,7 @@ def calculate_team_defensive_stats():
         if len(opponent_stats) == 0:
             continue
         
-        games_played = cur.execute("""
+        cur.execute("""
             SELECT COUNT(DISTINCT g.game_id)
             FROM games g
             WHERE g.season = %s
@@ -119,6 +119,21 @@ def calculate_team_defensive_stats():
                     opp_free_throw_rate
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (team_id, season) DO UPDATE SET
+                    games_played = EXCLUDED.games_played,
+                    opp_points_per_game = EXCLUDED.opp_points_per_game,
+                    opp_rebounds_per_game = EXCLUDED.opp_rebounds_per_game,
+                    opp_assists_per_game = EXCLUDED.opp_assists_per_game,
+                    opp_steals_per_game = EXCLUDED.opp_steals_per_game,
+                    opp_blocks_per_game = EXCLUDED.opp_blocks_per_game,
+                    opp_turnovers_per_game = EXCLUDED.opp_turnovers_per_game,
+                    opp_field_goal_pct = EXCLUDED.opp_field_goal_pct,
+                    opp_three_point_pct = EXCLUDED.opp_three_point_pct,
+                    opp_two_point_pct = EXCLUDED.opp_two_point_pct,
+                    opp_free_throw_pct = EXCLUDED.opp_free_throw_pct,
+                    opp_three_point_attempts_pg = EXCLUDED.opp_three_point_attempts_pg,
+                    opp_free_throw_attempts_pg = EXCLUDED.opp_free_throw_attempts_pg,
+                    opp_free_throw_rate = EXCLUDED.opp_free_throw_rate
             """, (
                 team_id,
                 season,
@@ -146,6 +161,7 @@ def calculate_team_defensive_stats():
                 
         except Exception as e:
             print(f"Error inserting team {team_id} season {season}: {e}")
+            conn.rollback()
             continue
     
     conn.commit()

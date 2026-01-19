@@ -56,6 +56,7 @@ def build_features_for_training():
         JOIN games g ON pgs.game_id = g.game_id
         JOIN players p ON pgs.player_id = p.player_id
         WHERE g.game_status = 'completed'
+          AND g.game_type IN ('regular_season', 'playoff')
         ORDER BY pgs.player_id, g.game_date
     """
     
