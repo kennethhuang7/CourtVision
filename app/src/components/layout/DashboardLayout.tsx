@@ -1,4 +1,5 @@
 import { Outlet, Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Sidebar } from './Sidebar';
 import { TitleBar } from './TitleBar';
@@ -18,11 +19,25 @@ import { useAutoRefreshInit } from '@/hooks/useAutoRefreshInit';
 import { useErrorLoggingInit } from '@/hooks/useErrorLoggingInit';
 import { useTrackCurrentSession } from '@/hooks/useSessions';
 import { DiscordPresence } from '@/components/DiscordPresence';
+import { cn } from '@/lib/utils';
 
 export function DashboardLayout() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const { isVisible, close } = useChatWindow();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    return localStorage.getItem('sidebar-collapsed') === 'true';
+  });
   useEnsureUserProfile();
+
+  useEffect(() => {
+    const handleSidebarCollapse = (e: CustomEvent<{ isCollapsed: boolean }>) => {
+      setSidebarCollapsed(e.detail.isCollapsed);
+    };
+    window.addEventListener('sidebar-collapse', handleSidebarCollapse as EventListener);
+    return () => {
+      window.removeEventListener('sidebar-collapse', handleSidebarCollapse as EventListener);
+    };
+  }, []);
   useAutoRefreshInit(); 
   useErrorLoggingInit(); 
   useTrackCurrentSession(); 
@@ -63,7 +78,10 @@ export function DashboardLayout() {
       <TitleBar />
       <div className="flex flex-1 pt-10 overflow-hidden">
         <Sidebar />
-        <main className="ml-64 flex-1 density-padding overflow-y-auto">
+        <main className={cn(
+          "flex-1 density-padding overflow-y-auto transition-all duration-300 ease-in-out",
+          sidebarCollapsed ? "ml-[4.5rem]" : "ml-64"
+        )}>
           <SupabaseConnectionStatus />
           <OfflineIndicator />
           <Outlet />
