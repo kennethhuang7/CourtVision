@@ -16,7 +16,8 @@ import {
   BellOff,
   Activity,
   Target,
-  Flame
+  Flame,
+  HelpCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -91,6 +92,7 @@ const socialNavigation = [
 const insightsNavigation = [
   { name: 'Model Performance', href: '/dashboard/model-performance', icon: BarChart3 },
   { name: 'Analytics', href: '/dashboard/analytics', icon: Activity },
+  { name: 'How It Works', href: '/dashboard/how-it-works', icon: HelpCircle },
 ];
 
 export function Sidebar() {
