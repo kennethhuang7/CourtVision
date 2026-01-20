@@ -7,6 +7,7 @@ import requests
 import time
 from bs4 import BeautifulSoup
 import re
+from nba_api.stats.endpoints import leaguegamefinder
 
 # RUN THIS:
 # python src/data_collection/collect_schedule_html.py
