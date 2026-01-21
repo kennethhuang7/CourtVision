@@ -64,7 +64,10 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   handleGoHome = () => {
-    window.location.href = '/dashboard';
+    // Use window.location for navigation in error boundary (can't use React Router hooks in class component)
+    // In Electron, this will work correctly with the base path
+    const basePath = import.meta.env.BASE_URL || '/';
+    window.location.href = `${basePath}dashboard`;
   };
 
   render() {

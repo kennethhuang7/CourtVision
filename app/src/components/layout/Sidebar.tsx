@@ -14,7 +14,7 @@ import {
   Bell,
   BellOff,
   Activity,
-  Target,
+  Search,
   Flame,
   HelpCircle,
   PanelLeftClose,
@@ -104,7 +104,7 @@ function DoNotDisturbToggle({ isCollapsed }: { isCollapsed?: boolean }) {
 
 const mainNavigation = [
   { name: 'Predictions', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Pick Finder', href: '/dashboard/pick-finder', icon: Target },
+  { name: 'Pick Finder', href: '/dashboard/pick-finder', icon: Search },
   { name: 'Player Analysis', href: '/dashboard/player-analysis', icon: Users },
   { name: 'My Picks', href: '/dashboard/saved-picks', icon: Trophy },
   { name: 'Trends', href: '/dashboard/trends', icon: Flame },
@@ -154,7 +154,8 @@ export function Sidebar() {
           to={item.href}
           className={() => cn(
             'group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200',
-            'hover:bg-accent/50',
+            'hover:bg-transparent hover:shadow-[0_14px_36px_-14px_rgba(99,102,241,0.75)] hover:ring-2 hover:ring-primary/35',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
             isActive
               ? 'bg-primary/10 text-foreground'
               : 'text-muted-foreground hover:text-foreground',
@@ -166,7 +167,7 @@ export function Sidebar() {
             <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full" />
           )}
           <item.icon className={cn(
-            'h-5 w-5 shrink-0 transition-all duration-200',
+            'h-5 w-5 shrink-0 transition-all duration-200 group-hover:scale-105',
             isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'
           )} />
           {!isCollapsed && (
@@ -208,6 +209,7 @@ export function Sidebar() {
       <Settings className="h-4 w-4" />
     </Button>
   );
+  const logoUrl = `${import.meta.env.BASE_URL}courtvision.png`;
 
   return (
     <aside className={cn(
@@ -221,7 +223,7 @@ export function Sidebar() {
           isCollapsed ? "flex-col gap-2 px-3 py-3" : "px-4 py-2 gap-3 min-h-[3.5rem]"
         )}>
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg overflow-hidden shadow-lg shadow-primary/10">
-            <img src="/courtvision.png" alt="CourtVision" className="h-full w-full object-contain" />
+            <img src={logoUrl} alt="CourtVision" className="h-full w-full object-contain" />
           </div>
           {isCollapsed ? (
             <Tooltip>
