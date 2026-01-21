@@ -92,16 +92,25 @@ export function useGameResultsUpdates() {
     currentGameIds.forEach(gameId => {
       if (!previousUpdatedGamesRef.current.has(gameId)) {
         newGameIds.push(gameId);
-        notify(
-          'gameResults',
-          'Game Results Updated',
-          'Game results have been updated',
-          {
-            tag: `game-results-${gameId}`,
-          }
-        );
       }
     });
+
+    if (newGameIds.length > 0) {
+      const count = newGameIds.length;
+      const message = count === 1
+        ? 'Results are available for 1 game you’re tracking.'
+        : `Results are available for ${count} games you’re tracking.`;
+
+      notify(
+        'gameResults',
+        'Game Results Updated',
+        message,
+        {
+          // Single tag prevents duplicate desktop toasts across games in this batch
+          tag: 'game-results-batch',
+        }
+      );
+    }
 
     if (newGameIds.length > 0) {
       supabase

@@ -11,7 +11,8 @@ function validateSettings(settings: Record<string, any>): Record<string, boolean
     'startWithSystem',
     'startMinimized',
     'alwaysOnTop',
-    'discordRichPresence'
+    'discordRichPresence',
+    'checkForUpdatesOnStartup'
   ];
 
   for (const key of allowedSettings) {
@@ -79,4 +80,24 @@ contextBridge.exposeInMainWorld('electron', {
   discordSetActivity: (activity: any) => ipcRenderer.invoke('discord-set-activity', activity),
   discordClearActivity: () => ipcRenderer.invoke('discord-clear-activity'),
   discordIsConnected: () => ipcRenderer.invoke('discord-is-connected'),
+
+  // OAuth methods for production Electron
+  getOAuthRedirectUrl: () => ipcRenderer.invoke('get-oauth-redirect-url'),
+  isElectronProduction: () => ipcRenderer.invoke('is-electron-production'),
+  onOAuthCallback: (callback: (tokens: { access_token: string; refresh_token?: string }) => void) => {
+    const handler = (_event: any, tokens: { access_token: string; refresh_token?: string }) => callback(tokens);
+    ipcRenderer.on('oauth-callback', handler);
+    return () => ipcRenderer.removeListener('oauth-callback', handler);
+  },
+
+  // Auto-updater methods
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  onUpdateStatus: (callback: (status: any) => void) => {
+    const handler = (_event: any, status: any) => callback(status);
+    ipcRenderer.on('update-status', handler);
+    return () => ipcRenderer.removeListener('update-status', handler);
+  },
 });

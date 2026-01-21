@@ -5,6 +5,7 @@ export interface AppSettings {
   startMinimized: boolean;
   alwaysOnTop: boolean;
   discordRichPresence: boolean;
+  checkForUpdatesOnStartup: boolean;
 }
 
 export interface CourtVisionFolders {
@@ -22,6 +23,23 @@ export interface DiscordActivity {
   largeImageText?: string;
   smallImageKey?: string;
   smallImageText?: string;
+}
+
+export interface OAuthTokens {
+  access_token: string;
+  refresh_token?: string;
+}
+
+export interface UpdateStatus {
+  status: 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
+  version?: string;
+  releaseNotes?: string;
+  releaseDate?: string;
+  percent?: number;
+  bytesPerSecond?: number;
+  transferred?: number;
+  total?: number;
+  error?: string;
 }
 
 export interface ElectronAPI {
@@ -47,6 +65,16 @@ export interface ElectronAPI {
   discordSetActivity: (activity: DiscordActivity) => Promise<void>;
   discordClearActivity: () => Promise<void>;
   discordIsConnected: () => Promise<boolean>;
+  // OAuth methods for production Electron
+  getOAuthRedirectUrl: () => Promise<string>;
+  isElectronProduction: () => Promise<boolean>;
+  onOAuthCallback: (callback: (tokens: OAuthTokens) => void) => () => void;
+  // Auto-updater methods
+  checkForUpdates: () => Promise<void>;
+  downloadUpdate: () => Promise<void>;
+  installUpdate: () => Promise<void>;
+  getAppVersion: () => Promise<string>;
+  onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void;
 }
 
 declare global {

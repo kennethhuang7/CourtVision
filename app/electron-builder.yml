@@ -7,6 +7,10 @@ files:
   - dist/**/*
   - dist-electron/**/*
   - package.json
+publish:
+  provider: github
+  owner: kennethhuang7
+  repo: CourtVision
 nsis:
   oneClick: false
   perMachine: false
@@ -17,3 +21,7 @@ win:
     - nsis
     - portable
   icon: public/courtvision.ico
+  protocol:
+    - name: courtvision
+      schemes:
+        - courtvision

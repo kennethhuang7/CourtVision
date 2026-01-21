@@ -164,23 +164,32 @@ export default function Predictions() {
           const normalizedSearch = cleanNameForMatching(playerSearch.toLowerCase());
           
           
-          const normalizedPlayerName = cleanNameForMatching(p.player.name.toLowerCase());
-          const playerMatch = normalizedPlayerName.includes(normalizedSearch) || 
-                             normalizedSearch.includes(normalizedPlayerName);
+          if (p.player?.name) {
+            const normalizedPlayerName = cleanNameForMatching(p.player.name.toLowerCase());
+            const playerMatch = normalizedPlayerName.includes(normalizedSearch) || 
+                               normalizedSearch.includes(normalizedPlayerName);
+            if (playerMatch) return true;
+          }
           
           
-          const playerTeamMatch = matchesTeamSearch(p.player.teamAbbr, p.player.team, normalizedSearch);
+          if (p.player?.teamAbbr && p.player?.team) {
+            const playerTeamMatch = matchesTeamSearch(p.player.teamAbbr, p.player.team, normalizedSearch);
+            if (playerTeamMatch) return true;
+          }
           
           
           const opponentAbbr = p.isHome ? game.awayTeamAbbr : game.homeTeamAbbr;
           const opponentName = p.isHome ? game.awayTeam : game.homeTeam;
-          const opponentTeamMatch = matchesTeamSearch(opponentAbbr, opponentName, normalizedSearch);
+          if (opponentAbbr && opponentName) {
+            const opponentTeamMatch = matchesTeamSearch(opponentAbbr, opponentName, normalizedSearch);
+            if (opponentTeamMatch) return true;
+          }
           
-          if (!playerMatch && !playerTeamMatch && !opponentTeamMatch) return false;
+          return false;
         }
 
         
-        if (positionFilter !== 'all') {
+        if (positionFilter !== 'all' && p.player?.position) {
           const positionMap: Record<string, string[]> = {
             guard: ['Guard', 'PG', 'SG'],
             forward: ['Forward', 'SF', 'PF'],
@@ -423,14 +432,6 @@ export default function Predictions() {
           </>
         ) : (
           <>
-            {/* If we already have data, keep showing it while background refreshes happen */}
-            {isFetching && (
-              <div className="rounded-lg border border-border bg-card/50 px-3 py-2 text-xs text-muted-foreground flex items-center gap-2">
-                <Clock className="h-3.5 w-3.5 shrink-0" />
-                <span className="whitespace-nowrap">Refreshing in background…</span>
-              </div>
-            )}
-
             {filteredGames.length > 0 ? (
           filteredGames.map(game => (
             <GameSection key={game.id} game={game} showCompare={isPastDate} />
