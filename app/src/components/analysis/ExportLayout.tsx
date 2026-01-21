@@ -31,6 +31,7 @@ export function ExportLayout({
   height,
 }: ExportLayoutProps) {
   const isLightTheme = theme === 'light';
+  const logoUrl = `${import.meta.env.BASE_URL}courtvision.png`;
 
   return (
     <div
@@ -204,7 +205,7 @@ export function ExportLayout({
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <img
-              src="/courtvision.png"
+              src={logoUrl}
               alt="CourtVision"
               style={{
                 width: '32px',

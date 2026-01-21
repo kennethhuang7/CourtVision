@@ -3,10 +3,12 @@ const path = require('path');
 const { join } = path;
 const StoreModule = require('electron-store');
 const RPC = require('discord-rpc');
+const { autoUpdater } = require('electron-updater');
 
 const Store = StoreModule.default || StoreModule;
 
 const DISCORD_CLIENT_ID = '1459638871594635356';
+const OAUTH_PROTOCOL = 'courtvision';
 
 let discordClient: any = null;
 let isDiscordConnected = false;
@@ -121,6 +123,140 @@ function isDiscordRPCConnected(): boolean {
   return isDiscordConnected;
 }
 
+// Auto-updater configuration
+let updateAvailable = false;
+let updateDownloaded = false;
+let updateInfo: any = null;
+
+function initAutoUpdater() {
+  // Configure auto-updater
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = false;
+
+  autoUpdater.on('checking-for-update', () => {
+    if (win) {
+      win.webContents.send('update-status', { status: 'checking' });
+    }
+  });
+
+  autoUpdater.on('update-available', (info: any) => {
+    updateAvailable = true;
+    updateInfo = info;
+    if (win) {
+      win.webContents.send('update-status', {
+        status: 'available',
+        version: info.version,
+        releaseNotes: info.releaseNotes,
+        releaseDate: info.releaseDate,
+      });
+    }
+  });
+
+  autoUpdater.on('update-not-available', (info: any) => {
+    updateAvailable = false;
+    updateInfo = info;
+    if (win) {
+      win.webContents.send('update-status', {
+        status: 'not-available',
+        version: app.getVersion(), // Use current app version, not info.version which may not exist
+      });
+    }
+  });
+
+  autoUpdater.on('download-progress', (progress: any) => {
+    if (win) {
+      win.webContents.send('update-status', {
+        status: 'downloading',
+        percent: progress.percent,
+        bytesPerSecond: progress.bytesPerSecond,
+        transferred: progress.transferred,
+        total: progress.total,
+      });
+    }
+  });
+
+  autoUpdater.on('update-downloaded', (info: any) => {
+    updateDownloaded = true;
+    updateInfo = info;
+    if (win) {
+      win.webContents.send('update-status', {
+        status: 'downloaded',
+        version: info.version,
+      });
+    }
+  });
+
+  autoUpdater.on('error', (err: Error) => {
+    logMainError('Auto-updater error', err);
+    if (win) {
+      win.webContents.send('update-status', {
+        status: 'error',
+        error: err.message,
+      });
+    }
+  });
+}
+
+function checkForUpdates() {
+  if (isDev) {
+    // In dev mode, simulate no update available
+    if (win) {
+      win.webContents.send('update-status', {
+        status: 'not-available',
+        version: app.getVersion(),
+      });
+    }
+    return;
+  }
+  autoUpdater.checkForUpdates().catch((err: Error) => {
+    logMainError('Failed to check for updates', err);
+  });
+}
+
+function downloadUpdate() {
+  if (isDev) {
+    if (win) {
+      win.webContents.send('update-status', {
+        status: 'error',
+        error: 'Updates are not available in development mode',
+      });
+    }
+    return;
+  }
+  if (!updateAvailable) {
+    if (win) {
+      win.webContents.send('update-status', {
+        status: 'error',
+        error: 'No update available to download',
+      });
+    }
+    return;
+  }
+  autoUpdater.downloadUpdate().catch((err: Error) => {
+    logMainError('Failed to download update', err);
+    if (win) {
+      win.webContents.send('update-status', {
+        status: 'error',
+        error: err.message || 'Failed to download update',
+      });
+    }
+  });
+}
+
+function installUpdate() {
+  if (!updateDownloaded || isDev) {
+    if (win) {
+      win.webContents.send('update-status', {
+        status: 'error',
+        error: isDev ? 'Updates are not available in development mode' : 'Update not downloaded yet',
+      });
+    }
+    return;
+  }
+  // quitAndInstall will close the app, install the update, and restart it
+  // The second parameter (true) means it will restart the app after installation
+  autoUpdater.quitAndInstall(false, true);
+}
 
 app.commandLine.appendSwitch('disable-http2');
 
@@ -133,6 +269,7 @@ const store = new Store({
     startMinimized: false,
     alwaysOnTop: false,
     discordRichPresence: false,
+    checkForUpdatesOnStartup: true,
   },
 });
 
@@ -150,6 +287,68 @@ if (isDev) {
   process.env.VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
 } else {
   process.env.DIST = join(__dirname, '../dist');
+}
+
+// Protocol registration will happen in app.whenReady() to ensure proper timing
+
+// Handle OAuth callback URL from custom protocol
+function handleOAuthCallback(url: string) {
+  if (!url || !win) return;
+
+  try {
+    const parsedUrl = new URL(url);
+
+    // Extract hash fragment (contains tokens) or query params (contains errors)
+    const hashParams = new URLSearchParams(parsedUrl.hash.slice(1));
+    const queryParams = new URLSearchParams(parsedUrl.search);
+
+    // Check for errors first
+    const error = queryParams.get('error') || hashParams.get('error');
+    const errorDescription = queryParams.get('error_description') || hashParams.get('error_description');
+
+    if (error) {
+      win.webContents.send('oauth-callback', {
+        error,
+        errorDescription: errorDescription || 'Authentication failed'
+      });
+      return;
+    }
+
+    // Extract tokens from hash (Supabase uses hash fragment for tokens)
+    const accessToken = hashParams.get('access_token');
+    const refreshToken = hashParams.get('refresh_token');
+    const expiresIn = hashParams.get('expires_in');
+    const tokenType = hashParams.get('token_type');
+
+    if (accessToken) {
+      win.webContents.send('oauth-callback', {
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        expires_in: expiresIn ? parseInt(expiresIn) : null,
+        token_type: tokenType,
+      });
+    } else {
+      win.webContents.send('oauth-callback', {
+        error: 'no_tokens',
+        errorDescription: 'No authentication tokens received'
+      });
+    }
+  } catch (err) {
+    logMainError('Failed to handle OAuth callback', err);
+    if (win) {
+      win.webContents.send('oauth-callback', {
+        error: 'parse_error',
+        errorDescription: 'Failed to process authentication response'
+      });
+    }
+  }
+
+  // Focus the window after OAuth
+  if (win) {
+    if (win.isMinimized()) win.restore();
+    if (!win.isVisible()) win.show();
+    win.focus();
+  }
 }
 
 process.env.PUBLIC = app.isPackaged
@@ -172,6 +371,7 @@ async function createWindow() {
   );
 
   const startMinimized = store.get('startMinimized', false);
+  const minimizeToTray = store.get('minimizeToTray', false);
   const alwaysOnTop = store.get('alwaysOnTop', false);
 
   
@@ -450,10 +650,16 @@ if (!gotTheLock) {
   app.quit();
 } else {
   
-  app.on('second-instance', () => {
-    
+  app.on('second-instance', (event, commandLine) => {
+    // Check if this is an OAuth callback (Windows/Linux)
+    const oauthUrl = commandLine.find(arg => arg.startsWith(`${OAUTH_PROTOCOL}://`));
+    if (oauthUrl) {
+      handleOAuthCallback(oauthUrl);
+      return;
+    }
+
+    // Normal second instance handling
     if (win) {
-      
       if (win.isMinimized()) {
         win.restore();
       }
@@ -464,8 +670,45 @@ if (!gotTheLock) {
     }
   });
 
+  // Handle OAuth callback on macOS
+  app.on('open-url', (event, url) => {
+    event.preventDefault();
+    if (url.startsWith(`${OAUTH_PROTOCOL}://`)) {
+      handleOAuthCallback(url);
+    }
+  });
+
   app.whenReady().then(() => {
+    // Register custom protocol for OAuth callbacks
+    // This must be registered in both dev and production for OAuth to work
+    // In production, electron-builder also registers it, but calling it here ensures it works
+    if (process.defaultApp || isDev) {
+      // Dev mode or running as default app
+      if (process.platform === 'win32') {
+        // On Windows, we need to specify the executable path
+        const exePath = process.execPath;
+        app.setAsDefaultProtocolClient(OAUTH_PROTOCOL, exePath);
+      } else {
+        app.setAsDefaultProtocolClient(OAUTH_PROTOCOL);
+      }
+    } else {
+      // Production mode - protocol is also registered by electron-builder, but ensure it's set
+      app.setAsDefaultProtocolClient(OAUTH_PROTOCOL);
+    }
+    
     applyInstallerStoragePath();
+    
+    // Handle OAuth callback if app was launched with OAuth URL (first instance)
+    if (process.platform === 'win32' || process.platform === 'linux') {
+      const oauthUrl = process.argv.find(arg => arg.startsWith(`${OAUTH_PROTOCOL}://`));
+      if (oauthUrl) {
+        // Delay handling to ensure window is created first
+        setTimeout(() => {
+          handleOAuthCallback(oauthUrl);
+        }, 1000);
+      }
+    }
+    
     createWindow();
 
 
@@ -482,6 +725,17 @@ if (!gotTheLock) {
 
     if (store.get('discordRichPresence', false)) {
       initDiscordRPC();
+    }
+
+    // Initialize auto-updater
+    initAutoUpdater();
+
+    // Check for updates on startup if enabled
+    if (store.get('checkForUpdatesOnStartup', true)) {
+      // Delay the check slightly to let the app fully load
+      setTimeout(() => {
+        checkForUpdates();
+      }, 3000);
     }
   });
 }
@@ -541,6 +795,7 @@ ipcMain.handle('get-app-settings', () => {
     startMinimized: store.get('startMinimized', false),
     alwaysOnTop: store.get('alwaysOnTop', false),
     discordRichPresence: store.get('discordRichPresence', false),
+    checkForUpdatesOnStartup: store.get('checkForUpdatesOnStartup', true),
   };
 });
 
@@ -596,6 +851,10 @@ ipcMain.handle('set-app-settings', (event, settings) => {
     } else {
       destroyDiscordRPC();
     }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(settings, 'checkForUpdatesOnStartup')) {
+    store.set('checkForUpdatesOnStartup', settings.checkForUpdatesOnStartup);
   }
 
   return { success: true };
@@ -903,4 +1162,33 @@ ipcMain.handle('discord-clear-activity', () => {
 
 ipcMain.handle('discord-is-connected', () => {
   return isDiscordRPCConnected();
+});
+
+// Update handlers
+ipcMain.handle('check-for-updates', () => {
+  checkForUpdates();
+});
+
+ipcMain.handle('download-update', () => {
+  downloadUpdate();
+});
+
+ipcMain.handle('install-update', () => {
+  installUpdate();
+});
+
+ipcMain.handle('get-app-version', () => {
+  return app.getVersion();
+});
+
+// OAuth helpers
+ipcMain.handle('get-oauth-redirect-url', () => {
+  // Always use custom protocol for OAuth redirects in Electron
+  // This ensures OAuth works properly in both dev and production
+  // The custom protocol handler will catch the redirect and process it
+  return `${OAUTH_PROTOCOL}://auth/callback`;
+});
+
+ipcMain.handle('is-electron-production', () => {
+  return !isDev;
 });

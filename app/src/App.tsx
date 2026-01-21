@@ -16,6 +16,7 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import VerifyEmail from "./pages/VerifyEmail";
+import CompleteProfile from "./pages/CompleteProfile";
 import Predictions from "./pages/dashboard/Predictions";
 import PlayerAnalysis from "./pages/dashboard/PlayerAnalysis";
 import PickFinder from "./pages/dashboard/PickFinder";
@@ -76,6 +77,11 @@ const App = () => (
                   <Route path="/verify-email" element={
                     <ErrorBoundary>
                       <VerifyEmail />
+                    </ErrorBoundary>
+                  } />
+                  <Route path="/complete-profile" element={
+                    <ErrorBoundary>
+                      <CompleteProfile />
                     </ErrorBoundary>
                   } />
                   <Route path="/dashboard" element={
@@ -146,6 +152,11 @@ const App = () => (
                     <Route path="notifications" element={
                       <ErrorBoundary>
                         <Notifications />
+                      </ErrorBoundary>
+                    } />
+                    <Route path="settings" element={
+                      <ErrorBoundary>
+                        <Settings />
                       </ErrorBoundary>
                     } />
                   </Route>

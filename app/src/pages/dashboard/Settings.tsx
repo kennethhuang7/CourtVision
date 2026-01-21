@@ -50,7 +50,7 @@ import { DeviceManagement } from '@/components/settings/DeviceManagement';
 import { ExportDataSection } from '@/components/settings/ExportDataSection';
 import { DangerZone } from '@/components/settings/DangerZone';
 import { getAvailableSounds, type NotificationSoundType } from '@/lib/notificationSounds';
-import { Volume2, FolderOpen, FileText, Image as ImageIcon, CheckCircle2, Info, Database as DatabaseIcon } from 'lucide-react';
+import { Volume2, FolderOpen, FileText, Image as ImageIcon, CheckCircle2, Info, Database as DatabaseIcon, Download, AlertCircle } from 'lucide-react';
 import { logger } from '@/lib/logger';
 
 
@@ -209,7 +209,72 @@ export default function Settings() {
     }
   }, []);
 
-  
+  // Get app version and listen for update status
+  useEffect(() => {
+    if (!window.electron) return;
+
+    // Get current app version
+    window.electron.getAppVersion?.().then((version) => {
+      setCurrentVersion(version);
+    }).catch(() => {
+      // Ignore errors
+    });
+
+    // Use a ref to track previous status for toast notifications
+    let previousStatus = updateStatus.status;
+
+    // Listen for update status events
+    const cleanup = window.electron.onUpdateStatus?.((status) => {
+      const oldStatus = previousStatus;
+      previousStatus = status.status; // Update ref before setState
+      
+      setUpdateStatus({
+        status: status.status,
+        version: status.version,
+        percent: status.percent,
+        error: status.error,
+      });
+
+      // Show toast notifications for important update events
+      if (status.status === 'available' && oldStatus !== 'available') {
+        toast.info(`Update available: v${status.version}`, {
+          description: 'Click Download in Settings to install the update.',
+          duration: 10000,
+        });
+      } else if (status.status === 'downloaded' && oldStatus !== 'downloaded') {
+        toast.success(`Update v${status.version} ready to install`, {
+          description: 'Click "Install & Restart" to apply the update.',
+          duration: 10000,
+        });
+      } else if (status.status === 'error' && oldStatus !== 'error') {
+        toast.error('Update check failed', {
+          description: status.error || 'Failed to check for updates. Please try again.',
+        });
+      }
+    });
+
+    return () => {
+      cleanup?.();
+    };
+  }, []);
+
+  const handleCheckForUpdates = async () => {
+    if (!window.electron?.checkForUpdates) return;
+    setUpdateStatus({ status: 'checking' });
+    await window.electron.checkForUpdates();
+  };
+
+  const handleDownloadUpdate = async () => {
+    if (!window.electron?.downloadUpdate) return;
+    await window.electron.downloadUpdate();
+  };
+
+  const handleInstallUpdate = async () => {
+    if (!window.electron?.installUpdate) return;
+    await window.electron.installUpdate();
+  };
+
+
   const handleAppSettingChange = async (key: keyof typeof appSettings, value: boolean) => {
     if (!window.electron?.setAppSettings || !appSettings) return;
 
@@ -331,8 +396,18 @@ export default function Settings() {
     startMinimized: boolean;
     alwaysOnTop: boolean;
     discordRichPresence: boolean;
+    checkForUpdatesOnStartup: boolean;
   } | null>(null);
   const [isLoadingAppSettings, setIsLoadingAppSettings] = useState(false);
+
+  // Update-related state
+  const [updateStatus, setUpdateStatus] = useState<{
+    status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
+    version?: string;
+    percent?: number;
+    error?: string;
+  }>({ status: 'idle' });
+  const [currentVersion, setCurrentVersion] = useState<string>('');
 
   
   useEffect(() => {
@@ -2942,6 +3017,94 @@ export default function Settings() {
                         checked={appSettings.discordRichPresence}
                         onCheckedChange={(enabled) => handleAppSettingChange('discordRichPresence', enabled)}
                       />
+                    </div>
+                  </div>
+                </SettingsSection>
+
+                <SettingsSection title="Updates" description="Keep CourtVision up to date with the latest features and fixes.">
+                  <div className="space-y-4">
+                    {/* Current Version */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>Current Version</Label>
+                        <p className="text-sm text-muted-foreground">
+                          {currentVersion ? `v${currentVersion}` : 'Loading...'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Check for updates on startup */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>Check for Updates on Startup</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Automatically check for updates when the application starts.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={appSettings.checkForUpdatesOnStartup}
+                        onCheckedChange={(enabled) => handleAppSettingChange('checkForUpdatesOnStartup', enabled)}
+                      />
+                    </div>
+
+                    {/* Manual check for updates */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <Label>Check for Updates</Label>
+                        <p className="text-sm text-muted-foreground">
+                          {updateStatus.status === 'idle' && 'Click to check for available updates.'}
+                          {updateStatus.status === 'checking' && 'Checking for updates...'}
+                          {updateStatus.status === 'not-available' && 'You are on the latest version.'}
+                          {updateStatus.status === 'available' && `Update available: v${updateStatus.version}`}
+                          {updateStatus.status === 'downloading' && `Downloading update... ${Math.round(updateStatus.percent || 0)}%`}
+                          {updateStatus.status === 'downloaded' && `Update v${updateStatus.version} ready to install.`}
+                          {updateStatus.status === 'error' && `Error: ${updateStatus.error || 'Failed to check for updates'}`}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        {updateStatus.status === 'idle' && (
+                          <Button variant="outline" size="sm" onClick={handleCheckForUpdates}>
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Check Now
+                          </Button>
+                        )}
+                        {updateStatus.status === 'checking' && (
+                          <Button variant="outline" size="sm" disabled>
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            Checking...
+                          </Button>
+                        )}
+                        {updateStatus.status === 'not-available' && (
+                          <Button variant="outline" size="sm" onClick={handleCheckForUpdates}>
+                            <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
+                            Up to Date
+                          </Button>
+                        )}
+                        {updateStatus.status === 'available' && (
+                          <Button variant="hero" size="sm" onClick={handleDownloadUpdate}>
+                            <Download className="h-4 w-4 mr-2" />
+                            Download
+                          </Button>
+                        )}
+                        {updateStatus.status === 'downloading' && (
+                          <Button variant="outline" size="sm" disabled>
+                            <Download className="h-4 w-4 mr-2 animate-pulse" />
+                            {Math.round(updateStatus.percent || 0)}%
+                          </Button>
+                        )}
+                        {updateStatus.status === 'downloaded' && (
+                          <Button variant="hero" size="sm" onClick={handleInstallUpdate}>
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Install & Restart
+                          </Button>
+                        )}
+                        {updateStatus.status === 'error' && (
+                          <Button variant="outline" size="sm" onClick={handleCheckForUpdates}>
+                            <AlertCircle className="h-4 w-4 mr-2 text-destructive" />
+                            Retry
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </SettingsSection>

@@ -20,14 +20,20 @@ import { useErrorLoggingInit } from '@/hooks/useErrorLoggingInit';
 import { useTrackCurrentSession } from '@/hooks/useSessions';
 import { DiscordPresence } from '@/components/DiscordPresence';
 import { cn } from '@/lib/utils';
+import { useUserProfile } from '@/hooks/useUserProfile';
+import { OAUTH_PENDING_PREFIX } from '@/hooks/useEnsureUserProfile';
 
 export function DashboardLayout() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const { isVisible, close } = useChatWindow();
+  const { data: userProfile, isLoading: isProfileLoading } = useUserProfile();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     return localStorage.getItem('sidebar-collapsed') === 'true';
   });
   useEnsureUserProfile();
+
+  // Check if OAuth user needs to complete profile (has pending username)
+  const needsProfileCompletion = userProfile?.username?.startsWith(OAUTH_PENDING_PREFIX) ?? false;
 
   useEffect(() => {
     const handleSidebarCollapse = (e: CustomEvent<{ isCollapsed: boolean }>) => {
@@ -52,7 +58,8 @@ export function DashboardLayout() {
   useFriendRequests(); 
   useGroupInvites(); 
 
-  if (isLoading) {
+  // Show loading while checking auth and profile
+  if (isLoading || isProfileLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -67,9 +74,14 @@ export function DashboardLayout() {
     return <Navigate to="/login" replace />;
   }
 
-  
+
   if (user && !user.emailConfirmed) {
     return <Navigate to="/verify-email" replace />;
+  }
+
+  // Redirect OAuth users who haven't completed their profile
+  if (needsProfileCompletion === true) {
+    return <Navigate to="/complete-profile" replace />;
   }
 
   return (
