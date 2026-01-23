@@ -2,12 +2,17 @@ import requests
 from datetime import datetime, timedelta
 import json
 import sys
+import os
 
 # RUN THIS:
 # python src/database/test_api.py
 
-API_BASE_URL = "https://ooxcscccfhtawrjopkob.supabase.co/rest/v1"
-API_KEY = "***REMOVED_API_KEY***"
+API_BASE_URL = os.environ.get("SUPABASE_URL", "https://ooxcscccfhtawrjopkob.supabase.co/rest/v1")
+API_KEY = os.environ.get("SUPABASE_ANON_KEY")
+
+if not API_KEY:
+    print("Error: SUPABASE_ANON_KEY environment variable not set")
+    sys.exit(1)
 
 headers = {
     "apikey": API_KEY,
