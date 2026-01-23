@@ -68,6 +68,7 @@ export interface Game {
 }
 
 export interface HistoricalGame {
+  gameType?: string;
   id: string;
   date: string;
   opponent: string;

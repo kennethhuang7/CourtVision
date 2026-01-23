@@ -9,9 +9,13 @@ import { cn } from '@/lib/utils';
 interface PlayerCardProps {
   prediction: Prediction;
   showCompare?: boolean;
+  gameContext?: {
+    homeTeamAbbr: string;
+    awayTeamAbbr: string;
+  };
 }
 
-export function PlayerCard({ prediction, showCompare = false }: PlayerCardProps) {
+export function PlayerCard({ prediction, showCompare = false, gameContext }: PlayerCardProps) {
   const [compareOpen, setCompareOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const { player, predictedStats, actualStats, confidence, isHome } = prediction;
@@ -60,7 +64,7 @@ export function PlayerCard({ prediction, showCompare = false }: PlayerCardProps)
         </div>
 
         <div className="flex flex-col justify-center w-[180px] md:w-[220px] flex-shrink-0 z-10 pointer-events-none min-w-0">
-          <div className="flex items-center gap-2 mb-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1.5 min-w-0">
             <h3 className="text-base md:text-lg font-bold text-foreground truncate leading-tight group-hover:text-primary transition-colors flex-1 min-w-0">{player.name}</h3>
             <TrendingUp className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
@@ -75,8 +79,13 @@ export function PlayerCard({ prediction, showCompare = false }: PlayerCardProps)
               <MapPin className="h-3 w-3 shrink-0" />
               <span className="whitespace-nowrap">{isHome ? 'HOME' : 'AWAY'}</span>
             </span>
+            {gameContext && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-muted/50 text-muted-foreground border border-border/50">
+                {gameContext.awayTeamAbbr} @ {gameContext.homeTeamAbbr}
+              </span>
+            )}
+            <span className="text-xs text-muted-foreground">{player.position} • {player.teamAbbr}</span>
           </div>
-          <div className="text-xs text-muted-foreground mt-1 truncate leading-tight">{player.position} • {player.teamAbbr}</div>
         </div>
 
         <div className="flex-1 grid grid-cols-7 gap-2 md:gap-4 z-10 pointer-events-none">
