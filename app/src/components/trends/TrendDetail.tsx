@@ -12,26 +12,61 @@ export function TrendDetail({ trend }: TrendDetailProps) {
   const [activeTab, setActiveTab] = useState<'last10' | 'h2h' | 'splits'>('last10');
 
   
-  const { data: allGames = [], isLoading } = usePlayerHistoricalGames(trend.playerId);
+  // Use the trend's gameDate directly - this is the date of the upcoming game for this trend
+  const gameDate = new Date(trend.gameDate);
+  const { data: allGames = [], isLoading } = usePlayerHistoricalGames(trend.playerId, 50, gameDate);
 
   
   const filteredGames = useMemo(() => {
     if (!allGames.length) return [];
 
+    let games = [...allGames];
+    
+    // Filter to only show games before the trend's game date and matching game type (same as trend calculation)
+    // Use the trend's gameDate string directly to avoid timezone issues
+    const trendDateStr = trend.gameDate.split('T')[0];
+    games = games.filter(game => {
+      // Parse the game date string directly (avoiding timezone conversion)
+      const gameDateStr = game.date.includes('T') ? game.date.split('T')[0] : game.date.split(' ')[0];
+      
+      // Only include games strictly before the trend's game date
+      if (gameDateStr >= trendDateStr) return false;
+      
+      // Filter by game type if trend has it (trend calculation filters by game_type)
+      if (trend.gameType && game.gameType && game.gameType !== trend.gameType) {
+        return false;
+      }
+      
+      // Filter by season to match trend calculation (only use games from same season)
+      if (trend.season && game.season && game.season !== trend.season) {
+        return false;
+      }
+      
+      return true;
+    });
+    
     switch (activeTab) {
       case 'last10':
-        return allGames.slice(0, 10);
+        games = games.slice(0, 10);
+        break;
 
       case 'h2h':
-        return allGames.filter(game => game.opponentAbbr === trend.opponentAbbr);
+        games = games.filter(game => game.opponentAbbr === trend.opponentAbbr);
+        break;
 
       case 'splits':
-        return allGames.filter(game => game.isHome === trend.isHome);
+        games = games.filter(game => game.isHome === trend.isHome);
+        break;
 
       default:
-        return allGames.slice(0, 10);
+        games = games.slice(0, 10);
     }
-  }, [allGames, activeTab, trend.opponentAbbr, trend.isHome]);
+    
+    // Ensure games are sorted by date descending (most recent first)
+    games.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    return games;
+  }, [allGames, activeTab, trend.opponentAbbr, trend.isHome, gameDate]);
 
   const getStatLabel = (statType: string): string => {
     const labels: Record<string, string> = {
@@ -57,7 +92,8 @@ export function TrendDetail({ trend }: TrendDetailProps) {
       turnovers: 'turnovers',
       threePointersMade: 'threePointersMade',
     };
-    return stats[statMap[statType]] ?? 0;
+    const value = stats[statMap[statType]] ?? 0;
+    return typeof value === 'number' ? value : Number(value) || 0;
   };
 
   return (

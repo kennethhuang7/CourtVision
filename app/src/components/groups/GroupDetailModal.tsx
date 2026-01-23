@@ -332,7 +332,7 @@ export function GroupDetailModal({ groupId, open, onOpenChange }: GroupDetailMod
           onOpenChange(newOpen);
         }}
       >
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto [&>button]:hidden">
           <DialogHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -398,6 +398,14 @@ export function GroupDetailModal({ groupId, open, onOpenChange }: GroupDetailMod
                     )}
                   </>
                 )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onOpenChange(false)}
+                  title="Close"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
             </div>
           </DialogHeader>

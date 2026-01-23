@@ -6,8 +6,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Combobox } from '@/components/ui/combobox';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { DatePicker } from '@/components/ui/date-picker';
 import { useSupabasePredictions } from '@/hooks/useSupabasePredictions';
 import { usePlayerHistoricalGames } from '@/hooks/usePlayerHistoricalGames';
 import { useSavePick } from '@/hooks/useSavePick';
@@ -1148,27 +1147,11 @@ export default function PlayerAnalysis() {
             <h1 className="text-3xl font-bold text-foreground">Player Analysis</h1>
             <p className="text-muted-foreground">Analyze historical performance and betting lines</p>
           </div>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className="gap-2 relative group overflow-hidden transition-all duration-300 hover:border-primary/50"
-              >
-                <Calendar className="h-4 w-4 relative z-10 shrink-0" />
-                <span className="relative z-10 whitespace-nowrap">{formatUserDate(selectedDate, dateFormat, true)}</span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-              <CalendarComponent
-                mode="single"
-                selected={selectedDate}
-                onSelect={(date) => date && setSelectedDate(date)}
-                disabled={(date) => date > new Date()}
-                initialFocus
-                className="pointer-events-auto"
-              />
-            </PopoverContent>
-          </Popover>
+          <DatePicker
+            selectedDate={selectedDate}
+            onDateChange={setSelectedDate}
+            disabled={(date) => date > new Date()}
+          />
         </div>
         <div className="flex items-center justify-center py-24">
           <div className="text-center">
@@ -1190,27 +1173,11 @@ export default function PlayerAnalysis() {
             <h1 className="text-3xl font-bold text-foreground">Player Analysis</h1>
             <p className="text-muted-foreground">Analyze historical performance and betting lines</p>
           </div>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className="gap-2 relative group overflow-hidden transition-all duration-300 hover:border-primary/50"
-              >
-                <Calendar className="h-4 w-4 relative z-10 shrink-0" />
-                <span className="relative z-10 whitespace-nowrap">{formatUserDate(selectedDate, dateFormat, true)}</span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-              <CalendarComponent
-                mode="single"
-                selected={selectedDate}
-                onSelect={(date) => date && setSelectedDate(date)}
-                disabled={(date) => date > new Date()}
-                initialFocus
-                className="pointer-events-auto"
-              />
-            </PopoverContent>
-          </Popover>
+          <DatePicker
+            selectedDate={selectedDate}
+            onDateChange={setSelectedDate}
+            disabled={(date) => date > new Date()}
+          />
         </div>
         <div className="rounded-xl border border-border bg-card p-12 text-center">
           <Brain className="mx-auto h-12 w-12 text-muted-foreground mb-4 shrink-0" />
@@ -1250,29 +1217,11 @@ export default function PlayerAnalysis() {
         </div>
 
         
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              className="gap-2 relative group overflow-hidden transition-all duration-300 hover:border-primary/50 shrink-0"
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/10 to-primary/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl bg-primary/20" />
-              <Calendar className="h-4 w-4 relative z-10 shrink-0" />
-              <span className="relative z-10 whitespace-nowrap">{formatUserDate(selectedDate, dateFormat, true)}</span>
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="end">
-            <CalendarComponent
-              mode="single"
-              selected={selectedDate}
-              onSelect={(date) => date && setSelectedDate(date)}
-              disabled={(date) => date > new Date()}
-              initialFocus
-              className="pointer-events-auto"
-            />
-          </PopoverContent>
-        </Popover>
+        <DatePicker
+          selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
+          disabled={(date) => date > new Date()}
+        />
       </div>
 
       
