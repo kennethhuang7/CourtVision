@@ -61,4 +61,7 @@ export interface Trend {
 
   
   trendLabel: string; 
+  
+  gameType?: string;
+  season?: string;
 }

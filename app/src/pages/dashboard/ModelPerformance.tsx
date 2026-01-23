@@ -42,6 +42,7 @@ const defaultModelColors: Record<ModelId | 'ensemble', string> = {
 
 export default function ModelPerformance() {
   const { selectedModels, toggleModel } = useEnsemble();
+  const [hoveredModel, setHoveredModel] = useState<(ModelId | 'ensemble') | null>(null);
   
   
   const [timePeriod, setTimePeriod] = useState(() => {
@@ -69,12 +70,21 @@ export default function ModelPerformance() {
         const filtered = parsed.filter((m: ModelId | 'ensemble') =>
           m !== 'ensemble' || selectedModels.length > 0
         );
-        return filtered.length > 0 ? filtered : (selectedModels.length > 0 ? ['ensemble'] : []);
+        // If filtered is empty, return default: all models (including ensemble if available)
+        if (filtered.length === 0) {
+          return selectedModels.length > 0 
+            ? ['ensemble', 'xgboost', 'lightgbm', 'random_forest', 'catboost']
+            : ['xgboost', 'lightgbm', 'random_forest', 'catboost'];
+        }
+        return filtered;
       } catch {
 
       }
     }
-    return selectedModels.length > 0 ? ['ensemble'] : [];
+    // Default: all models selected (ensemble only if selectedModels.length > 0)
+    return selectedModels.length > 0 
+      ? ['ensemble', 'xgboost', 'lightgbm', 'random_forest', 'catboost']
+      : ['xgboost', 'lightgbm', 'random_forest', 'catboost'];
   });
   
   
@@ -547,7 +557,7 @@ export default function ModelPerformance() {
       <div className="min-w-0 flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <h1 className="text-3xl font-bold text-foreground leading-tight truncate">Model Performance</h1>
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-baseline gap-2 mt-1">
             <p className="text-muted-foreground text-sm leading-tight truncate">Analyze prediction accuracy and model metrics</p>
             <span className="text-xs text-muted-foreground whitespace-nowrap">• Updated {getTimeAgo(lastUpdated)}</span>
           </div>
@@ -690,8 +700,8 @@ export default function ModelPerformance() {
                             className="absolute h-2 w-2 rounded-sm border border-background shadow-sm"
                             style={{ 
                               backgroundColor: modelColors['ensemble'],
-                              bottom: '0.5px',
-                              right: '0.5px',
+                              bottom: '2px',
+                              right: '2px',
                             }}
                           />
                         </Button>
@@ -796,8 +806,8 @@ export default function ModelPerformance() {
                             className="absolute h-2 w-2 rounded-sm border border-background shadow-sm"
                             style={{ 
                               backgroundColor: modelColors[model.value],
-                              bottom: '0.5px',
-                              right: '0.5px',
+                              bottom: '2px',
+                              right: '2px',
                             }}
                           />
                         </Button>
@@ -943,12 +953,44 @@ export default function ModelPerformance() {
             <span>No time series data available</span>
           </div>
         ) : (
-        <div className="h-[300px]">
+        <div className="h-[300px] relative model-performance-chart">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={timeSeriesData}
               margin={{ top: 20, right: 30, left: 0, bottom: 20 }}
             >
+              <defs>
+                {modelsToCompare.map((model) => {
+                  const color = modelColors[model];
+                  return (
+                    <filter key={`glow-${model}`} id={`glow-${model}`} x="-50%" y="-50%" width="200%" height="200%">
+                      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                      <feOffset in="coloredBlur" dx="0" dy="0" result="offsetBlur"/>
+                      <feFlood floodColor={color} floodOpacity="0.5" result="offsetColor"/>
+                      <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="coloredBlur2"/>
+                      <feMerge>
+                        <feMergeNode in="coloredBlur2"/>
+                        <feMergeNode in="SourceGraphic"/>
+                      </feMerge>
+                    </filter>
+                  );
+                })}
+                {modelsToCompare.map((model) => {
+                  const color = modelColors[model];
+                  return (
+                    <filter key={`dot-glow-${model}`} id={`dot-glow-${model}`} x="-100%" y="-100%" width="300%" height="300%">
+                      <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+                      <feOffset in="coloredBlur" dx="0" dy="0" result="offsetBlur"/>
+                      <feFlood floodColor={color} floodOpacity="0.6" result="offsetColor"/>
+                      <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="coloredBlur2"/>
+                      <feMerge>
+                        <feMergeNode in="coloredBlur2"/>
+                        <feMergeNode in="SourceGraphic"/>
+                      </feMerge>
+                    </filter>
+                  );
+                })}
+              </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis 
                 dataKey="date" 
@@ -981,19 +1023,45 @@ export default function ModelPerformance() {
                       : modelOptions.find(o => o.value === name)?.label || name;
                     return [`${Number(value).toFixed(4)}`, modelLabel];
                   }}
+                  onMouseEnter={(e) => {
+                    if (e && e.activePayload && e.activePayload.length > 0) {
+                      const dataKey = e.activePayload[0].dataKey as string;
+                      if (modelsToCompare.includes(dataKey as ModelId | 'ensemble')) {
+                        setHoveredModel(dataKey as ModelId | 'ensemble');
+                      }
+                    }
+                  }}
+                  onMouseLeave={() => setHoveredModel(null)}
                 />
-                {modelsToCompare.map((model) => (
-                  <Line
-                    key={model}
-                    type="linear"
-                    dataKey={model}
-                    name={model === 'ensemble' ? 'Ensemble' : modelOptions.find(o => o.value === model)?.label}
-                    stroke={modelColors[model]}
-                    strokeWidth={2}
-                    dot={{ fill: modelColors[model], strokeWidth: 0, r: 3 }}
-                    activeDot={{ r: 6, strokeWidth: 0 }}
-                  />
-                ))}
+                {modelsToCompare.map((model) => {
+                  const color = modelColors[model];
+                  const isHovered = hoveredModel === model;
+                  return (
+                    <Line
+                      key={model}
+                      type="linear"
+                      dataKey={model}
+                      name={model === 'ensemble' ? 'Ensemble' : modelOptions.find(o => o.value === model)?.label}
+                      stroke={color}
+                      strokeWidth={2}
+                      dot={{ 
+                        fill: color, 
+                        strokeWidth: 0, 
+                        r: 3
+                      }}
+                      activeDot={{ 
+                        r: 6, 
+                        strokeWidth: 0,
+                        fill: color,
+                        filter: isHovered ? `url(#dot-glow-${model})` : undefined
+                      }}
+                      style={{
+                        filter: isHovered ? `url(#glow-${model})` : undefined,
+                        transition: 'filter 0.2s ease-out'
+                      }}
+                    />
+                  );
+                })}
                 {modelsToCompare.length > 1 && <Legend />}
             </LineChart>
           </ResponsiveContainer>

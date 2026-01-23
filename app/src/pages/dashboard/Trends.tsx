@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Filter, Loader2, TrendingUp } from 'lucide-react';
+import { Filter, Loader2, TrendingUp, RefreshCw } from 'lucide-react';
 import { useTrends } from '@/hooks/useTrends';
 import { useEnsemble } from '@/contexts/EnsembleContext';
 import { RateLimitError } from '@/components/ui/RateLimitError';
@@ -21,10 +21,22 @@ const defaultFilters: TrendFilters = {
 };
 
 function Trends() {
-  const { findTrends, isLoading, error } = useTrends();
+  const { findTrends, isLoading, error, clearCache } = useTrends();
   const { selectedModels } = useEnsemble();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const [filters, setFilters] = useState<TrendFilters>(defaultFilters);
+  const [filters, setFilters] = useState<TrendFilters>(() => {
+    const stored = localStorage.getItem('trends-filters');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        return { ...defaultFilters, ...parsed };
+      } catch {
+        return defaultFilters;
+      }
+    }
+    return defaultFilters;
+  });
   const [trends, setTrends] = useState<Trend[]>([]);
   const [selectedTrend, setSelectedTrend] = useState<Trend | null>(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -33,15 +45,19 @@ function Trends() {
 
   
   useEffect(() => {
-    loadTrends();
+    loadTrends(false);
   }, [filters, selectedModels]);
 
-  const loadTrends = async () => {
+  const loadTrends = async (forceRefresh: boolean = false) => {
     try {
+      if (forceRefresh) {
+        setIsRefreshing(true);
+        clearCache();
+      }
       const results = await findTrends(filters, selectedModels, (stage, progress) => {
         setLoadingStage(stage);
         setLoadingProgress(progress);
-      });
+      }, forceRefresh);
       setTrends(results);
 
       
@@ -50,14 +66,24 @@ function Trends() {
       }
     } catch (err) {
       
+    } finally {
+      setIsRefreshing(false);
     }
+  };
+
+  const handleRefresh = () => {
+    loadTrends(true);
   };
 
   const updateFilter = <K extends keyof TrendFilters>(
     key: K,
     value: TrendFilters[K]
   ) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    setFilters(prev => {
+      const updated = { ...prev, [key]: value };
+      localStorage.setItem('trends-filters', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   return (
@@ -70,16 +96,29 @@ function Trends() {
           </p>
         </div>
 
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => setShowFilters(!showFilters)}
-          className="gap-2 shrink-0"
-        >
-          <Filter className="h-4 w-4 shrink-0" />
-          <span className="whitespace-nowrap">Filters</span>
-        </Button>
+        <div className="flex gap-2 shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isRefreshing || isLoading}
+            className="gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 shrink-0 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span className="whitespace-nowrap">Refresh</span>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setShowFilters(!showFilters)}
+            className="gap-2"
+          >
+            <Filter className="h-4 w-4 shrink-0" />
+            <span className="whitespace-nowrap">Filters</span>
+          </Button>
+        </div>
       </div>
 
       {showFilters && (

@@ -10,9 +10,9 @@ import {
   ChevronUp,
   Clock,
   MapPin,
-  GitBranch,
   ExternalLink,
-  Brain
+  Brain,
+  Users
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -107,7 +107,7 @@ export default function HowItWorks() {
             icon={<Layers className="h-5 w-5" />}
             defaultOpen
           >
-            <div className="space-y-4">
+            <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 Each algorithm has unique strengths. The final prediction averages all four to reduce variance.
               </p>
@@ -139,20 +139,20 @@ export default function HowItWorks() {
                 Over 150 features are calculated for each prediction, using only data available before the game to prevent data leakage.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <div>
+                  <div className="flex items-center gap-2 text-sm font-medium text-foreground mb-1">
                     <TrendingUp className="h-4 w-4 text-primary" />
                     Player Performance
                   </div>
                   <ul className="text-xs text-muted-foreground space-y-1 ml-6">
                     <li>Rolling averages (last 5, 10, 20 games)</li>
-                    <li>Exponentially weighted recent stats</li>
+                    <li>Exponentially weighted recent stats (recent games matter more)</li>
                     <li>Per-36 minute rates</li>
                     <li>Shooting percentages and efficiency</li>
                   </ul>
                 </div>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <div>
+                  <div className="flex items-center gap-2 text-sm font-medium text-foreground mb-1">
                     <Shield className="h-4 w-4 text-primary" />
                     Opponent Factors
                   </div>
@@ -162,8 +162,8 @@ export default function HowItWorks() {
                     <li>Pace and points allowed</li>
                   </ul>
                 </div>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <div>
+                  <div className="flex items-center gap-2 text-sm font-medium text-foreground mb-1">
                     <Clock className="h-4 w-4 text-primary" />
                     Rest & Schedule
                   </div>
@@ -173,8 +173,8 @@ export default function HowItWorks() {
                     <li>Season progress</li>
                   </ul>
                 </div>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <div>
+                  <div className="flex items-center gap-2 text-sm font-medium text-foreground mb-1">
                     <MapPin className="h-4 w-4 text-primary" />
                     Context
                   </div>
@@ -235,28 +235,83 @@ export default function HowItWorks() {
           </AccordionItem>
 
           <AccordionItem
-            title="Daily Pipeline"
-            icon={<GitBranch className="h-5 w-5" />}
+            title="Understanding Predictions"
+            icon={<Brain className="h-5 w-5" />}
           >
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Predictions run automatically each day for all scheduled games:
+                Predictions represent expected statistical performance based on historical patterns, not guarantees. Here's what to keep in mind:
               </p>
               <div className="space-y-2">
                 {[
-                  'Fetch scheduled games and eligible players (≥5 games played, not injured)',
-                  'Build 150+ features from historical data for each player',
-                  'Run all four models and average the predictions',
-                  'Calculate confidence scores and store results',
-                ].map((step, i) => (
-                  <div key={i} className="flex items-start gap-3">
+                  { 
+                    point: 'Recent performance matters most', 
+                    detail: 'The models weight recent games more heavily than older ones, so a player\'s current form has the biggest impact' 
+                  },
+                  { 
+                    point: 'Predictions are averages', 
+                    detail: 'The numbers shown are expected values - actual performance will vary game to game due to randomness and unpredictable factors' 
+                  },
+                  { 
+                    point: 'Use confidence scores', 
+                    detail: 'Higher confidence (70+) means more reliable predictions. Lower confidence may indicate recent changes, injuries, or inconsistent play patterns' 
+                  },
+                  { 
+                    point: 'Steals and blocks are harder to predict', 
+                    detail: 'These stats are more variable and less predictable than points, rebounds, or assists due to their low frequency and defensive nature' 
+                  },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-start gap-3 rounded-lg border border-border/40 p-3 bg-card/30">
                     <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-medium flex-shrink-0">
                       {i + 1}
                     </div>
-                    <span className="text-sm text-muted-foreground">{step}</span>
+                    <div className="flex-1">
+                      <div className="font-medium text-foreground text-sm mb-1">{item.point}</div>
+                      <p className="text-xs text-muted-foreground">{item.detail}</p>
+                    </div>
                   </div>
                 ))}
               </div>
+            </div>
+          </AccordionItem>
+
+          <AccordionItem
+            title="Who Gets Predictions"
+            icon={<Users className="h-5 w-5" />}
+          >
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Not every player will have predictions for every game. To ensure accuracy, predictions are only generated for players who meet certain criteria. Predictions are updated daily for all scheduled games.
+              </p>
+              <div className="space-y-2">
+                {[
+                  { 
+                    requirement: 'At least 5 games played this season', 
+                    reason: 'Needed to calculate meaningful historical trends and rolling averages' 
+                  },
+                  { 
+                    requirement: 'Not currently injured', 
+                    reason: 'Players marked as "Out" are excluded since they won\'t play' 
+                  },
+                  { 
+                    requirement: 'Game must be scheduled', 
+                    reason: 'Predictions are only available for upcoming games, not completed ones' 
+                  },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-start gap-3 rounded-lg border border-border/40 p-3 bg-card/30">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-medium flex-shrink-0">
+                      {i + 1}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium text-foreground text-sm mb-1">{item.requirement}</div>
+                      <p className="text-xs text-muted-foreground">{item.reason}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-3 pt-3 border-t border-border/40">
+                <strong>Note:</strong> Rookies and players with limited playing time early in the season may not have predictions until they reach the minimum game threshold. Players who were recently traded may have lower confidence scores as the models adjust to their new team context.
+              </p>
             </div>
           </AccordionItem>
         </div>

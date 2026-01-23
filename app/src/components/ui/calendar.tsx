@@ -15,25 +15,34 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
       classNames={{
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
-        caption: "flex justify-center pt-1 relative items-center",
-        caption_label: "text-sm font-medium",
-        nav: "space-x-1 flex items-center",
+        caption: "flex items-center justify-between pt-1 mb-2 px-1 relative min-h-[2rem]",
+        caption_label: "text-sm font-semibold text-foreground absolute left-1/2 -translate-x-1/2 whitespace-nowrap",
+        nav: "flex items-center w-full justify-between",
         nav_button: cn(
-          buttonVariants({ variant: "outline" }),
-          "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100",
+          buttonVariants({ variant: "ghost" }),
+          "h-7 w-7 min-w-[1.75rem] min-h-[1.75rem] p-0 hover:bg-muted shrink-0",
         ),
-        nav_button_previous: "absolute left-1",
-        nav_button_next: "absolute right-1",
+        nav_button_previous: "",
+        nav_button_next: "",
         table: "w-full border-collapse space-y-1",
         head_row: "flex",
-        head_cell: "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]",
+        head_cell: "text-muted-foreground rounded-md min-w-[2.25rem] w-9 font-normal text-xs flex items-center justify-center",
         row: "flex w-full mt-2",
-        cell: "h-9 w-9 text-center text-sm p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
-        day: cn(buttonVariants({ variant: "ghost" }), "h-9 w-9 p-0 font-normal aria-selected:opacity-100"),
+        cell: "min-w-[2.25rem] min-h-[2.25rem] h-9 w-9 text-center text-sm p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+        day: cn(buttonVariants({ variant: "ghost" }), "h-9 w-9 min-w-[2.25rem] min-h-[2.25rem] p-0 font-normal aria-selected:opacity-100 relative"),
         day_range_end: "day-range-end",
         day_selected:
-          "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-        day_today: "bg-accent text-accent-foreground",
+          "bg-primary/20 text-primary rounded-md hover:bg-primary/25 focus:bg-primary/25",
+        day_today: cn(
+          "font-semibold relative",
+          // Bullet indicator for today (when not selected) - filled purple dot
+          "after:content-[''] after:absolute after:bottom-0.5 after:left-1/2 after:-translate-x-1/2",
+          "after:w-1 after:h-1 after:rounded-full",
+          "after:bg-primary after:z-[1]",
+          // When today is also selected, use white filled dot
+          "[&.day_selected]:after:bg-white",
+          "[&.day_selected]:after:w-1.5 [&.day_selected]:after:h-1.5"
+        ),
         day_outside:
           "day-outside text-muted-foreground opacity-50 aria-selected:bg-accent/50 aria-selected:text-muted-foreground aria-selected:opacity-30",
         day_disabled: "text-muted-foreground opacity-50",

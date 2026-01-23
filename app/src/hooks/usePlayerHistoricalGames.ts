@@ -30,6 +30,7 @@ interface GameRow {
   season: string;
   home_score: number | null;
   away_score: number | null;
+  game_type?: string;
 }
 
 function toStats(row: PlayerStatRow): PlayerStats {
@@ -112,7 +113,7 @@ export function usePlayerHistoricalGames(playerId: string | null, maxGames = 50,
 
       const { data: gameRows, error: gameError } = await supabase
         .from('games')
-        .select('game_id, game_date, home_team_id, away_team_id, game_status, season, home_score, away_score')
+        .select('game_id, game_date, home_team_id, away_team_id, game_status, season, home_score, away_score, game_type')
         .in('game_id', gameIds);
 
       if (gameError) {
