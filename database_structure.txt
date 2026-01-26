@@ -1,0 +1,642 @@
+================================================================================
+DATABASE STRUCTURE ANALYSIS
+================================================================================
+Generated at: 2025-12-13 22:28:30.931889
+
+Total Tables: 12
+
+================================================================================
+TABLE: confidence_components
+================================================================================
+
+COLUMNS:
+--------------------------------------------------------------------------------
+  component_id                             INTEGER                        [PRIMARY KEY, NOT NULL, DEFAULT: nextval('confidence_components_component_id_seq'::regclass)]
+  prediction_id                            INTEGER                       
+  player_id                                INTEGER                        [NOT NULL]
+  game_id                                  INTEGER                        [NOT NULL]
+  prediction_date                          DATE                           [NOT NULL]
+  model_version                            VARCHAR(50)                    [NOT NULL]
+  stat_name                                VARCHAR(50)                    [NOT NULL]
+  ensemble_score                           DECIMAL(6,2)                   [DEFAULT: 0]
+  variance_score                           DECIMAL(6,2)                   [DEFAULT: 0]
+  feature_score                            DECIMAL(6,2)                   [DEFAULT: 0]
+  experience_score                         DECIMAL(6,2)                   [DEFAULT: 0]
+  transaction_score                        DECIMAL(6,2)                   [DEFAULT: 0]
+  opponent_adj                             DECIMAL(6,2)                   [DEFAULT: 0]
+  injury_adj                               DECIMAL(6,2)                   [DEFAULT: 0]
+  playoff_adj                              DECIMAL(6,2)                   [DEFAULT: 0]
+  back_to_back_adj                         DECIMAL(6,2)                   [DEFAULT: 0]
+  raw_score                                DECIMAL(6,2)                   [NOT NULL]
+  calibrated_score                         DECIMAL(6,2)                   [NOT NULL]
+  n_models                                 INTEGER                        [NOT NULL]
+  created_at                               TIMESTAMP                      [DEFAULT: CURRENT_TIMESTAMP]
+
+FOREIGN KEY RELATIONSHIPS:
+--------------------------------------------------------------------------------
+  prediction_id -> predictions.prediction_id
+    ON UPDATE: NO ACTION, ON DELETE: NO ACTION
+
+UNIQUE CONSTRAINTS:
+--------------------------------------------------------------------------------
+  confidence_components_prediction_id_stat_name_key: (prediction_id, stat_name)
+
+CHECK CONSTRAINTS:
+--------------------------------------------------------------------------------
+  2200_39140_17_not_null: raw_score IS NOT NULL
+  2200_39140_18_not_null: calibrated_score IS NOT NULL
+  2200_39140_19_not_null: n_models IS NOT NULL
+  2200_39140_1_not_null: component_id IS NOT NULL
+  2200_39140_3_not_null: player_id IS NOT NULL
+  2200_39140_4_not_null: game_id IS NOT NULL
+  2200_39140_5_not_null: prediction_date IS NOT NULL
+  2200_39140_6_not_null: model_version IS NOT NULL
+  2200_39140_7_not_null: stat_name IS NOT NULL
+
+INDEXES:
+--------------------------------------------------------------------------------
+  confidence_components_prediction_id_stat_name_key:
+    CREATE UNIQUE INDEX confidence_components_prediction_id_stat_name_key ON public.confidence_components USING btree (prediction_id, stat_name)
+  idx_confidence_components_date:
+    CREATE INDEX idx_confidence_components_date ON public.confidence_components USING btree (prediction_date)
+  idx_confidence_components_model:
+    CREATE INDEX idx_confidence_components_model ON public.confidence_components USING btree (model_version)
+  idx_confidence_components_player_game:
+    CREATE INDEX idx_confidence_components_player_game ON public.confidence_components USING btree (player_id, game_id)
+  idx_confidence_components_player_game_stat:
+    CREATE INDEX idx_confidence_components_player_game_stat ON public.confidence_components USING btree (player_id, game_id, stat_name)
+  idx_confidence_components_prediction:
+    CREATE INDEX idx_confidence_components_prediction ON public.confidence_components USING btree (prediction_id)
+  idx_confidence_components_stat:
+    CREATE INDEX idx_confidence_components_stat ON public.confidence_components USING btree (stat_name)
+
+
+================================================================================
+TABLE: games
+================================================================================
+
+COLUMNS:
+--------------------------------------------------------------------------------
+  game_id                                  VARCHAR(10)                    [PRIMARY KEY, NOT NULL]
+  game_date                                DATE                           [NOT NULL]
+  season                                   VARCHAR(7)                     [NOT NULL]
+  home_team_id                             INTEGER                        [NOT NULL]
+  away_team_id                             INTEGER                        [NOT NULL]
+  home_score                               INTEGER                       
+  away_score                               INTEGER                       
+  game_status                              VARCHAR(20)                    [DEFAULT: 'scheduled'::character varying]
+  attendance                               INTEGER                       
+  game_duration_minutes                    INTEGER                       
+  referee_1_id                             INTEGER                       
+  referee_2_id                             INTEGER                       
+  referee_3_id                             INTEGER                       
+  home_pace                                DECIMAL(5,2)                  
+  away_pace                                DECIMAL(5,2)                  
+  created_at                               TIMESTAMP                      [DEFAULT: CURRENT_TIMESTAMP]
+  game_type                                VARCHAR(20)                    [DEFAULT: 'regular_season'::character varying]
+  playoff_round                            VARCHAR(20)                   
+  is_in_season_tournament                  BOOLEAN                        [DEFAULT: false]
+  is_national_tv                           BOOLEAN                        [DEFAULT: false]
+  tv_broadcaster                           VARCHAR(50)                   
+
+FOREIGN KEY RELATIONSHIPS:
+--------------------------------------------------------------------------------
+  away_team_id -> teams.team_id
+    ON UPDATE: NO ACTION, ON DELETE: NO ACTION
+  home_team_id -> teams.team_id
+    ON UPDATE: NO ACTION, ON DELETE: NO ACTION
+
+CHECK CONSTRAINTS:
+--------------------------------------------------------------------------------
+  2200_17520_1_not_null: game_id IS NOT NULL
+  2200_17520_2_not_null: game_date IS NOT NULL
+  2200_17520_3_not_null: season IS NOT NULL
+  2200_17520_4_not_null: home_team_id IS NOT NULL
+  2200_17520_5_not_null: away_team_id IS NOT NULL
+
+INDEXES:
+--------------------------------------------------------------------------------
+  idx_games_away_team:
+    CREATE INDEX idx_games_away_team ON public.games USING btree (away_team_id)
+  idx_games_date:
+    CREATE INDEX idx_games_date ON public.games USING btree (game_date)
+  idx_games_home_team:
+    CREATE INDEX idx_games_home_team ON public.games USING btree (home_team_id)
+  idx_games_season:
+    CREATE INDEX idx_games_season ON public.games USING btree (season)
+  idx_games_type:
+    CREATE INDEX idx_games_type ON public.games USING btree (game_type)
+
+
+================================================================================
+TABLE: injuries
+================================================================================
+
+COLUMNS:
+--------------------------------------------------------------------------------
+  injury_id                                INTEGER                        [PRIMARY KEY, NOT NULL, DEFAULT: nextval('injuries_injury_id_seq'::regclass)]
+  player_id                                INTEGER                       
+  report_date                              DATE                           [NOT NULL]
+  injury_status                            VARCHAR(50)                   
+  injury_description                       TEXT                          
+  return_date                              DATE                          
+  games_missed                             INTEGER                        [DEFAULT: 0]
+  source                                   VARCHAR(100)                  
+  created_at                               TIMESTAMP                      [DEFAULT: CURRENT_TIMESTAMP]
+  updated_at                               TIMESTAMP                      [DEFAULT: CURRENT_TIMESTAMP]
+
+FOREIGN KEY RELATIONSHIPS:
+--------------------------------------------------------------------------------
+  player_id -> players.player_id
+    ON UPDATE: NO ACTION, ON DELETE: NO ACTION
+
+CHECK CONSTRAINTS:
+--------------------------------------------------------------------------------
+  2200_26683_1_not_null: injury_id IS NOT NULL
+  2200_26683_3_not_null: report_date IS NOT NULL
+
+INDEXES:
+--------------------------------------------------------------------------------
+  idx_injuries_date:
+    CREATE INDEX idx_injuries_date ON public.injuries USING btree (report_date)
+  idx_injuries_player:
+    CREATE INDEX idx_injuries_player ON public.injuries USING btree (player_id)
+  idx_injuries_status:
+    CREATE INDEX idx_injuries_status ON public.injuries USING btree (injury_status)
+
+
+================================================================================
+TABLE: player_game_stats
+================================================================================
+
+COLUMNS:
+--------------------------------------------------------------------------------
+  stat_id                                  INTEGER                        [PRIMARY KEY, NOT NULL, DEFAULT: nextval('player_game_stats_stat_id_seq'::regclass)]
+  player_id                                INTEGER                        [NOT NULL]
+  game_id                                  VARCHAR(10)                    [NOT NULL]
+  team_id                                  INTEGER                        [NOT NULL]
+  is_starter                               BOOLEAN                        [DEFAULT: false]
+  minutes_played                           DECIMAL(5,2)                  
+  points                                   INTEGER                        [DEFAULT: 0]
+  rebounds_offensive                       INTEGER                        [DEFAULT: 0]
+  rebounds_defensive                       INTEGER                        [DEFAULT: 0]
+  rebounds_total                           INTEGER                        [DEFAULT: 0]
+  assists                                  INTEGER                        [DEFAULT: 0]
+  steals                                   INTEGER                        [DEFAULT: 0]
+  blocks                                   INTEGER                        [DEFAULT: 0]
+  turnovers                                INTEGER                        [DEFAULT: 0]
+  personal_fouls                           INTEGER                        [DEFAULT: 0]
+  field_goals_made                         INTEGER                        [DEFAULT: 0]
+  field_goals_attempted                    INTEGER                        [DEFAULT: 0]
+  three_pointers_made                      INTEGER                        [DEFAULT: 0]
+  three_pointers_attempted                 INTEGER                        [DEFAULT: 0]
+  free_throws_made                         INTEGER                        [DEFAULT: 0]
+  free_throws_attempted                    INTEGER                        [DEFAULT: 0]
+  plus_minus                               INTEGER                       
+  usage_rate                               DECIMAL(6,1)                  
+  true_shooting_pct                        DECIMAL(6,1)                  
+  offensive_rating                         DECIMAL(8,1)                  
+  defensive_rating                         DECIMAL(8,1)                  
+  created_at                               TIMESTAMP                      [DEFAULT: CURRENT_TIMESTAMP]
+
+FOREIGN KEY RELATIONSHIPS:
+--------------------------------------------------------------------------------
+  game_id -> games.game_id
+    ON UPDATE: NO ACTION, ON DELETE: NO ACTION
+  player_id -> players.player_id
+    ON UPDATE: NO ACTION, ON DELETE: NO ACTION
+  team_id -> teams.team_id
+    ON UPDATE: NO ACTION, ON DELETE: NO ACTION
+
+UNIQUE CONSTRAINTS:
+--------------------------------------------------------------------------------
+  player_game_stats_player_id_game_id_key: (player_id, game_id)
+
+CHECK CONSTRAINTS:
+--------------------------------------------------------------------------------
+  2200_17553_1_not_null: stat_id IS NOT NULL
+  2200_17553_2_not_null: player_id IS NOT NULL
+  2200_17553_3_not_null: game_id IS NOT NULL
+  2200_17553_4_not_null: team_id IS NOT NULL
+
+INDEXES:
+--------------------------------------------------------------------------------
+  idx_player_stats_date:
+    CREATE INDEX idx_player_stats_date ON public.player_game_stats USING btree (game_id, player_id)
+  idx_player_stats_game:
+    CREATE INDEX idx_player_stats_game ON public.player_game_stats USING btree (game_id)
+  idx_player_stats_player:
+    CREATE INDEX idx_player_stats_player ON public.player_game_stats USING btree (player_id)
+  player_game_stats_player_id_game_id_key:
+    CREATE UNIQUE INDEX player_game_stats_player_id_game_id_key ON public.player_game_stats USING btree (player_id, game_id)
+
+
+================================================================================
+TABLE: player_transactions
+================================================================================
+
+COLUMNS:
+--------------------------------------------------------------------------------
+  transaction_id                           INTEGER                        [PRIMARY KEY, NOT NULL, DEFAULT: nextval('player_transactions_transaction_id_seq'::regclass)]
+  player_id                                INTEGER                       
+  from_team_id                             INTEGER                       
+  to_team_id                               INTEGER                       
+  transaction_type                         VARCHAR(20)                   
+  transaction_date                         DATE                          
+  season                                   VARCHAR(7)                    
+  created_at                               TIMESTAMP                      [DEFAULT: CURRENT_TIMESTAMP]
+  source                                   VARCHAR(50)                    [DEFAULT: 'espn_scrape'::character varying]
+  confidence_score                         INTEGER                       
+
+FOREIGN KEY RELATIONSHIPS:
+--------------------------------------------------------------------------------
+  from_team_id -> teams.team_id
+    ON UPDATE: NO ACTION, ON DELETE: NO ACTION
+  player_id -> players.player_id
+    ON UPDATE: NO ACTION, ON DELETE: NO ACTION
+  to_team_id -> teams.team_id
+    ON UPDATE: NO ACTION, ON DELETE: NO ACTION
+
+CHECK CONSTRAINTS:
+--------------------------------------------------------------------------------
+  2200_17749_1_not_null: transaction_id IS NOT NULL
+
+INDEXES:
+--------------------------------------------------------------------------------
+  idx_transactions_date:
+    CREATE INDEX idx_transactions_date ON public.player_transactions USING btree (transaction_date)
+  idx_transactions_player:
+    CREATE INDEX idx_transactions_player ON public.player_transactions USING btree (player_id)
+  unique_player_transaction_recent:
+    CREATE UNIQUE INDEX unique_player_transaction_recent ON public.player_transactions USING btree (player_id, COALESCE(from_team_id, '-1'::integer), COALESCE(to_team_id, '-1'::integer), transaction_type, transaction_date)
+
+
+================================================================================
+TABLE: players
+================================================================================
+
+COLUMNS:
+--------------------------------------------------------------------------------
+  player_id                                INTEGER                        [PRIMARY KEY, NOT NULL]
+  full_name                                VARCHAR(100)                   [NOT NULL]
+  first_name                               VARCHAR(50)                   
+  last_name                                VARCHAR(50)                   
+  is_active                                BOOLEAN                        [DEFAULT: true]
+  team_id                                  INTEGER                       
+  jersey_number                            VARCHAR(3)                    
+  position                                 VARCHAR(50)                   
+  height_inches                            INTEGER                       
+  weight_lbs                               INTEGER                       
+  birth_date                               DATE                          
+  draft_year                               INTEGER                       
+  draft_round                              INTEGER                       
+  draft_number                             INTEGER                       
+  created_at                               TIMESTAMP                      [DEFAULT: CURRENT_TIMESTAMP]
+
+FOREIGN KEY RELATIONSHIPS:
+--------------------------------------------------------------------------------
+  team_id -> teams.team_id
+    ON UPDATE: NO ACTION, ON DELETE: NO ACTION
+
+CHECK CONSTRAINTS:
+--------------------------------------------------------------------------------
+  2200_17498_1_not_null: player_id IS NOT NULL
+  2200_17498_2_not_null: full_name IS NOT NULL
+
+INDEXES:
+--------------------------------------------------------------------------------
+  idx_players_active:
+    CREATE INDEX idx_players_active ON public.players USING btree (is_active)
+  idx_players_team:
+    CREATE INDEX idx_players_team ON public.players USING btree (team_id)
+
+
+================================================================================
+TABLE: position_defense_stats
+================================================================================
+
+COLUMNS:
+--------------------------------------------------------------------------------
+  pos_stat_id                              INTEGER                        [PRIMARY KEY, NOT NULL, DEFAULT: nextval('position_defense_stats_pos_stat_id_seq'::regclass)]
+  team_id                                  INTEGER                       
+  season                                   VARCHAR(7)                    
+  position                                 VARCHAR(50)                   
+  points_allowed_per_game                  DECIMAL(6,2)                  
+  rebounds_allowed_per_game                DECIMAL(6,2)                  
+  assists_allowed_per_game                 DECIMAL(6,2)                  
+  fg_pct_allowed                           DECIMAL(5,3)                  
+  created_at                               TIMESTAMP                      [DEFAULT: CURRENT_TIMESTAMP]
+  games_played                             INTEGER                       
+  opp_points_per_game                      DECIMAL(6,1)                  
+  opp_field_goal_pct                       DECIMAL(5,1)                  
+  opp_three_point_pct                      DECIMAL(5,1)                  
+  steals_allowed_per_game                  DECIMAL(6,2)                  
+  blocks_allowed_per_game                  DECIMAL(6,2)                  
+  turnovers_forced_per_game                DECIMAL(6,2)                  
+  three_pointers_made_allowed_per_game     DECIMAL(6,2)                  
+
+FOREIGN KEY RELATIONSHIPS:
+--------------------------------------------------------------------------------
+  team_id -> teams.team_id
+    ON UPDATE: NO ACTION, ON DELETE: NO ACTION
+
+UNIQUE CONSTRAINTS:
+--------------------------------------------------------------------------------
+  position_defense_stats_team_id_season_position_key: (team_id, season, position)
+
+CHECK CONSTRAINTS:
+--------------------------------------------------------------------------------
+  2200_17732_1_not_null: pos_stat_id IS NOT NULL
+
+INDEXES:
+--------------------------------------------------------------------------------
+  idx_pos_def_stats:
+    CREATE INDEX idx_pos_def_stats ON public.position_defense_stats USING btree (team_id, season, "position")
+  position_defense_stats_team_id_season_position_key:
+    CREATE UNIQUE INDEX position_defense_stats_team_id_season_position_key ON public.position_defense_stats USING btree (team_id, season, "position")
+
+
+================================================================================
+TABLE: predictions
+================================================================================
+
+COLUMNS:
+--------------------------------------------------------------------------------
+  prediction_id                            INTEGER                        [PRIMARY KEY, NOT NULL, DEFAULT: nextval('predictions_prediction_id_seq'::regclass)]
+  player_id                                INTEGER                        [NOT NULL]
+  game_id                                  VARCHAR(10)                    [NOT NULL]
+  prediction_date                          TIMESTAMP                      [NOT NULL]
+  predicted_points                         DECIMAL(5,2)                  
+  predicted_rebounds                       DECIMAL(5,2)                  
+  predicted_assists                        DECIMAL(5,2)                  
+  predicted_steals                         DECIMAL(5,2)                  
+  predicted_blocks                         DECIMAL(5,2)                  
+  predicted_turnovers                      DECIMAL(5,2)                  
+  confidence_score                         INTEGER                       
+  model_version                            VARCHAR(50)                   
+  created_at                               TIMESTAMP                      [DEFAULT: CURRENT_TIMESTAMP]
+  predicted_three_pointers_made            DECIMAL(5,1)                  
+  actual_points                            DECIMAL(5,1)                  
+  actual_rebounds                          DECIMAL(5,1)                  
+  actual_assists                           DECIMAL(5,1)                  
+  actual_steals                            DECIMAL(5,1)                  
+  actual_blocks                            DECIMAL(5,1)                  
+  actual_turnovers                         DECIMAL(5,1)                  
+  actual_three_pointers_made               DECIMAL(5,1)                  
+  prediction_error                         DECIMAL(6,2)                  
+  feature_explanations                     JSONB                         
+
+FOREIGN KEY RELATIONSHIPS:
+--------------------------------------------------------------------------------
+  game_id -> games.game_id
+    ON UPDATE: NO ACTION, ON DELETE: NO ACTION
+  player_id -> players.player_id
+    ON UPDATE: NO ACTION, ON DELETE: NO ACTION
+
+UNIQUE CONSTRAINTS:
+--------------------------------------------------------------------------------
+  predictions_player_id_game_id_model_version_key: (player_id, game_id, model_version)
+
+CHECK CONSTRAINTS:
+--------------------------------------------------------------------------------
+  2200_17628_1_not_null: prediction_id IS NOT NULL
+  2200_17628_2_not_null: player_id IS NOT NULL
+  2200_17628_3_not_null: game_id IS NOT NULL
+  2200_17628_4_not_null: prediction_date IS NOT NULL
+
+INDEXES:
+--------------------------------------------------------------------------------
+  idx_predictions_date:
+    CREATE INDEX idx_predictions_date ON public.predictions USING btree (prediction_date)
+  idx_predictions_game:
+    CREATE INDEX idx_predictions_game ON public.predictions USING btree (game_id)
+  idx_predictions_player:
+    CREATE INDEX idx_predictions_player ON public.predictions USING btree (player_id)
+  idx_predictions_player_game:
+    CREATE INDEX idx_predictions_player_game ON public.predictions USING btree (player_id, game_id)
+  predictions_player_id_game_id_model_version_key:
+    CREATE UNIQUE INDEX predictions_player_id_game_id_model_version_key ON public.predictions USING btree (player_id, game_id, model_version)
+
+
+================================================================================
+TABLE: team_defensive_stats
+================================================================================
+
+COLUMNS:
+--------------------------------------------------------------------------------
+  stat_id                                  INTEGER                        [PRIMARY KEY, NOT NULL, DEFAULT: nextval('team_defensive_stats_stat_id_seq'::regclass)]
+  team_id                                  INTEGER                       
+  season                                   VARCHAR(7)                    
+  stat_date                                DATE                          
+  games_played                             INTEGER                       
+  opp_points_per_game                      DECIMAL(6,2)                  
+  opp_rebounds_per_game                    DECIMAL(6,2)                  
+  opp_assists_per_game                     DECIMAL(6,2)                  
+  opp_steals_per_game                      DECIMAL(6,2)                  
+  opp_blocks_per_game                      DECIMAL(6,2)                  
+  opp_turnovers_per_game                   DECIMAL(6,2)                  
+  opp_fg_pct                               DECIMAL(5,3)                  
+  opp_three_pt_pct                         DECIMAL(5,3)                  
+  defensive_rating                         DECIMAL(6,2)                  
+  defensive_rebound_pct                    DECIMAL(5,3)                  
+  opponent_offensive_rebound_pct           DECIMAL(5,3)                  
+  rim_fg_pct_allowed                       DECIMAL(5,3)                  
+  three_pt_fg_pct_allowed                  DECIMAL(5,3)                  
+  mid_range_fg_pct_allowed                 DECIMAL(5,3)                  
+  created_at                               TIMESTAMP                      [DEFAULT: CURRENT_TIMESTAMP]
+  opp_field_goal_pct                       DECIMAL(5,1)                  
+  opp_three_point_pct                      DECIMAL(5,1)                  
+  opp_two_point_pct                        DECIMAL(5,1)                  
+  opp_free_throw_pct                       DECIMAL(5,1)                  
+  opp_three_point_attempts_pg              DECIMAL(6,1)                  
+  opp_free_throw_attempts_pg               DECIMAL(6,1)                  
+  opp_free_throw_rate                      DECIMAL(5,3)                  
+
+FOREIGN KEY RELATIONSHIPS:
+--------------------------------------------------------------------------------
+  team_id -> teams.team_id
+    ON UPDATE: NO ACTION, ON DELETE: NO ACTION
+
+UNIQUE CONSTRAINTS:
+--------------------------------------------------------------------------------
+  team_defensive_stats_team_id_season_stat_date_key: (team_id, season, stat_date)
+  team_defensive_stats_unique_team_season: (team_id, season)
+
+CHECK CONSTRAINTS:
+--------------------------------------------------------------------------------
+  2200_17717_1_not_null: stat_id IS NOT NULL
+
+INDEXES:
+--------------------------------------------------------------------------------
+  idx_team_def_stats:
+    CREATE INDEX idx_team_def_stats ON public.team_defensive_stats USING btree (team_id, season)
+  team_defensive_stats_team_id_season_stat_date_key:
+    CREATE UNIQUE INDEX team_defensive_stats_team_id_season_stat_date_key ON public.team_defensive_stats USING btree (team_id, season, stat_date)
+  team_defensive_stats_unique_team_season:
+    CREATE UNIQUE INDEX team_defensive_stats_unique_team_season ON public.team_defensive_stats USING btree (team_id, season)
+
+
+================================================================================
+TABLE: team_ratings
+================================================================================
+
+COLUMNS:
+--------------------------------------------------------------------------------
+  rating_id                                INTEGER                        [PRIMARY KEY, NOT NULL, DEFAULT: nextval('team_ratings_rating_id_seq'::regclass)]
+  team_id                                  INTEGER                       
+  season                                   VARCHAR(7)                    
+  rating_date                              DATE                          
+  elo_rating                               DECIMAL(8,2)                  
+  offensive_rating                         DECIMAL(6,2)                  
+  defensive_rating                         DECIMAL(6,2)                  
+  net_rating                               DECIMAL(6,2)                  
+  win_pct                                  DECIMAL(5,3)                  
+  created_at                               TIMESTAMP                      [DEFAULT: CURRENT_TIMESTAMP]
+  games_played                             INTEGER                       
+  wins                                     INTEGER                       
+  losses                                   INTEGER                       
+  pace                                     DECIMAL(6,1)                  
+
+FOREIGN KEY RELATIONSHIPS:
+--------------------------------------------------------------------------------
+  team_id -> teams.team_id
+    ON UPDATE: NO ACTION, ON DELETE: NO ACTION
+
+CHECK CONSTRAINTS:
+--------------------------------------------------------------------------------
+  2200_17700_1_not_null: rating_id IS NOT NULL
+
+INDEXES:
+--------------------------------------------------------------------------------
+  idx_team_ratings_team_season:
+    CREATE UNIQUE INDEX idx_team_ratings_team_season ON public.team_ratings USING btree (team_id, season)
+
+
+================================================================================
+TABLE: teammate_dependency
+================================================================================
+
+COLUMNS:
+--------------------------------------------------------------------------------
+  dependency_id                            INTEGER                        [PRIMARY KEY, NOT NULL, DEFAULT: nextval('teammate_dependency_dependency_id_seq'::regclass)]
+  player_id                                INTEGER                       
+  teammate_id                              INTEGER                       
+  season                                   VARCHAR(10)                   
+  games_with_teammate                      INTEGER                       
+  games_without_teammate                   INTEGER                       
+  ppg_with                                 DECIMAL(5,2)                  
+  ppg_without                              DECIMAL(5,2)                  
+  rpg_with                                 DECIMAL(5,2)                  
+  rpg_without                              DECIMAL(5,2)                  
+  apg_with                                 DECIMAL(5,2)                  
+  apg_without                              DECIMAL(5,2)                  
+  ppg_boost                                DECIMAL(5,2)                  
+  rpg_boost                                DECIMAL(5,2)                  
+  apg_boost                                DECIMAL(5,2)                  
+  created_at                               TIMESTAMP                      [DEFAULT: CURRENT_TIMESTAMP]
+
+FOREIGN KEY RELATIONSHIPS:
+--------------------------------------------------------------------------------
+  player_id -> players.player_id
+    ON UPDATE: NO ACTION, ON DELETE: NO ACTION
+  teammate_id -> players.player_id
+    ON UPDATE: NO ACTION, ON DELETE: NO ACTION
+
+UNIQUE CONSTRAINTS:
+--------------------------------------------------------------------------------
+  teammate_dependency_player_id_teammate_id_season_key: (player_id, teammate_id, season)
+
+CHECK CONSTRAINTS:
+--------------------------------------------------------------------------------
+  2200_28047_1_not_null: dependency_id IS NOT NULL
+
+INDEXES:
+--------------------------------------------------------------------------------
+  idx_teammate_dependency_player:
+    CREATE INDEX idx_teammate_dependency_player ON public.teammate_dependency USING btree (player_id)
+  idx_teammate_dependency_teammate:
+    CREATE INDEX idx_teammate_dependency_teammate ON public.teammate_dependency USING btree (teammate_id)
+  teammate_dependency_player_id_teammate_id_season_key:
+    CREATE UNIQUE INDEX teammate_dependency_player_id_teammate_id_season_key ON public.teammate_dependency USING btree (player_id, teammate_id, season)
+
+
+================================================================================
+TABLE: teams
+================================================================================
+
+COLUMNS:
+--------------------------------------------------------------------------------
+  team_id                                  INTEGER                        [PRIMARY KEY, NOT NULL]
+  abbreviation                             VARCHAR(3)                     [NOT NULL]
+  full_name                                VARCHAR(100)                   [NOT NULL]
+  city                                     VARCHAR(50)                    [NOT NULL]
+  state                                    VARCHAR(50)                   
+  arena_name                               VARCHAR(100)                  
+  arena_altitude                           INTEGER                        [DEFAULT: 0]
+  conference                               VARCHAR(10)                   
+  division                                 VARCHAR(20)                   
+  created_at                               TIMESTAMP                      [DEFAULT: CURRENT_TIMESTAMP]
+  latitude                                 DECIMAL(10,6)                 
+  longitude                                DECIMAL(10,6)                 
+  timezone                                 VARCHAR(50)                   
+
+UNIQUE CONSTRAINTS:
+--------------------------------------------------------------------------------
+  teams_abbreviation_key: (abbreviation)
+
+CHECK CONSTRAINTS:
+--------------------------------------------------------------------------------
+  2200_17489_1_not_null: team_id IS NOT NULL
+  2200_17489_2_not_null: abbreviation IS NOT NULL
+  2200_17489_3_not_null: full_name IS NOT NULL
+  2200_17489_4_not_null: city IS NOT NULL
+
+INDEXES:
+--------------------------------------------------------------------------------
+  teams_abbreviation_key:
+    CREATE UNIQUE INDEX teams_abbreviation_key ON public.teams USING btree (abbreviation)
+
+
+================================================================================
+RELATIONSHIP SUMMARY
+================================================================================
+
+confidence_components:
+  -> prediction_id references predictions.prediction_id
+
+games:
+  -> away_team_id references teams.team_id
+  -> home_team_id references teams.team_id
+
+injuries:
+  -> player_id references players.player_id
+
+player_game_stats:
+  -> game_id references games.game_id
+  -> player_id references players.player_id
+  -> team_id references teams.team_id
+
+player_transactions:
+  -> from_team_id references teams.team_id
+  -> player_id references players.player_id
+  -> to_team_id references teams.team_id
+
+players:
+  -> team_id references teams.team_id
+
+position_defense_stats:
+  -> team_id references teams.team_id
+
+predictions:
+  -> game_id references games.game_id
+  -> player_id references players.player_id
+
+team_defensive_stats:
+  -> team_id references teams.team_id
+
+team_ratings:
+  -> team_id references teams.team_id
+
+teammate_dependency:
+  -> player_id references players.player_id
+  -> teammate_id references players.player_id
