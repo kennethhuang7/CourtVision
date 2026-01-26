@@ -9,6 +9,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { PickShareMessageCard } from '@/components/messages/PickShareMessageCard';
 import { EmojiPicker } from '@/components/chat/EmojiPicker';
 import { ReactionBar } from '@/components/chat/ReactionBar';
+import { EmojiAutocomplete } from '@/components/chat/EmojiAutocomplete';
+import { ALL_EMOJIS } from '@/lib/emojiData';
+import { applyDefaultSkinTone } from '@/lib/emojiUtils';
 import { useConversations, type Conversation } from '@/hooks/useConversations';
 import { useMessages } from '@/hooks/useMessages';
 import { useSendMessage } from '@/hooks/useSendMessage';
@@ -70,9 +73,12 @@ export function ChatWindow() {
   const [archivedExpanded, setArchivedExpanded] = useState(false);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [newMessageCount, setNewMessageCount] = useState(0);
+  const [cursorPosition, setCursorPosition] = useState(0);
+  const [showEmojiAutocomplete, setShowEmojiAutocomplete] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const emojiAutocompleteRef = useRef<{ handleKeyDown: (e: React.KeyboardEvent) => boolean } | null>(null);
   const prevMessagesLengthRef = useRef(0);
 
   const { data: conversations = [], isLoading: conversationsLoading } = useConversations();
@@ -322,20 +328,36 @@ export function ChatWindow() {
   const handleEmojiSelect = (emoji: string) => {
     if (!textareaRef.current) return;
 
-    
     const start = textareaRef.current.selectionStart;
     const end = textareaRef.current.selectionEnd;
     const newContent = messageContent.substring(0, start) + emoji + messageContent.substring(end);
 
     setMessageContent(newContent);
 
-    
     setTimeout(() => {
       if (textareaRef.current) {
         const newPosition = start + emoji.length;
         textareaRef.current.selectionStart = newPosition;
         textareaRef.current.selectionEnd = newPosition;
         textareaRef.current.focus();
+      }
+    }, 0);
+  };
+
+  const handleEmojiAutocompleteSelect = (emoji: string, startPos: number, endPos: number) => {
+    if (!textareaRef.current) return;
+
+    const newContent = messageContent.substring(0, startPos) + emoji + messageContent.substring(endPos);
+    setMessageContent(newContent);
+    setShowEmojiAutocomplete(false);
+
+    setTimeout(() => {
+      if (textareaRef.current) {
+        const newPosition = startPos + emoji.length;
+        textareaRef.current.selectionStart = newPosition;
+        textareaRef.current.selectionEnd = newPosition;
+        textareaRef.current.focus();
+        setCursorPosition(newPosition);
       }
     }, 0);
   };
@@ -824,18 +846,87 @@ export function ChatWindow() {
                     <Textarea
                       ref={textareaRef}
                       value={messageContent}
-                      onChange={(e) => setMessageContent(e.target.value)}
+                      onChange={(e) => {
+                        const newValue = e.target.value;
+                        const newCursorPos = e.target.selectionStart;
+                        const beforeCursor = newValue.substring(0, newCursorPos);
+                        
+                        const shortcodePattern = /:([a-z0-9_+-]+):$/;
+                        const match = beforeCursor.match(shortcodePattern);
+                        
+                        if (match) {
+                          const shortcode = match[1].toLowerCase();
+                          const exactMatch = ALL_EMOJIS.find(item => item.name.toLowerCase() === shortcode);
+                          if (exactMatch) {
+                            const emoji = applyDefaultSkinTone(exactMatch.emoji, exactMatch.supportsSkinTone || false);
+                            const startPos = beforeCursor.lastIndexOf(':' + shortcode + ':');
+                            const newContent = newValue.substring(0, startPos) + emoji + newValue.substring(newCursorPos);
+                            setMessageContent(newContent);
+                            setShowEmojiAutocomplete(false);
+                            setTimeout(() => {
+                              if (textareaRef.current) {
+                                const newPosition = startPos + emoji.length;
+                                textareaRef.current.selectionStart = newPosition;
+                                textareaRef.current.selectionEnd = newPosition;
+                                textareaRef.current.focus();
+                                setCursorPosition(newPosition);
+                              }
+                            }, 0);
+                            return;
+                          }
+                        }
+                        
+                        const colonIndex = beforeCursor.lastIndexOf(':');
+                        if (colonIndex !== -1) {
+                          const afterColon = beforeCursor.substring(colonIndex + 1);
+                          if (!afterColon.includes(' ') && !afterColon.includes('\n') && !afterColon.includes(':')) {
+                            setMessageContent(newValue);
+                            setCursorPosition(newCursorPos);
+                            setShowEmojiAutocomplete(true);
+                            return;
+                          }
+                        }
+                        setMessageContent(newValue);
+                        setCursorPosition(newCursorPos);
+                        setShowEmojiAutocomplete(false);
+                      }}
                       onKeyDown={(e) => {
+                        if (showEmojiAutocomplete && emojiAutocompleteRef.current) {
+                          const handled = emojiAutocompleteRef.current.handleKeyDown(e);
+                          if (handled) return;
+                        }
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
                           handleSendMessage();
                         }
+                      }}
+                      onSelect={(e) => {
+                        setCursorPosition(e.currentTarget.selectionStart);
+                        const beforeCursor = messageContent.substring(0, e.currentTarget.selectionStart);
+                        const colonIndex = beforeCursor.lastIndexOf(':');
+                        if (colonIndex !== -1) {
+                          const afterColon = beforeCursor.substring(colonIndex + 1);
+                          if (!afterColon.includes(' ') && !afterColon.includes('\n')) {
+                            setShowEmojiAutocomplete(true);
+                            return;
+                          }
+                        }
+                        setShowEmojiAutocomplete(false);
                       }}
                       placeholder="Type a message..."
                       className="min-h-[44px] max-h-[120px] resize-none text-sm bg-background pr-10"
                       maxLength={2000}
                       rows={1}
                     />
+                    {showEmojiAutocomplete && (
+                      <EmojiAutocomplete
+                        ref={emojiAutocompleteRef}
+                        text={messageContent}
+                        cursorPosition={cursorPosition}
+                        onSelect={handleEmojiAutocompleteSelect}
+                        onClose={() => setShowEmojiAutocomplete(false)}
+                      />
+                    )}
                     <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
                       <PopoverTrigger asChild>
                         <button
