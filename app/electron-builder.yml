@@ -7,6 +7,11 @@ files:
   - dist/**/*
   - dist-electron/**/*
   - package.json
+  - "!**/.env"
+  - "!**/.env.development"
+  - "!**/.env.production"
+  - "!**/.env.test"
+  - "**/.env.local"
 publish:
   provider: github
   owner: kennethhuang7
@@ -21,7 +26,7 @@ win:
     - nsis
     - portable
   icon: public/courtvision.ico
-  protocol:
-    - name: courtvision
-      schemes:
-        - courtvision
+protocols:
+  - name: courtvision
+    schemes:
+      - courtvision

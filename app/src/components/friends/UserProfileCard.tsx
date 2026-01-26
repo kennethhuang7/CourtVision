@@ -36,17 +36,17 @@ const getPlatformUrl = (platformId: string, username: string): string | null => 
   
   const cleanUsername = username.replace(/^[@u/]/, '');
   
-  const urlMap: Record<string, string> = {
-    instagram: `https://instagram.com/${profile.social_links.instagram.startsWith('@') ? profile.social_links.instagram.slice(1) : profile.social_links.instagram}`,
-    twitter: `https://twitter.com/${profile.social_links.twitter.startsWith('@') ? profile.social_links.twitter.slice(1) : profile.social_links.twitter}`,
+  const urlMap: Record<string, string | null> = {
+    instagram: `https://instagram.com/${username.startsWith('@') ? username.slice(1) : username}`,
+    twitter: `https://twitter.com/${username.startsWith('@') ? username.slice(1) : username}`,
     discord: null, 
-    tiktok: `https://tiktok.com/@${profile.social_links.tiktok.startsWith('@') ? profile.social_links.tiktok.slice(1) : profile.social_links.tiktok}`,
-    facebook: `https://facebook.com/${profile.social_links.facebook}`,
-    spotify: `https://open.spotify.com/user/${profile.social_links.spotify}`,
-    github: `https://github.com/${profile.social_links.github}`,
-    twitch: `https://twitch.tv/${profile.social_links.twitch}`,
-    youtube: `https://youtube.com/${profile.social_links.youtube.startsWith('@') ? profile.social_links.youtube : '@' + profile.social_links.youtube}`,
-    reddit: `https://reddit.com/u/${profile.social_links.reddit.startsWith('u/') ? profile.social_links.reddit.slice(2) : profile.social_links.reddit}`,
+    tiktok: `https://tiktok.com/@${username.startsWith('@') ? username.slice(1) : username}`,
+    facebook: `https://facebook.com/${cleanUsername}`,
+    spotify: `https://open.spotify.com/user/${cleanUsername}`,
+    github: `https://github.com/${cleanUsername}`,
+    twitch: `https://twitch.tv/${cleanUsername}`,
+    youtube: `https://youtube.com/${username.startsWith('@') ? username : '@' + username}`,
+    reddit: `https://reddit.com/u/${username.startsWith('u/') ? username.slice(2) : username}`,
   };
   
   return urlMap[platformId] || null;

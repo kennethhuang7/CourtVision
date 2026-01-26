@@ -22,9 +22,10 @@ import { DiscordPresence } from '@/components/DiscordPresence';
 import { cn } from '@/lib/utils';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { OAUTH_PENDING_PREFIX } from '@/hooks/useEnsureUserProfile';
+import { SupabaseErrorPage } from '@/components/ui/supabase-error-page';
 
 export function DashboardLayout() {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, isSupabaseError, retryAuth, user } = useAuth();
   const { isVisible, close } = useChatWindow();
   const { data: userProfile, isLoading: isProfileLoading } = useUserProfile();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -32,7 +33,6 @@ export function DashboardLayout() {
   });
   useEnsureUserProfile();
 
-  // Check if OAuth user needs to complete profile (has pending username)
   const needsProfileCompletion = userProfile?.username?.startsWith(OAUTH_PENDING_PREFIX) ?? false;
 
   useEffect(() => {
@@ -58,7 +58,10 @@ export function DashboardLayout() {
   useFriendRequests(); 
   useGroupInvites(); 
 
-  // Show loading while checking auth and profile
+  if (isSupabaseError) {
+    return <SupabaseErrorPage onRetry={retryAuth} />;
+  }
+
   if (isLoading || isProfileLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -79,7 +82,6 @@ export function DashboardLayout() {
     return <Navigate to="/verify-email" replace />;
   }
 
-  // Redirect OAuth users who haven't completed their profile
   if (needsProfileCompletion === true) {
     return <Navigate to="/complete-profile" replace />;
   }

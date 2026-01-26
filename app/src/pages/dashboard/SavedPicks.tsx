@@ -82,8 +82,8 @@ export default function SavedPicks() {
     localStorage.setItem('player-analysis-selected-player', pick.player_id.toString());
     localStorage.setItem('player-analysis-selected-stat', pick.stat_name);
     localStorage.setItem('player-analysis-line-value', pick.line_value.toString());
-    
-    
+    localStorage.setItem('player-analysis-nav-timestamp', Date.now().toString());
+
     navigate('/dashboard/player-analysis');
   };
 
@@ -200,7 +200,7 @@ export default function SavedPicks() {
   
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 animate-fade-in">
         <div>
           <div className="h-8 w-48 bg-muted animate-pulse rounded mb-2" />
           <div className="h-4 w-64 bg-muted animate-pulse rounded" />
@@ -269,9 +269,54 @@ export default function SavedPicks() {
     
     return (
       <div className="flex h-[calc(100vh-10rem)] items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Brain className="h-16 w-16 text-destructive" />
-          <p className="text-destructive">Error loading picks. Please try again.</p>
+        <div className="flex flex-col items-center gap-4 text-center max-w-md">
+          <div className="relative">
+            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-destructive/20 via-destructive/10 to-transparent blur-xl" />
+            <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-destructive/20 to-destructive/10 flex items-center justify-center">
+              <Brain className="h-10 w-10 text-destructive" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            {(() => {
+              const errorMessage = error?.message || '';
+              const isNetworkError = errorMessage.includes('fetch') || 
+                                    errorMessage.includes('network') || 
+                                    errorMessage.includes('timeout') ||
+                                    errorMessage.includes('Failed to fetch');
+              const isServerError = errorMessage.includes('500') || 
+                                  errorMessage.includes('502') || 
+                                  errorMessage.includes('503') ||
+                                  errorMessage.includes('Internal Server Error');
+              const isAuthError = errorMessage.includes('auth') || 
+                                 errorMessage.includes('unauthorized') || 
+                                 errorMessage.includes('401') ||
+                                 errorMessage.includes('403');
+
+              let errorTitle = 'Error Loading Picks';
+              let errorDescription = 'Something went wrong while loading your picks.';
+
+              if (isNetworkError) {
+                errorTitle = 'Connection Error';
+                errorDescription = 'Unable to connect to the server. Please check your internet connection and try again.';
+              } else if (isServerError) {
+                errorTitle = 'Server Error';
+                errorDescription = 'The server is experiencing issues. Please try again in a few moments.';
+              } else if (isAuthError) {
+                errorTitle = 'Authentication Error';
+                errorDescription = 'Your session may have expired. Please refresh the page or log in again.';
+              }
+
+              return (
+                <>
+                  <h3 className="text-xl font-semibold text-foreground leading-tight break-words px-2">{errorTitle}</h3>
+                  <p className="text-muted-foreground text-sm leading-relaxed break-words px-2">{errorDescription}</p>
+                </>
+              );
+            })()}
+          </div>
+          <Button variant="outline" onClick={() => refetch()}>
+            Try Again
+          </Button>
         </div>
       </div>
     );
@@ -280,17 +325,31 @@ export default function SavedPicks() {
   if (picks.length === 0) {
     return (
       <div className="flex h-[calc(100vh-10rem)] items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Brain className="h-16 w-16 text-muted-foreground" />
-          <p className="text-muted-foreground">No picks saved yet.</p>
-          <p className="text-sm text-muted-foreground">Save picks from the Player Analysis page to see them here.</p>
+        <div className="flex flex-col items-center gap-4 text-center max-w-md">
+          <div className="relative">
+            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/20 via-primary/10 to-transparent blur-xl" />
+            <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-muted/80 to-muted/40 flex items-center justify-center">
+              <Brain className="h-10 w-10 text-muted-foreground" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-xl font-semibold text-foreground">No Picks Yet</h3>
+            <p className="text-muted-foreground">Save picks from the Player Analysis page to track your predictions here.</p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => navigate('/dashboard/player-analysis')}
+            className="mt-2"
+          >
+            Go to Player Analysis
+          </Button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div className="min-w-0">
         <h1 className="text-3xl font-bold leading-tight truncate">My Picks</h1>
         <p className="text-muted-foreground mt-1 leading-tight truncate">Track your predictions and results</p>
@@ -413,8 +472,15 @@ export default function SavedPicks() {
 
       <div className="space-y-3">
         {filteredPicks.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            No picks match your filters.
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="relative mb-4">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-muted/40 via-muted/20 to-transparent blur-lg" />
+              <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-muted/60 to-muted/30 flex items-center justify-center">
+                <Filter className="h-8 w-8 text-muted-foreground" />
+              </div>
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-1">No Matching Picks</h3>
+            <p className="text-muted-foreground text-sm">Try adjusting your filters to see more picks.</p>
           </div>
         ) : (
           filteredPicks.map((pick) => {
@@ -450,13 +516,17 @@ export default function SavedPicks() {
               <div
                 key={pick.id}
                 className={cn(
-                  'stat-card border-l-4 transition-all hover:shadow-lg hover:scale-[1.01]',
+                  'group relative stat-card border-l-4 transition-all hover:shadow-lg hover:scale-[1.01] overflow-hidden',
                   isWin && 'border-l-green-600',
                   isLoss && 'border-l-red-600',
                   isPending && 'border-l-yellow-600'
                 )}
               >
-                <div className="flex items-center gap-4">
+                {/* Shine effect */}
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                </div>
+                <div className="relative flex items-center gap-4">
                   <div className="relative flex-shrink-0">
                     <div className="w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden ring-2 ring-primary/30 bg-gradient-to-br from-secondary via-muted to-secondary">
                       {playerPhotoUrl ? (
@@ -635,6 +705,13 @@ export default function SavedPicks() {
             pickId={sharePickId}
             currentVisibility={(pick?.visibility as any) || 'private'}
             currentGroupId={(pick as any)?.shared_group_id || null}
+            pickData={pick ? {
+              player_id: pick.player_id,
+              game_id: pick.game_id,
+              stat_name: pick.stat_name,
+              line_value: pick.line_value,
+              over_under: pick.over_under,
+            } : undefined}
           />
         );
       })()}

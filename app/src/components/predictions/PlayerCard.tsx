@@ -6,6 +6,33 @@ import { PlayerDetailModal } from './PlayerDetailModal';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
+function formatPosition(position: string): string {
+  if (!position) return '';
+
+  const positionMap: Record<string, string> = {
+    'Guard': 'G',
+    'Point Guard': 'PG',
+    'Shooting Guard': 'SG',
+    'Forward': 'F',
+    'Small Forward': 'SF',
+    'Power Forward': 'PF',
+    'Center': 'C',
+  };
+
+  if (positionMap[position]) {
+    return positionMap[position];
+  }
+
+  if (position.includes('-')) {
+    return position.split('-').map(p => {
+      const trimmed = p.trim();
+      return positionMap[trimmed] || trimmed.charAt(0).toUpperCase();
+    }).join('/');
+  }
+
+  return position.split(' ').map(w => w.charAt(0).toUpperCase()).join('');
+}
+
 interface PlayerCardProps {
   prediction: Prediction;
   showCompare?: boolean;
@@ -71,20 +98,20 @@ export function PlayerCard({ prediction, showCompare = false, gameContext }: Pla
           <div className="flex items-center gap-2 flex-wrap">
             <ConfidenceBadge confidence={confidence} size="sm" />
             <span className={cn(
-              'inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-all shrink-0',
+              'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-normal border transition-all shrink-0',
               isHome
                 ? 'bg-gradient-to-r from-accent/20 to-primary/20 text-accent border-accent/30 group-hover:from-accent/30 group-hover:to-primary/30'
                 : 'bg-gradient-to-r from-warning/20 to-warning/10 text-warning border-warning/30 group-hover:from-warning/30 group-hover:to-warning/20'
             )}>
-              <MapPin className="h-3 w-3 shrink-0" />
+              <MapPin className="h-2 w-2 shrink-0" />
               <span className="whitespace-nowrap">{isHome ? 'HOME' : 'AWAY'}</span>
             </span>
             {gameContext && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-muted/50 text-muted-foreground border border-border/50">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-muted/50 text-muted-foreground border border-border/50 shrink-0">
                 {gameContext.awayTeamAbbr} @ {gameContext.homeTeamAbbr}
               </span>
             )}
-            <span className="text-xs text-muted-foreground">{player.position} • {player.teamAbbr}</span>
+            <span className="text-xs text-muted-foreground whitespace-nowrap">{formatPosition(player.position)} • {player.teamAbbr}</span>
           </div>
         </div>
 

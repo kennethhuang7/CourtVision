@@ -77,7 +77,6 @@ class CacheManager {
 
   
   isCacheableDate(dateString: string): boolean {
-    // Date-only strings should be treated as local calendar dates.
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateString);
     const date = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(dateString);
     const today = new Date();
@@ -214,8 +213,6 @@ class CacheManager {
   
   async cleanup(retentionDays: CacheRetentionDays): Promise<void> {
     if (retentionDays === 'off') {
-      // Off means "don't keep prediction cache at all".
-      // Clear just predictions (leave model_performance policy separate).
       try {
         const db = await this.ensureInit();
         await db.clear('predictions');
@@ -362,7 +359,6 @@ class CacheManager {
 
       const modelPerformance = await db.getAll('model_performance');
       modelPerformance.forEach((mp) => {
-        // Parse cache key: "30|points|xgboost,lightgbm"
         const parts = mp.cacheKey.split('|');
         if (parts.length === 3) {
           entries.push({

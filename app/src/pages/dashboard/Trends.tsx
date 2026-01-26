@@ -174,7 +174,12 @@ function Trends() {
         {!isLoading && trends.length === 0 && (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center max-w-md">
-              <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4 shrink-0" />
+              <div className="relative mx-auto mb-4 w-fit">
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/20 via-primary/10 to-transparent blur-xl" />
+                <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-muted/80 to-muted/40 flex items-center justify-center">
+                  <TrendingUp className="h-10 w-10 text-muted-foreground" />
+                </div>
+              </div>
               <h3 className="text-xl font-semibold text-foreground mb-2">
                 No Trends Found
               </h3>

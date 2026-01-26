@@ -41,7 +41,15 @@ export function useReactionSubscription(messageIds: string[], enabled: boolean =
 
           
           queryClient.invalidateQueries({
-            queryKey: ['batchMessageReactions'],
+            predicate: (query) => {
+              return query.queryKey[0] === 'batchMessageReactions';
+            },
+          });
+          
+          queryClient.refetchQueries({
+            predicate: (query) => {
+              return query.queryKey[0] === 'batchMessageReactions';
+            },
           });
         }
       )

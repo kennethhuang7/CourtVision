@@ -57,7 +57,7 @@ export default function MyGroups() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
           <h1 className="text-3xl font-bold text-foreground leading-tight truncate">My Groups</h1>

@@ -12,7 +12,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { PicksModal } from '@/components/analytics/PicksModal';
 
-// Circular progress component with animation
 function WinRateRing({
   value,
   size = 160,
@@ -124,7 +123,6 @@ export default function Analytics() {
   const { data: picks = [], isLoading } = useUserPicks();
   const [selectedStat, setSelectedStat] = useState('overall');
 
-  // Modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [modalSubtitle, setModalSubtitle] = useState<string | undefined>();
@@ -136,7 +134,6 @@ export default function Analytics() {
     setModalTitle(playerName);
     setModalSubtitle(`All picks for ${playerName}`);
     setModalPicks(playerPicks);
-    // Gold for #1, silver for #2, bronze for #3, purple for others
     const rankColor = rank === 0 ? 'yellow' : rank === 1 ? 'gray' : rank === 2 ? 'orange' : 'purple';
     setModalColor(rankColor as typeof modalColor);
     setModalOpen(true);
@@ -225,7 +222,6 @@ export default function Analytics() {
     };
   }, [picks, hasSettledPicks]);
 
-  // Filtered stats based on selected stat dropdown
   const filteredStats = useMemo(() => {
     if (selectedStat === 'overall') {
       return {
@@ -362,7 +358,6 @@ export default function Analytics() {
     });
   }, [picks, hasSettledPicks]);
 
-  // Loading state
   if (isLoading) {
     return (
       <div className="space-y-6 animate-fade-in">
@@ -404,7 +399,6 @@ export default function Analytics() {
     );
   }
 
-  // Empty state - no picks
   if (picks.length === 0) {
     return (
       <div className="space-y-6 animate-fade-in">
@@ -434,7 +428,6 @@ export default function Analytics() {
     );
   }
 
-  // Pending state - all picks pending
   if (!hasSettledPicks) {
     return (
       <div className="space-y-6 animate-fade-in">
@@ -481,7 +474,6 @@ export default function Analytics() {
     );
   }
 
-  // Main analytics view
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}

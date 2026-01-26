@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -10,6 +11,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { useSupabasePredictions } from '@/hooks/useSupabasePredictions';
 import { usePlayerHistoricalGames } from '@/hooks/usePlayerHistoricalGames';
 import { useSavePick } from '@/hooks/useSavePick';
+import { useCountUp } from '@/hooks/useCountUp';
 import { useOpponentDefense, useStarPlayersOut, useRestDays, usePlayoffExperience, usePaceComparison } from '@/hooks/useContextCards';
 import { useEnsemble } from '@/contexts/EnsembleContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -45,31 +47,65 @@ const timeWindows = ['L5', 'L10', 'L20', 'L50', 'All'] as const;
 
 export default function PlayerAnalysis() {
   const { dateFormat, theme: currentTheme } = useTheme();
-  
-  
+  const location = useLocation();
+  const locationKeyRef = useRef<string | undefined>(undefined);
+
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isInitializingDate, setIsInitializingDate] = useState(true);
 
+  const [dateInitError, setDateInitError] = useState<string | null>(null);
+
   useEffect(() => {
+    if (locationKeyRef.current === location.key) return;
+    locationKeyRef.current = location.key;
+    setIsInitializingDate(true);
+    setDateInitError(null);
+
     const initializeDate = async () => {
       const storedGameId = localStorage.getItem('player-analysis-selected-game');
-      
-      if (storedGameId) {
-        const { data: gameData, error } = await supabase
-          .from('games')
-          .select('game_date')
-          .eq('game_id', storedGameId)
-          .maybeSingle();
-        
-        if (!error && gameData && gameData.game_date) {
-          const gameDate = new Date(gameData.game_date);
-          if (!isNaN(gameDate.getTime())) {
-            setSelectedDate(gameDate);
-            sessionStorage.setItem('shared-selected-date', toDateOnlyString(gameDate));
-            setIsInitializingDate(false);
-            return;
+      const navTimestamp = localStorage.getItem('player-analysis-nav-timestamp');
+
+      // Only use stored game ID if it was set recently (within last 10 seconds)
+      // This prevents stale localStorage from previous sessions from overriding current date
+      const isRecentNavigation = navTimestamp && (Date.now() - parseInt(navTimestamp, 10)) < 10000;
+
+      if (storedGameId && isRecentNavigation) {
+        const fetchGameDate = async (retries = 3): Promise<Date | null> => {
+          for (let i = 0; i < retries; i++) {
+            const { data: gameData, error } = await supabase
+              .from('games')
+              .select('game_date')
+              .eq('game_id', storedGameId)
+              .maybeSingle();
+
+            if (!error && gameData && gameData.game_date) {
+              const dateStr = typeof gameData.game_date === 'string'
+                ? gameData.game_date.split('T')[0]
+                : gameData.game_date;
+              const gameDate = parseStoredDate(dateStr);
+              if (gameDate) {
+                return gameDate;
+              }
+            }
+
+            if (i < retries - 1) {
+              await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+            }
           }
+          return null;
+        };
+
+        const gameDate = await fetchGameDate();
+        if (gameDate) {
+          setSelectedDate(gameDate);
+          sessionStorage.setItem('shared-selected-date', toDateOnlyString(gameDate));
+          setIsInitializingDate(false);
+          return;
         }
+
+        setDateInitError('Unable to load game data. Please try again.');
+        setIsInitializingDate(false);
+        return;
       }
 
       const stored = sessionStorage.getItem('shared-selected-date');
@@ -82,22 +118,51 @@ export default function PlayerAnalysis() {
         }
       }
 
-      const { getMostRecentDateWithPredictions } = await import('@/lib/dateUtils');
-      const mostRecent = await getMostRecentDateWithPredictions();
-      if (mostRecent) {
-        setSelectedDate(mostRecent);
-        sessionStorage.setItem('shared-selected-date', toDateOnlyString(mostRecent));
-      }
+      const { getBestInitialDate } = await import('@/lib/dateUtils');
+      const bestDate = await getBestInitialDate();
+      setSelectedDate(bestDate);
+      sessionStorage.setItem('shared-selected-date', toDateOnlyString(bestDate));
       setIsInitializingDate(false);
     };
 
     initializeDate();
+  }, [location.key]);
+
+  const handleRetryDateInit = useCallback(() => {
+    locationKeyRef.current = undefined;
+    setDateInitError(null);
+    setIsInitializingDate(true);
+    const storedGameId = localStorage.getItem('player-analysis-selected-game');
+    if (storedGameId) {
+      supabase
+        .from('games')
+        .select('game_date')
+        .eq('game_id', storedGameId)
+        .maybeSingle()
+        .then(({ data, error }) => {
+          if (!error && data && data.game_date) {
+            const dateStr = typeof data.game_date === 'string'
+              ? data.game_date.split('T')[0]
+              : data.game_date;
+            const gameDate = parseStoredDate(dateStr);
+            if (gameDate) {
+              setSelectedDate(gameDate);
+              sessionStorage.setItem('shared-selected-date', toDateOnlyString(gameDate));
+              setIsInitializingDate(false);
+              return;
+            }
+          }
+          setDateInitError('Unable to load game data. Please try again.');
+          setIsInitializingDate(false);
+        });
+    }
   }, []);
 
-  
   useEffect(() => {
-    sessionStorage.setItem('shared-selected-date', toDateOnlyString(selectedDate));
-  }, [selectedDate]);
+    if (!isInitializingDate) {
+      sessionStorage.setItem('shared-selected-date', toDateOnlyString(selectedDate));
+    }
+  }, [selectedDate, isInitializingDate]);
 
   
   const [selectedGame, setSelectedGame] = useState<string>(() => {
@@ -112,8 +177,22 @@ export default function PlayerAnalysis() {
     const stored = localStorage.getItem('player-analysis-selected-stat');
     return stored || 'points';
   });
-  
-  
+
+  useEffect(() => {
+    const storedGame = localStorage.getItem('player-analysis-selected-game');
+    const storedPlayer = localStorage.getItem('player-analysis-selected-player');
+    const storedStat = localStorage.getItem('player-analysis-selected-stat');
+    if (storedGame && storedGame !== selectedGame) {
+      setSelectedGame(storedGame);
+    }
+    if (storedPlayer && storedPlayer !== selectedPlayer) {
+      setSelectedPlayer(storedPlayer);
+    }
+    if (storedStat && storedStat !== selectedStat) {
+      setSelectedStat(storedStat);
+    }
+  }, [location.key]);
+
   useEffect(() => {
     if (selectedGame) {
       localStorage.setItem('player-analysis-selected-game', selectedGame);
@@ -169,31 +248,27 @@ export default function PlayerAnalysis() {
     { enabled: !isInitializingDate }
   );
 
-  
-  
   useEffect(() => {
-    const storedGameId = localStorage.getItem('player-analysis-selected-game');
-    if (storedGameId && !isLoadingPredictions) {
-      const gameExists = games.find(g => g.id === storedGameId);
+    if (games.length > 0 && !isLoadingPredictions && selectedGame) {
+      const gameExists = games.find(g => g.id === selectedGame);
       if (!gameExists) {
-        
-        const findGameDate = async () => {
-          const { data: predictionData, error } = await supabase
-            .from('predictions')
-            .select('prediction_date, game_id')
-            .eq('game_id', storedGameId)
-            .limit(1)
-            .maybeSingle();
-          
-          
-          
-        };
-        findGameDate();
+        const storedPlayerId = localStorage.getItem('player-analysis-selected-player');
+        if (storedPlayerId) {
+          const gameWithPlayer = games.find(g =>
+            g.predictions.some(p => p.player.id === storedPlayerId)
+          );
+          if (gameWithPlayer) {
+            setSelectedGame(gameWithPlayer.id);
+            return;
+          }
+        }
+        setSelectedGame(games[0].id);
+        setSelectedPlayer('');
+        localStorage.removeItem('player-analysis-selected-player');
       }
     }
-  }, [games, selectedDate, isLoadingPredictions]);
+  }, [games, isLoadingPredictions, selectedGame]);
 
-  
   const selectedGameObj = games.find(g => g.id === selectedGame) || games[0];
 
   const gameOptions = useMemo(() => {
@@ -877,7 +952,18 @@ export default function PlayerAnalysis() {
   const historicalData = chartData.filter(d => !d.isAIPrediction);
   const hitRate = historicalData.length > 0
     ? Math.round((historicalData.filter(d => d.hit).length / historicalData.length) * 100)
-    : 0;
+    : null;
+
+  const animatedHitRate = useCountUp(hitRate, { 
+    duration: 1000, 
+    decimals: 0,
+    enabled: hitRate !== null && !isLoadingHistoricalGames
+  });
+  const animatedAiPrediction = useCountUp(aiPrediction, { 
+    duration: 1000, 
+    decimals: 1,
+    enabled: !isLoadingPredictions && !!predictionForPlayer
+  });
 
   
   const statNameForHooks = selectedStat === 'threePointersMade' ? 'threePointersMade' : selectedStat;
@@ -1138,7 +1224,43 @@ export default function PlayerAnalysis() {
     );
   };
 
-  
+  if (dateInitError) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Player Analysis</h1>
+            <p className="text-muted-foreground">Analyze historical performance and betting lines</p>
+          </div>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-12 text-center">
+          <div className="relative mx-auto mb-4 w-fit">
+            <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-destructive/20 to-destructive/5 flex items-center justify-center">
+              <AlertCircle className="h-10 w-10 text-destructive" />
+            </div>
+          </div>
+          <h3 className="text-xl font-semibold text-foreground mb-2">Unable to Load Game Data</h3>
+          <p className="text-muted-foreground mb-4">
+            We couldn't load the game data due to rate limiting. Please wait a moment and try again.
+          </p>
+          <Button onClick={handleRetryDateInit} disabled={isInitializingDate}>
+            {isInitializingDate ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Retrying...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Try Again
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (isLoadingPredictions) {
     return (
       <div className="space-y-6 animate-fade-in">
@@ -1155,7 +1277,12 @@ export default function PlayerAnalysis() {
         </div>
         <div className="flex items-center justify-center py-24">
           <div className="text-center">
-            <Brain className="mx-auto h-12 w-12 text-muted-foreground mb-4 animate-pulse shrink-0" />
+            <div className="relative mx-auto mb-4 w-fit">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/20 via-primary/10 to-transparent blur-xl animate-pulse" />
+              <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-muted/80 to-muted/40 flex items-center justify-center">
+                <Brain className="h-10 w-10 text-muted-foreground animate-pulse" />
+              </div>
+            </div>
             <p className="text-muted-foreground">Loading predictions...</p>
           </div>
         </div>
@@ -1180,10 +1307,15 @@ export default function PlayerAnalysis() {
           />
         </div>
         <div className="rounded-xl border border-border bg-card p-12 text-center">
-          <Brain className="mx-auto h-12 w-12 text-muted-foreground mb-4 shrink-0" />
-          <h3 className="text-lg font-semibold text-foreground mb-2">No Predictions Available</h3>
+          <div className="relative mx-auto mb-4 w-fit">
+            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/20 via-primary/10 to-transparent blur-xl" />
+            <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-muted/80 to-muted/40 flex items-center justify-center">
+              <Brain className="h-10 w-10 text-muted-foreground" />
+            </div>
+          </div>
+          <h3 className="text-xl font-semibold text-foreground mb-2">No Predictions Available</h3>
           <p className="text-muted-foreground mb-4">
-            {hasStoredGame 
+            {hasStoredGame
               ? `No predictions found for ${formatUserDate(selectedDate, dateFormat, true)}. Try selecting a different date that has predictions.`
               : `Predictions have not been generated yet for ${formatUserDate(selectedDate, dateFormat, true)}. Please check back later or select a different date.`
             }
@@ -1308,7 +1440,7 @@ export default function PlayerAnalysis() {
                   optionsOpen && "rotate-180"
                 )} />
               </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-4 pt-4">
+              <CollapsibleContent className="space-y-4 pt-4 overflow-hidden data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up">
                 <div className="space-y-2">
                   <Label className="text-muted-foreground">Time Window</Label>
                   <RadioGroup value={timeWindow} onValueChange={setTimeWindow} className="flex flex-wrap gap-2">
@@ -1380,7 +1512,7 @@ export default function PlayerAnalysis() {
                   filtersOpen && "rotate-180"
                 )} />
               </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-4 pt-4">
+              <CollapsibleContent className="space-y-4 pt-4 overflow-hidden data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up">
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <Checkbox id="excludeDNP" checked={excludeDNP} onCheckedChange={(c) => setExcludeDNP(!!c)} />
@@ -1448,6 +1580,12 @@ export default function PlayerAnalysis() {
               title="Opponent Defense"
               content="Error loading opponent defense data."
             />
+          ) : opponentDefense.isLoading || opponentDefense.isFetching ? (
+            <ContextCard
+              icon={Shield}
+              title="Opponent Defense"
+              content="Loading opponent defense data..."
+            />
           ) : opponentDefense.data ? (
             <ContextCard
               icon={Shield}
@@ -1472,6 +1610,12 @@ export default function PlayerAnalysis() {
               icon={Users}
               title="Star Players Out"
               content="Error loading star players data."
+            />
+          ) : starPlayersOut.isLoading || starPlayersOut.isFetching ? (
+            <ContextCard
+              icon={Users}
+              title="Star Players Out"
+              content="Loading star players data..."
             />
           ) : starPlayersOut.data ? (
             starPlayersOut.data.insufficientData ? (
@@ -1519,6 +1663,12 @@ export default function PlayerAnalysis() {
               title="Rest Days"
               content="Error loading rest days data."
             />
+          ) : restDays.isLoading || restDays.isFetching ? (
+            <ContextCard
+              icon={Clock}
+              title="Rest Days"
+              content="Loading rest days data..."
+            />
           ) : restDays.data && restDays.data.teamRest !== null && restDays.data.opponentRest !== null ? (
             <ContextCard
               icon={Clock}
@@ -1543,6 +1693,12 @@ export default function PlayerAnalysis() {
               icon={Trophy}
               title="Playoff Experience"
               content="Error loading playoff experience data."
+            />
+          ) : playoffExperience.isLoading || playoffExperience.isFetching ? (
+            <ContextCard
+              icon={Trophy}
+              title="Playoff Experience"
+              content="Loading playoff experience data..."
             />
           ) : playoffExperience.data ? (
             !playoffExperience.data.isPlayoff ? (
@@ -1581,6 +1737,12 @@ export default function PlayerAnalysis() {
               icon={Zap}
               title="Pace Comparison"
               content="Error loading pace comparison data."
+            />
+          ) : paceComparison.isLoading || paceComparison.isFetching ? (
+            <ContextCard
+              icon={Zap}
+              title="Pace Comparison"
+              content="Loading pace comparison data..."
             />
           ) : paceComparison.data ? (
             (() => {
@@ -1649,18 +1811,32 @@ export default function PlayerAnalysis() {
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-1">Hit Rate</p>
-                  <p className={cn(
-                    'text-3xl font-bold',
-                    hitRate >= 60 ? 'text-success' : hitRate >= 40 ? 'text-warning' : 'text-destructive'
-                  )}>
-                    {hitRate}%
-                  </p>
+                  {hitRate === null ? (
+                    <p className={cn(
+                      'text-3xl font-bold text-muted-foreground/50'
+                    )}>
+                      {isLoadingHistoricalGames ? '--%' : '0%'}
+                    </p>
+                  ) : (
+                    <p className={cn(
+                      'text-3xl font-bold',
+                      hitRate >= 60 ? 'text-success' : hitRate >= 40 ? 'text-warning' : 'text-destructive'
+                    )}>
+                      {animatedHitRate}%
+                    </p>
+                  )}
                 </div>
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-1">AI Prediction</p>
-                  <p className="text-3xl font-bold text-primary">
-                    {aiPrediction.toFixed(1)}
-                  </p>
+                  {isLoadingPredictions && !predictionForPlayer ? (
+                    <p className="text-3xl font-bold text-muted-foreground/50">
+                      --
+                    </p>
+                  ) : (
+                    <p className="text-3xl font-bold text-primary">
+                      {animatedAiPrediction.toFixed(1)}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -1765,7 +1941,12 @@ export default function PlayerAnalysis() {
               ) : isErrorHistoricalGames ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center max-w-md p-6 rounded-xl border border-border bg-card">
-                    <AlertCircle className="mx-auto h-10 w-10 text-muted-foreground mb-3 shrink-0" />
+                    <div className="relative mx-auto mb-4 w-fit">
+                      <div className="absolute inset-0 rounded-full bg-gradient-to-br from-destructive/20 via-destructive/10 to-transparent blur-xl" />
+                      <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-destructive/20 to-destructive/10 flex items-center justify-center">
+                        <AlertCircle className="h-8 w-8 text-destructive" />
+                      </div>
+                    </div>
                     <h3 className="text-base font-semibold text-foreground mb-2">Error loading historical games</h3>
                     <p className="text-sm text-muted-foreground mb-4">
                       {errorHistoricalGames?.message || 'There was a problem fetching historical data. Please try again.'}

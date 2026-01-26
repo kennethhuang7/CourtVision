@@ -549,12 +549,18 @@ export function useRemoveFriend() {
         throw new Error('Unauthorized: You can only delete your own friendships');
       }
       
+      const otherUserId = friendship.requester_id === validatedUserId 
+        ? friendship.addressee_id 
+        : friendship.requester_id;
+      
       const { error } = await supabase
         .from('user_friendships')
         .delete()
         .eq('id', friendshipId);
 
       if (error) throw error;
+      
+      return { otherUserId, friendshipId };
     },
     onMutate: async (friendshipId) => {
       
@@ -580,9 +586,19 @@ export function useRemoveFriend() {
       logger.error('Error removing friend', err as Error);
       toast.error('Failed to remove friend');
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['friends'] });
       queryClient.invalidateQueries({ queryKey: ['friendship-status'] });
+      
+      const validatedUserId = validateUserId(user?.id || '');
+      
+      if (result?.otherUserId) {
+        queryClient.invalidateQueries({ queryKey: ['conversations', validatedUserId] });
+        queryClient.invalidateQueries({ queryKey: ['conversations', result.otherUserId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['conversations', validatedUserId] });
+      }
+      
       toast.success('Friend removed');
     },
   });

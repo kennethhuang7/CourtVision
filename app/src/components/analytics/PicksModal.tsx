@@ -82,7 +82,6 @@ export function PicksModal({
 
   const colors = colorClasses[accentColor];
 
-  // Calculate stats
   const wonPicks = picks.filter(p => p.result === 'win').length;
   const lostPicks = picks.filter(p => p.result === 'loss').length;
   const pendingPicks = picks.filter(p => p.result === 'pending').length;

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Search, Filter, Brain, RefreshCw, Loader2, ArrowUpDown, ArrowUp, ArrowDown, Grid3x3, ChevronDown, ChevronUp } from 'lucide-react';
 import { parseStoredDate, toDateOnlyString } from '@/lib/dateUtils';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -11,6 +12,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { PlayerCard } from '@/components/predictions/PlayerCard';
 import { useSupabasePredictions } from '@/hooks/useSupabasePredictions';
 import { useEnsemble } from '@/contexts/EnsembleContext';
+import { useCountUp } from '@/hooks/useCountUp';
 import { cn } from '@/lib/utils';
 import { cleanNameForMatching, normalizeName, extractTeamName } from '@/lib/nameUtils';
 import { debounce } from '@/lib/rateLimiter';
@@ -22,10 +24,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 export default function Predictions() {
   const { dateFormat } = useTheme();
   
+  const location = useLocation();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isInitializing, setIsInitializing] = useState(true);
+  const locationKeyRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
+    if (locationKeyRef.current === location.key) return;
+    locationKeyRef.current = location.key;
+
     const initializeDate = async () => {
       const stored = sessionStorage.getItem('shared-selected-date');
       if (stored) {
@@ -37,22 +44,21 @@ export default function Predictions() {
         }
       }
 
-      const { getMostRecentDateWithPredictions } = await import('@/lib/dateUtils');
-      const mostRecent = await getMostRecentDateWithPredictions();
-      if (mostRecent) {
-        setSelectedDate(mostRecent);
-        sessionStorage.setItem('shared-selected-date', toDateOnlyString(mostRecent));
-      }
+      const { getBestInitialDate } = await import('@/lib/dateUtils');
+      const bestDate = await getBestInitialDate();
+      setSelectedDate(bestDate);
+      sessionStorage.setItem('shared-selected-date', toDateOnlyString(bestDate));
       setIsInitializing(false);
     };
 
     initializeDate();
-  }, []);
+  }, [location.key]);
 
-  
   useEffect(() => {
-    sessionStorage.setItem('shared-selected-date', toDateOnlyString(selectedDate));
-  }, [selectedDate]);
+    if (!isInitializing) {
+      sessionStorage.setItem('shared-selected-date', toDateOnlyString(selectedDate));
+    }
+  }, [selectedDate, isInitializing]);
   const [confidenceFilter, setConfidenceFilter] = useState<string>('all');
   const [playerSearch, setPlayerSearch] = useState('');
   const [playerSearchInput, setPlayerSearchInput] = useState('');
@@ -158,7 +164,6 @@ export default function Predictions() {
   };
 
   
-  // Flatten all predictions with game context
   type PredictionWithContext = Prediction & {
     gameContext: {
       homeTeamAbbr: string;
@@ -180,10 +185,8 @@ export default function Predictions() {
     );
   }, [games]);
 
-  // Filter predictions
   const filteredPredictions = useMemo<PredictionWithContext[]>(() => {
     return allPredictionsWithContext.filter(p => {
-      // Game filter
       if (selectedGameId && p.gameContext.gameId !== selectedGameId) return false;
         
         if (confidenceFilter === 'high' && p.confidence < 80) return false;
@@ -230,7 +233,6 @@ export default function Predictions() {
     });
   }, [allPredictionsWithContext, confidenceFilter, playerSearch, positionFilter, selectedGameId]);
 
-  // Sort predictions
   const sortedPredictions = useMemo<PredictionWithContext[]>(() => {
     const sorted = [...filteredPredictions];
     sorted.sort((a, b) => {
@@ -273,7 +275,6 @@ export default function Predictions() {
     return sorted;
   }, [filteredPredictions, sortBy, sortDirection]);
 
-  // Group predictions (if grouping is enabled)
   const groupedPredictions = useMemo<Record<string, PredictionWithContext[]>>(() => {
     if (groupBy === 'none') {
       return { 'All Predictions': sortedPredictions };
@@ -303,7 +304,6 @@ export default function Predictions() {
     return groups;
   }, [sortedPredictions, groupBy]);
 
-  // Calculate stats from filtered predictions
   const filteredGames = useMemo(() => {
     const gameMap = new Map<string, typeof games[0]>();
     filteredPredictions.forEach(p => {
@@ -319,10 +319,8 @@ export default function Predictions() {
   }, [filteredPredictions, games]);
 
   
-  // Calculate totals before game filtering (for "All Games" card)
   const totalPredictionsAllGames = allPredictionsWithContext.length;
-  
-  // Calculate totals for currently filtered view
+
   const totalPredictions = filteredPredictions.length;
   const totalGames = new Set(filteredPredictions.map(p => p.gameContext.gameId)).size;
   const avgConfidence = totalPredictions > 0
@@ -330,10 +328,13 @@ export default function Predictions() {
     : 0;
   const highConfidenceCount = filteredPredictions.filter(p => p.confidence >= 80).length;
 
+  const animatedTotalPredictions = useCountUp(totalPredictions, { duration: 400 });
+  const animatedTotalGames = useCountUp(totalGames, { duration: 400 });
+  const animatedAvgConfidence = useCountUp(avgConfidence, { duration: 500 });
+  const animatedHighConfidence = useCountUp(highConfidenceCount, { duration: 400 });
+
   const isPastDate = selectedDate < new Date(new Date().setHours(0, 0, 0, 0));
 
-  // Calculate how many cards fit in one row
-  // This respects zoom, font size, UI density, and theme changes
   useEffect(() => {
     if (!gamesContainerRef.current || games.length === 0) {
       setCardsPerRow(null);
@@ -344,36 +345,25 @@ export default function Predictions() {
       const container = gamesContainerRef.current;
       if (!container) return;
 
-      // Get computed styles to account for density/zoom/font size
       const computedStyle = window.getComputedStyle(container);
-      const gap = parseFloat(computedStyle.gap) || 12; // Uses density-gap value
+      const gap = parseFloat(computedStyle.gap) || 12;
       const containerWidth = container.offsetWidth;
       
-      // Min card width (140px) - this accounts for content size
-      // In practice, cards might be larger due to content, but this is a safe minimum
       const minCardWidth = 140;
       
-      // Calculate how many cards fit: (width + gap) / (cardWidth + gap)
-      // The +gap accounts for the gap after the last card
       const estimatedCards = Math.floor((containerWidth + gap) / (minCardWidth + gap));
       
-      // Account for "All Games" card (always shown)
-      // Ensure at least 1 game card can fit
       const cardsThatFit = Math.max(1, estimatedCards - 1);
       setCardsPerRow(cardsThatFit);
     };
 
-    // Initial calculation
     calculateCardsPerRow();
     
-    // Recalculate on container resize (handles UI density, font size changes)
     const resizeObserver = new ResizeObserver(() => {
-      // Small delay to ensure styles are applied
       setTimeout(calculateCardsPerRow, 0);
     });
     resizeObserver.observe(gamesContainerRef.current);
 
-    // Also listen to window resize (handles zoom changes)
     const handleResize = () => {
       setTimeout(calculateCardsPerRow, 0);
     };
@@ -695,12 +685,12 @@ export default function Predictions() {
           {/* Metrics Section - Left */}
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-foreground">{totalPredictions}</span>
+              <span className="font-semibold text-foreground tabular-nums">{animatedTotalPredictions}</span>
               <span className="text-muted-foreground">predictions</span>
             </div>
             <div className="hidden sm:block w-px h-4 bg-border/50" />
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-foreground">{totalGames}</span>
+              <span className="font-semibold text-foreground tabular-nums">{animatedTotalGames}</span>
               <span className="text-muted-foreground">games</span>
             </div>
             <div className="hidden sm:block w-px h-4 bg-border/50" />
@@ -708,24 +698,26 @@ export default function Predictions() {
               <span className="text-muted-foreground">Avg confidence</span>
               <div className="flex items-center gap-2">
                 <div className="relative w-20 h-2 bg-muted/50 rounded-full overflow-hidden">
-                  <div 
-                    className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary/60 to-primary rounded-full transition-all duration-500"
-                    style={{ width: `${Math.min(avgConfidence, 100)}%` }}
+                  <motion.div
+                    className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary/60 to-primary rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(avgConfidence, 100)}%` }}
+                    transition={{ duration: 0.5, ease: "easeOut" }}
                   />
                 </div>
-                <span className="font-semibold text-foreground tabular-nums min-w-[2.5rem]">{avgConfidence}%</span>
+                <span className="font-semibold text-foreground tabular-nums min-w-[2.5rem]">{animatedAvgConfidence}%</span>
               </div>
             </div>
             <div className="hidden sm:block w-px h-4 bg-border/50" />
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">High confidence</span>
               <span className={cn(
-                "px-2 py-0.5 rounded-md font-semibold text-xs",
-                highConfidenceCount > 0 
-                  ? "bg-primary/10 text-primary" 
+                "px-2 py-0.5 rounded-md font-semibold text-xs tabular-nums",
+                highConfidenceCount > 0
+                  ? "bg-primary/10 text-primary"
                   : "bg-muted/30 text-muted-foreground"
               )}>
-                {highConfidenceCount}
+                {animatedHighConfidence}
               </span>
             </div>
           </div>
@@ -988,8 +980,13 @@ export default function Predictions() {
               </div>
             ) : (
               <div className="rounded-xl border border-border bg-card p-12 text-center">
-                <Brain className="mx-auto h-12 w-12 text-muted-foreground mb-4 shrink-0" />
-                <h3 className="text-lg font-semibold text-foreground mb-2">Error loading predictions</h3>
+                <div className="relative mx-auto mb-4 w-fit">
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-destructive/20 via-destructive/10 to-transparent blur-xl" />
+                  <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-destructive/20 to-destructive/10 flex items-center justify-center">
+                    <Brain className="h-10 w-10 text-destructive" />
+                  </div>
+                </div>
+                <h3 className="text-xl font-semibold text-foreground mb-2">Error Loading Predictions</h3>
                 <p className="text-muted-foreground mb-4">
                   There was a problem fetching predictions. Please try again or select a different date.
                 </p>
@@ -1009,11 +1006,11 @@ export default function Predictions() {
             {sortedPredictions.length > 0 ? (
               <AnimatePresence mode="wait">
                 <motion.div
-                  key={`${selectedGameId || 'all'}-${groupBy}`}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+                  key={`${selectedGameId || 'all'}-${groupBy}-${sortBy}-${sortDirection}-${positionFilter}-${confidenceFilter}-${playerSearch}`}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15, ease: "easeOut" }}
                   className="space-y-6"
                 >
                   {Object.entries(groupedPredictions).map(([groupKey, groupPredictions]) => (
@@ -1022,7 +1019,7 @@ export default function Predictions() {
                         <motion.div
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
-                          transition={{ delay: 0.1 }}
+                          transition={{ delay: 0.05, duration: 0.15 }}
                           className="flex items-center gap-3"
                         >
                           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent" />
@@ -1036,20 +1033,18 @@ export default function Predictions() {
                         </motion.div>
                       )}
                       <div className="flex flex-col density-gap">
-                        <AnimatePresence mode="popLayout">
-                          {groupPredictions.map((prediction, index) => (
-                            <motion.div
-                              key={prediction.id}
-                              initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                              animate={{ opacity: 1, y: 0, scale: 1 }}
-                              exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                              transition={{
-                                duration: 0.3,
-                                delay: index * 0.03,
-                                ease: [0.4, 0, 0.2, 1]
-                              }}
-                              layout
-                            >
+                        {groupPredictions.map((prediction, index) => (
+                          <motion.div
+                            key={prediction.id}
+                            initial={{ opacity: 0, y: 4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0 }}
+                            transition={{
+                              duration: 0.15,
+                              delay: Math.min(index * 0.02, 0.1),
+                              ease: "easeOut"
+                            }}
+                          >
                               <PlayerCard
                                 prediction={prediction}
                                 showCompare={isPastDate}
@@ -1057,7 +1052,6 @@ export default function Predictions() {
                               />
                             </motion.div>
                           ))}
-                        </AnimatePresence>
                       </div>
                     </motion.div>
                   ))}
@@ -1065,8 +1059,13 @@ export default function Predictions() {
               </AnimatePresence>
             ) : (
           <div className="rounded-xl border border-border bg-card p-12 text-center">
-            <Brain className="mx-auto h-12 w-12 text-muted-foreground mb-4 shrink-0" />
-            <h3 className="text-lg font-semibold text-foreground mb-2">No Predictions Found</h3>
+            <div className="relative mx-auto mb-4 w-fit">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/20 via-primary/10 to-transparent blur-xl" />
+              <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-muted/80 to-muted/40 flex items-center justify-center">
+                <Brain className="h-10 w-10 text-muted-foreground" />
+              </div>
+            </div>
+            <h3 className="text-xl font-semibold text-foreground mb-2">No Predictions Found</h3>
             <p className="text-muted-foreground">
               Try adjusting your filters or selecting a different date.
             </p>

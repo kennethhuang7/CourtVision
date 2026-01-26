@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { Bell, BellOff, HelpCircle, Minus, Square, X, Settings, LogOut, Check, ChevronRight, Inbox, Trash2 } from 'lucide-react';
 import { SettingsModal } from '@/components/settings/SettingsModal';
 import { useAuth } from '@/contexts/AuthContext';
@@ -134,8 +135,10 @@ export function TitleBar() {
     }
   };
 
-  const handleHelp = () => {
-    
+  const handleHelp = async () => {
+    if (window.electron?.openExternal) {
+      await window.electron.openExternal('https://github.com/kennethhuang7/CourtVision/blob/main/README.md');
+    }
   };
 
   const handleClearAll = async () => {
@@ -171,13 +174,33 @@ export function TitleBar() {
             <button
               className={cn(
                 "flex h-8 w-8 items-center justify-center rounded-full transition-colors",
-                doNotDisturb 
-                  ? "text-muted-foreground/50 hover:text-muted-foreground hover:bg-secondary/50" 
+                doNotDisturb
+                  ? "text-muted-foreground/50 hover:text-muted-foreground hover:bg-secondary/50"
                   : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
               )}
               title={doNotDisturb ? "Do Not Disturb - Open options" : "Do Not Disturb - Open options"}
             >
-              {doNotDisturb ? <BellOff className="h-4 w-4 shrink-0" /> : <Bell className="h-4 w-4 shrink-0" />}
+              <div className="relative h-4 w-4">
+                <Bell className="h-4 w-4 absolute inset-0 shrink-0" />
+                <motion.div
+                  initial={false}
+                  animate={{
+                    opacity: doNotDisturb ? 1 : 0,
+                    scale: doNotDisturb ? 1 : 0.5
+                  }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  className="absolute inset-0"
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <motion.line
+                      x1="2" y1="2" x2="22" y2="22"
+                      initial={false}
+                      animate={{ pathLength: doNotDisturb ? 1 : 0 }}
+                      transition={{ duration: 0.3, ease: "easeOut" }}
+                    />
+                  </svg>
+                </motion.div>
+              </div>
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -222,17 +245,23 @@ export function TitleBar() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button
+            <motion.button
               className="relative flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
               title="Notifications"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
             >
               <Inbox className="h-4 w-4 shrink-0" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground px-1 animate-in zoom-in-50 duration-200">
+                <motion.span
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground px-1"
+                >
                   {unreadCount > 99 ? '99+' : unreadCount}
-                </span>
+                </motion.span>
               )}
-            </button>
+            </motion.button>
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="end"
@@ -361,7 +390,7 @@ export function TitleBar() {
               <Settings className="h-4 w-4 shrink-0" />
               <span className="text-sm min-w-0 truncate">Settings</span>
             </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2 cursor-pointer text-sm">
+            <DropdownMenuItem className="gap-2 cursor-pointer text-sm" onClick={handleHelp}>
               <HelpCircle className="h-4 w-4 shrink-0" />
               <span className="text-sm min-w-0 truncate">Help</span>
             </DropdownMenuItem>

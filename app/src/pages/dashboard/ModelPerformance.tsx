@@ -70,7 +70,6 @@ export default function ModelPerformance() {
         const filtered = parsed.filter((m: ModelId | 'ensemble') =>
           m !== 'ensemble' || selectedModels.length > 0
         );
-        // If filtered is empty, return default: all models (including ensemble if available)
         if (filtered.length === 0) {
           return selectedModels.length > 0 
             ? ['ensemble', 'xgboost', 'lightgbm', 'random_forest', 'catboost']
@@ -81,7 +80,6 @@ export default function ModelPerformance() {
 
       }
     }
-    // Default: all models selected (ensemble only if selectedModels.length > 0)
     return selectedModels.length > 0 
       ? ['ensemble', 'xgboost', 'lightgbm', 'random_forest', 'catboost']
       : ['xgboost', 'lightgbm', 'random_forest', 'catboost'];
@@ -912,19 +910,31 @@ export default function ModelPerformance() {
             />
           </div>
         ) : isError ? (
-          <div className="flex flex-col items-center justify-center py-12 text-destructive">
-            <AlertCircle className="h-5 w-5 mb-2" />
-            <span>Failed to load performance data</span>
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="relative mb-4">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-destructive/20 via-destructive/10 to-transparent blur-lg" />
+              <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-destructive/20 to-destructive/10 flex items-center justify-center">
+                <AlertCircle className="h-8 w-8 text-destructive" />
+              </div>
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-1">Error Loading Data</h3>
+            <p className="text-sm text-muted-foreground">Failed to load performance data</p>
             {error && (
-              <span className="text-xs text-muted-foreground mt-2 max-w-md text-center">
+              <span className="text-xs text-muted-foreground mt-2 max-w-md">
                 {error.message || String(error)}
               </span>
             )}
           </div>
         ) : overallMetrics.length === 0 ? (
-          <div className="flex items-center justify-center py-12 text-muted-foreground">
-            <AlertCircle className="h-5 w-5 mr-2" />
-            <span>No completed games found for the selected time period</span>
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="relative mb-4">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-muted/40 via-muted/20 to-transparent blur-lg" />
+              <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-muted/60 to-muted/30 flex items-center justify-center">
+                <AlertCircle className="h-8 w-8 text-muted-foreground" />
+              </div>
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-1">No Data Available</h3>
+            <p className="text-sm text-muted-foreground">No completed games found for the selected time period</p>
           </div>
         ) : (
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8">
@@ -945,12 +955,26 @@ export default function ModelPerformance() {
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
         ) : modelsToCompare.length === 0 ? (
-          <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-            <span>Please select at least one model to compare</span>
+          <div className="flex flex-col items-center justify-center h-[300px] text-center">
+            <div className="relative mb-4">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/20 via-primary/10 to-transparent blur-lg" />
+              <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-muted/60 to-muted/30 flex items-center justify-center">
+                <Activity className="h-8 w-8 text-muted-foreground" />
+              </div>
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-1">Select Models</h3>
+            <p className="text-sm text-muted-foreground">Please select at least one model to compare</p>
           </div>
         ) : timeSeriesData.length === 0 ? (
-          <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-            <span>No time series data available</span>
+          <div className="flex flex-col items-center justify-center h-[300px] text-center">
+            <div className="relative mb-4">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-muted/40 via-muted/20 to-transparent blur-lg" />
+              <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-muted/60 to-muted/30 flex items-center justify-center">
+                <Activity className="h-8 w-8 text-muted-foreground" />
+              </div>
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-1">No Data Available</h3>
+            <p className="text-sm text-muted-foreground">No time series data available for this period</p>
           </div>
         ) : (
         <div className="h-[300px] relative model-performance-chart">
@@ -1089,11 +1113,45 @@ export default function ModelPerformance() {
           }
           
           if (allStatsError) {
+            const errorMessage = allStatsError.message || '';
+            const isNetworkError = errorMessage.includes('fetch') || 
+                                  errorMessage.includes('network') || 
+                                  errorMessage.includes('timeout') ||
+                                  errorMessage.includes('Failed to fetch');
+            const isServerError = errorMessage.includes('500') || 
+                                errorMessage.includes('502') || 
+                                errorMessage.includes('503') ||
+                                errorMessage.includes('Internal Server Error');
+            const isAuthError = errorMessage.includes('auth') || 
+                               errorMessage.includes('unauthorized') || 
+                               errorMessage.includes('401') ||
+                               errorMessage.includes('403');
+
+            let errorTitle = 'Error Loading Data';
+            let errorDescription = 'Failed to load comparison data. Please try again.';
+
+            if (isNetworkError) {
+              errorTitle = 'Connection Error';
+              errorDescription = 'Unable to connect to the server. Please check your internet connection.';
+            } else if (isServerError) {
+              errorTitle = 'Server Error';
+              errorDescription = 'The server is experiencing issues. Please try again in a few moments.';
+            } else if (isAuthError) {
+              errorTitle = 'Authentication Error';
+              errorDescription = 'Your session may have expired. Please refresh the page.';
+            }
+
             return (
-              <div className="flex flex-col items-center justify-center py-12 text-destructive">
-                <AlertCircle className="h-5 w-5 mb-2" />
-                <span>Failed to load comparison data</span>
-            </div>
+              <div className="flex flex-col items-center justify-center py-12 text-center space-y-2">
+                <div className="relative mb-2">
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-destructive/20 via-destructive/10 to-transparent blur-lg" />
+                  <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-destructive/20 to-destructive/10 flex items-center justify-center">
+                    <AlertCircle className="h-8 w-8 text-destructive" />
+                  </div>
+                </div>
+                <h3 className="text-lg font-semibold text-foreground leading-tight break-words px-2">{errorTitle}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed break-words px-2">{errorDescription}</p>
+              </div>
             );
           }
           
@@ -1136,10 +1194,16 @@ export default function ModelPerformance() {
           
           if (modelList.length === 0) {
             return (
-              <div className="flex items-center justify-center py-12 text-muted-foreground">
-                <AlertCircle className="h-5 w-5 mr-2" />
-                <span>No comparison data available</span>
-          </div>
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="relative mb-4">
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-muted/40 via-muted/20 to-transparent blur-lg" />
+                  <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-muted/60 to-muted/30 flex items-center justify-center">
+                    <TrendingDown className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                </div>
+                <h3 className="text-lg font-semibold text-foreground mb-1">No Comparison Data</h3>
+                <p className="text-sm text-muted-foreground">No model comparison data available</p>
+              </div>
             );
           }
           
