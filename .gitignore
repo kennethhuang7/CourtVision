@@ -25,6 +25,7 @@ logs/
 *.db
 *.sqlite3
 *.h5
+database_structure.txt
 .pytest_cache/
 .coverage
 htmlcov/
