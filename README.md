@@ -1,9 +1,8 @@
 <div align="center">
-  <img src="docs/assets/logo.png" alt="CourtVision Logo" width="80" height="80">
-  <h1>CourtVision</h1>
+  <img src=".github/social-preview.png" alt="CourtVision - NBA Player Performance Analytics" width="100%">
 </div>
 
-**NBA Player Performance Analytics with AI Predictions**
+---
 
 CourtVision is a desktop application that provides advanced analytics and machine learning-powered predictions for NBA player performance. The application combines comprehensive player statistics, team analysis, and ensemble machine learning models to forecast player statistics for upcoming games.
 
