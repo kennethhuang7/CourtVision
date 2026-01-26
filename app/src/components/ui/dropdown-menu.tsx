@@ -25,15 +25,16 @@ const DropdownMenuSubTrigger = React.forwardRef<
   <DropdownMenuPrimitive.SubTrigger
     ref={ref}
     className={cn(
-      "flex cursor-default select-none items-center rounded-md px-2 py-1.5 text-sm outline-none transition-colors duration-150",
-      "focus:bg-primary/15 data-[state=open]:bg-primary/15",
+      "flex cursor-default select-none items-center rounded-md px-2 py-1.5 text-sm outline-none transition-all duration-150",
+      "hover:bg-secondary hover:text-secondary-foreground focus:bg-secondary focus:text-secondary-foreground data-[state=open]:bg-secondary data-[state=open]:text-secondary-foreground",
+      "data-[state=open]:[&_svg]:rotate-90",
       inset && "pl-8",
       className,
     )}
     {...props}
   >
     {children}
-    <ChevronRight className="ml-auto h-4 w-4 opacity-60" />
+    <ChevronRight className="ml-auto h-4 w-4 opacity-60 transition-transform duration-200" />
   </DropdownMenuPrimitive.SubTrigger>
 ));
 DropdownMenuSubTrigger.displayName = DropdownMenuPrimitive.SubTrigger.displayName;
@@ -86,8 +87,8 @@ const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-md px-2 py-1.5 text-sm outline-none transition-colors duration-150",
-      "focus:bg-primary/15 focus:text-foreground",
+      "relative flex cursor-default select-none items-center rounded-md px-2 py-1.5 text-sm outline-none transition-all duration-150",
+      "hover:bg-secondary hover:text-secondary-foreground focus:bg-secondary focus:text-secondary-foreground",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
       inset && "pl-8",
       className,
@@ -104,8 +105,8 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-md py-1.5 pl-8 pr-2 text-sm outline-none transition-colors duration-150",
-      "focus:bg-primary/15 focus:text-foreground",
+      "relative flex cursor-default select-none items-center rounded-md py-1.5 pl-8 pr-2 text-sm outline-none transition-all duration-150",
+      "hover:bg-secondary hover:text-secondary-foreground focus:bg-secondary focus:text-secondary-foreground",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
       className,
     )}
@@ -114,7 +115,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <DropdownMenuPrimitive.ItemIndicator>
-        <Check className="h-4 w-4 text-primary" />
+        <Check className="h-4 w-4 text-primary animate-in fade-in zoom-in-95 duration-150" />
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
     {children}
@@ -129,8 +130,8 @@ const DropdownMenuRadioItem = React.forwardRef<
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-md py-1.5 pl-8 pr-2 text-sm outline-none transition-colors duration-150",
-      "focus:bg-primary/15 focus:text-foreground",
+      "relative flex cursor-default select-none items-center rounded-md py-1.5 pl-8 pr-2 text-sm outline-none transition-all duration-150",
+      "hover:bg-secondary hover:text-secondary-foreground focus:bg-secondary focus:text-secondary-foreground",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
       className,
     )}
@@ -138,7 +139,7 @@ const DropdownMenuRadioItem = React.forwardRef<
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <DropdownMenuPrimitive.ItemIndicator>
-        <Circle className="h-2 w-2 fill-primary text-primary" />
+        <Circle className="h-2 w-2 fill-primary text-primary animate-in fade-in zoom-in-95 duration-150" />
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
     {children}

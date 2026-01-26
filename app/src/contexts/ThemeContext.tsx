@@ -220,8 +220,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   
   useEffect(() => {
-    const zoomValue = `${zoomLevel}%`;
-    document.documentElement.style.setProperty('--zoom-level', zoomValue);
+    const zoomFactor = zoomLevel / 100;
+    document.documentElement.style.setProperty('--zoom-level', zoomFactor.toString());
     try {
       localStorage.setItem('app-zoom-level', zoomLevel.toString());
     } catch (e) {

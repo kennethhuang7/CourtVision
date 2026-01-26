@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import type React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Search, ArrowLeft, X, Target, TrendingUp, Shield, Zap, Clock, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -17,6 +19,162 @@ import { logger } from '@/lib/logger';
 import type { PickFinderFilters, PickResult } from '@/types/pickFinder';
 
 type PageState = 'constructor' | 'loading' | 'results';
+
+const SlidingTabs = ({ children, value, className = '' }: { children: React.ReactNode; value: string; className?: string }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [indicatorStyle, setIndicatorStyle] = useState({ x: 0, width: 0 });
+
+  useEffect(() => {
+    const updateIndicator = () => {
+      if (!containerRef.current) return;
+      
+      const activeElement = containerRef.current.querySelector(`[data-state="active"], [data-active="true"], .active`);
+      if (!activeElement) {
+        const buttons = containerRef.current.querySelectorAll('button');
+        const activeButton = Array.from(buttons).find(btn => {
+          const isActive = btn.classList.contains('active') || 
+                          btn.getAttribute('data-active') === 'true' ||
+                          btn.getAttribute('aria-selected') === 'true';
+          return isActive;
+        });
+        if (!activeButton) return;
+        
+        const containerRect = containerRef.current.getBoundingClientRect();
+        const buttonRect = activeButton.getBoundingClientRect();
+        const padding = containerRef.current.classList.contains('p-1') ? 4 : 0;
+        
+        const x = buttonRect.left - containerRect.left - padding;
+        const width = buttonRect.width;
+        
+        setIndicatorStyle({ x, width });
+        return;
+      }
+
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const elementRect = activeElement.getBoundingClientRect();
+      const padding = containerRef.current.classList.contains('p-1') ? 4 : 0;
+      
+      const x = elementRect.left - containerRect.left - padding;
+      const width = elementRect.width;
+      
+      setIndicatorStyle({ x, width });
+    };
+
+    updateIndicator();
+    window.addEventListener('resize', updateIndicator);
+    const timeout = setTimeout(updateIndicator, 10);
+    const raf = requestAnimationFrame(updateIndicator);
+
+    return () => {
+      window.removeEventListener('resize', updateIndicator);
+      clearTimeout(timeout);
+      cancelAnimationFrame(raf);
+    };
+  }, [value]);
+
+  return (
+    <div ref={containerRef} className={`relative ${className}`}>
+      <motion.div
+        className="absolute bottom-0 left-0 h-0.5 bg-primary z-10"
+        initial={false}
+        animate={{
+          x: indicatorStyle.x,
+          width: indicatorStyle.width,
+        }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+      />
+      {children}
+    </div>
+  );
+};
+
+const DirectionButtons = ({ value, onChange }: { value: 'over' | 'both' | 'under'; onChange: (value: 'over' | 'both' | 'under') => void }) => {
+  const overRef = useRef<HTMLButtonElement>(null);
+  const bothRef = useRef<HTMLButtonElement>(null);
+  const underRef = useRef<HTMLButtonElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [indicatorStyle, setIndicatorStyle] = useState({ x: 0, width: 0 });
+
+  useEffect(() => {
+    const updateIndicator = () => {
+      const activeRef = value === 'over' ? overRef : value === 'both' ? bothRef : underRef;
+      if (!activeRef.current || !containerRef.current) return;
+
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const buttonRect = activeRef.current.getBoundingClientRect();
+      const padding = 4;
+
+      const x = buttonRect.left - containerRect.left - padding;
+      const width = buttonRect.width;
+
+      setIndicatorStyle({ x, width });
+    };
+
+    updateIndicator();
+    window.addEventListener('resize', updateIndicator);
+    const timeout = setTimeout(updateIndicator, 10);
+    const raf = requestAnimationFrame(updateIndicator);
+
+    return () => {
+      window.removeEventListener('resize', updateIndicator);
+      clearTimeout(timeout);
+      cancelAnimationFrame(raf);
+    };
+  }, [value]);
+
+  return (
+    <div ref={containerRef} className="relative flex gap-1 bg-secondary p-1 rounded-lg overflow-hidden">
+      <motion.div
+        className="absolute inset-y-1 bg-primary rounded-md z-0"
+        initial={false}
+        animate={{
+          x: indicatorStyle.x,
+          width: indicatorStyle.width,
+        }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+      />
+      <motion.button
+        ref={overRef}
+        onClick={() => onChange('over')}
+        className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors relative z-10 ${
+          value === 'over'
+            ? 'text-foreground'
+            : 'text-muted-foreground hover:text-foreground'
+        }`}
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+      >
+        Over
+      </motion.button>
+      <motion.button
+        ref={bothRef}
+        onClick={() => onChange('both')}
+        className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors relative z-10 ${
+          value === 'both'
+            ? 'text-foreground'
+            : 'text-muted-foreground hover:text-foreground'
+        }`}
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+      >
+        Both
+      </motion.button>
+      <motion.button
+        ref={underRef}
+        onClick={() => onChange('under')}
+        className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors relative z-10 ${
+          value === 'under'
+            ? 'text-foreground'
+            : 'text-muted-foreground hover:text-foreground'
+        }`}
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+      >
+        Under
+      </motion.button>
+    </div>
+  );
+};
 
 const statOptions = [
   { value: 'all', label: 'All Stats' },
@@ -284,16 +442,19 @@ export default function PickFinder() {
             </div>
           ) : (
             <div className="flex h-full items-center justify-center">
-              <div className="text-center space-y-3">
-                <div className="flex justify-center">
-                  <div className="rounded-full bg-primary/10 p-6">
-                    <Target className="h-12 w-12 text-primary shrink-0" />
+              <div className="text-center space-y-4 max-w-md">
+                <div className="relative mx-auto w-fit">
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/20 via-primary/10 to-transparent blur-xl" />
+                  <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-muted/80 to-muted/40 flex items-center justify-center">
+                    <Target className="h-10 w-10 text-muted-foreground" />
                   </div>
                 </div>
-                <h3 className="text-lg font-medium text-foreground leading-tight">No picks found</h3>
-                <p className="text-sm text-muted-foreground max-w-sm leading-tight">
-                  No picks matched your criteria. Try adjusting your filters.
-                </p>
+                <div className="space-y-2">
+                  <h3 className="text-xl font-semibold text-foreground">No Picks Found</h3>
+                  <p className="text-sm text-muted-foreground">
+                    No picks matched your criteria. Try adjusting your filters to broaden your search.
+                  </p>
+                </div>
                 <Button onClick={handleBackToConstructor} variant="outline">
                   <span className="whitespace-nowrap">Back to Filters</span>
                 </Button>
@@ -316,6 +477,7 @@ export default function PickFinder() {
   }) => (
     <button
       onClick={onClick}
+      data-active={isActive}
       className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors relative ${
         isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
       }`}
@@ -330,9 +492,6 @@ export default function PickFinder() {
           )
         )}
       </span>
-      {isActive && (
-        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-      )}
     </button>
   );
 
@@ -403,13 +562,12 @@ export default function PickFinder() {
                 <label className="text-muted-foreground text-sm">Threshold</label>
                 <span className="text-foreground text-sm font-medium">{threshold}%</span>
               </div>
-              <input
-                type="range"
+              <Slider
                 min={40}
                 max={100}
-                value={threshold}
-                onChange={(e) => onThresholdChange(Number(e.target.value))}
-                className="w-full h-2 bg-secondary/80 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                value={[threshold]}
+                onValueChange={(values) => onThresholdChange(values[0])}
+                className="w-full"
               />
               <div className="flex justify-between text-xs text-muted-foreground/80 mt-1">
                 <span>40%</span>
@@ -515,38 +673,10 @@ export default function PickFinder() {
                   <label className="block text-muted-foreground text-sm">Direction</label>
                   <InfoTooltip content="Choose whether to find Over picks, Under picks, or both." />
                 </div>
-                <div className="flex gap-1 bg-secondary p-1 rounded-lg">
-                  <button
-                    onClick={() => updateFilter('overUnder', 'over')}
-                    className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                      filters.overUnder === 'over'
-                        ? 'bg-primary text-foreground'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80'
-                    }`}
-                  >
-                    Over
-                  </button>
-                  <button
-                    onClick={() => updateFilter('overUnder', 'both')}
-                    className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                      filters.overUnder === 'both'
-                        ? 'bg-primary text-foreground'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80'
-                    }`}
-                  >
-                    Both
-                  </button>
-                  <button
-                    onClick={() => updateFilter('overUnder', 'under')}
-                    className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                      filters.overUnder === 'under'
-                        ? 'bg-primary text-foreground'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80'
-                    }`}
-                  >
-                    Under
-                  </button>
-                </div>
+                <DirectionButtons
+                  value={filters.overUnder}
+                  onChange={(value) => updateFilter('overUnder', value)}
+                />
               </div>
 
               <div>
@@ -686,7 +816,7 @@ export default function PickFinder() {
                   <p className="text-muted-foreground/80 text-sm">Historical hit rates and trends</p>
                 </div>
 
-                <div className="flex border-b border-border/60">
+                <SlidingTabs value={performanceTab} className="flex border-b border-border/60">
                   <TabButton
                     id="overall"
                     label="Overall"
@@ -711,11 +841,19 @@ export default function PickFinder() {
                     onClick={() => setPerformanceTab('h2h')}
                     showIndicator={true}
                   />
-                </div>
+                </SlidingTabs>
 
-                <div className="p-5" style={{ minHeight: '340px' }}>
-                  {performanceTab === 'overall' && (
-                    <div className="space-y-4">
+                <div className="p-5 overflow-hidden" style={{ minHeight: '340px' }}>
+                  <AnimatePresence mode="wait">
+                    {performanceTab === 'overall' && (
+                      <motion.div
+                        key="overall"
+                        initial={{ opacity: 0, x: -30 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 30 }}
+                        transition={{ duration: 0.25, ease: "easeInOut" }}
+                        className="space-y-4"
+                      >
                         <div>
                           <div className="flex items-center gap-2 mb-2">
                             <label className="block text-muted-foreground text-sm">Time Window</label>
@@ -756,11 +894,18 @@ export default function PickFinder() {
                           consecutiveHits={filters.consecutiveHits}
                           onConsecutiveHitsChange={(v) => updateFilter('consecutiveHits', v)}
                         />
-                      </div>
-                  )}
+                      </motion.div>
+                    )}
 
-                  {performanceTab === 'homeaway' && (
-                    <div className="space-y-4">
+                    {performanceTab === 'homeaway' && (
+                      <motion.div
+                        key="homeaway"
+                        initial={{ opacity: 0, x: -30 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 30 }}
+                        transition={{ duration: 0.25, ease: "easeInOut" }}
+                        className="space-y-4"
+                      >
                       <label className="flex items-center gap-2 cursor-pointer group">
                         <div className="relative">
                           <input
@@ -818,11 +963,18 @@ export default function PickFinder() {
                           />
                         </div>
                       )}
-                    </div>
-                  )}
+                      </motion.div>
+                    )}
 
-                  {performanceTab === 'h2h' && (
-                      <div className="space-y-4">
+                    {performanceTab === 'h2h' && (
+                      <motion.div
+                        key="h2h"
+                        initial={{ opacity: 0, x: -30 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 30 }}
+                        transition={{ duration: 0.25, ease: "easeInOut" }}
+                        className="space-y-4"
+                      >
                       <label className="flex items-center gap-2 cursor-pointer group">
                         <div className="relative">
                           <input
@@ -880,8 +1032,9 @@ export default function PickFinder() {
                           />
                         </div>
                       )}
-                    </div>
-                  )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
 
                 <div className="px-5 py-4 border-t border-border/60 bg-card/30">
@@ -969,13 +1122,12 @@ export default function PickFinder() {
                               <label className="text-muted-foreground text-sm">AI Prediction Confidence</label>
                               <span className="text-foreground text-sm font-medium">{filters.minConfidence}%</span>
                             </div>
-                            <input
-                              type="range"
+                            <Slider
                               min={0}
                               max={100}
-                              value={filters.minConfidence}
-                              onChange={(e) => updateFilter('minConfidence', Number(e.target.value))}
-                              className="w-full h-2 bg-secondary/80 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                              value={[filters.minConfidence]}
+                              onValueChange={(values) => updateFilter('minConfidence', values[0])}
+                              className="w-full"
                             />
                             <div className="flex justify-between text-xs text-muted-foreground/80 mt-1">
                               <span>0%</span>

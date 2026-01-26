@@ -27,9 +27,9 @@
     --muted: 225 15% 15%;
     --muted-foreground: 220 10% 55%;
 
-    /* Cyan-blue accent for secondary highlights */
-    --accent: 195 100% 50%;
-    --accent-foreground: 0 0% 100%;
+    /* Muted accent for secondary highlights - less saturated for dark theme */
+    --accent: 225 20% 18%;
+    --accent-foreground: 0 0% 98%;
 
     --destructive: 0 72% 55%;
     --destructive-foreground: 0 0% 98%;
@@ -765,14 +765,95 @@
     margin-top: var(--density-spacing, 2rem) !important;
   }
 
-  /* Zoom level support */
+  /* Zoom level support - scales UI components via root font size (Discord-style) */
+  :root {
+    --zoom-level: 1;
+  }
+  
   html {
-    zoom: var(--zoom-level, 100%);
+    font-size: calc(16px * var(--zoom-level, 1));
   }
 
-  /* Theme color scheme */
   * {
     color-scheme: var(--theme-mode, dark);
+  }
+
+  [cmdk-item],
+  [cmdk-item][data-selected="true"],
+  [cmdk-item][data-selected="true"]:hover,
+  [cmdk-item][data-selected="true"]:focus,
+  [cmdk-item]:hover,
+  [cmdk-item]:focus,
+  [cmdk-item][aria-selected="true"],
+  [cmdk-item][aria-selected="true"]:hover,
+  div[cmdk-item],
+  div[cmdk-item]:hover,
+  div[cmdk-item]:focus {
+    background-color: hsl(var(--secondary)) !important;
+    background: hsl(var(--secondary)) !important;
+    color: hsl(var(--secondary-foreground)) !important;
+  }
+
+  [cmdk-item]:not(:hover):not(:focus):not([data-selected="true"]):not([aria-selected="true"]) {
+    background-color: transparent !important;
+    background: transparent !important;
+  }
+
+  [cmdk-item][data-disabled="true"] {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  [data-radix-select-item][data-highlighted],
+  [data-radix-select-item]:hover,
+  [data-radix-select-item]:focus {
+    background-color: hsl(var(--secondary)) !important;
+    background: hsl(var(--secondary)) !important;
+    color: hsl(var(--secondary-foreground)) !important;
+  }
+
+  [data-radix-select-trigger][data-state="open"] svg,
+  [data-radix-select-trigger][data-state="open"] > svg,
+  button[data-state="open"][aria-haspopup="listbox"] svg,
+  button[data-state="open"][aria-haspopup="listbox"] > svg,
+  [data-radix-select-content][data-state="open"] ~ [data-radix-select-trigger] svg,
+  [data-radix-select-content][data-state="open"] ~ [data-radix-select-trigger] > svg {
+    transform: rotate(180deg) !important;
+    transition: transform 200ms ease !important;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted)) hsl(var(--background));
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: hsl(var(--background));
+    border-radius: 10px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted));
+    border-radius: 10px;
+    border: 2px solid hsl(var(--background));
+    transition: background-color 200ms ease;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.4);
+  }
+
+  *::-webkit-scrollbar-thumb:active {
+    background: hsl(var(--primary) / 0.6);
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: hsl(var(--background));
   }
 }
 
@@ -1393,6 +1474,45 @@
 
   .animate-count-up {
     animation: countUp 300ms ease-out forwards;
+  }
+
+  @keyframes collapsible-down {
+    from {
+      height: 0;
+      opacity: 0;
+    }
+    to {
+      height: var(--radix-collapsible-content-height);
+      opacity: 1;
+    }
+  }
+
+  @keyframes collapsible-up {
+    from {
+      height: var(--radix-collapsible-content-height);
+      opacity: 1;
+    }
+    to {
+      height: 0;
+      opacity: 0;
+    }
+  }
+
+  .animate-collapsible-down {
+    animation: collapsible-down 0.2s ease-out;
+  }
+
+  .animate-collapsible-up {
+    animation: collapsible-up 0.2s ease-in;
+  }
+
+  /* Collapsible content animation support */
+  [data-radix-collapsible-content][data-state="open"] {
+    animation: collapsible-down 0.2s ease-out;
+  }
+
+  [data-radix-collapsible-content][data-state="closed"] {
+    animation: collapsible-up 0.2s ease-in;
   }
 
   /* Skeleton loading shimmer */

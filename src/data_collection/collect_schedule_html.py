@@ -310,7 +310,7 @@ def collect_schedule_html(target_date=None):
                         status_text = game_soup.get_text()
                         
                         if 'final' in status_text.lower()[:500]:
-                            status = 'completed'
+                            actual_status = 'completed'
                             home_score = None
                             away_score = None
                             
@@ -323,11 +323,11 @@ def collect_schedule_html(target_date=None):
                                 except:
                                     pass
                         elif 'pm' in status_text.lower()[:500] or 'am' in status_text.lower()[:500]:
-                            status = 'scheduled'
+                            actual_status = 'scheduled'
                             home_score = None
                             away_score = None
                         else:
-                            status = 'in_progress'
+                            actual_status = 'in_progress'
                             home_score = None
                             away_score = None
                         
@@ -338,7 +338,7 @@ def collect_schedule_html(target_date=None):
                         games_found[games_found.index(game)]['home_team_id'] = home_team_id
                         games_found[games_found.index(game)]['away_abbr'] = away_abbr
                         games_found[games_found.index(game)]['home_abbr'] = home_abbr
-                        games_found[games_found.index(game)]['status'] = status
+                        games_found[games_found.index(game)]['actual_status'] = actual_status
                         games_found[games_found.index(game)]['home_score'] = home_score
                         games_found[games_found.index(game)]['away_score'] = away_score
                     else:
@@ -368,18 +368,21 @@ def collect_schedule_html(target_date=None):
             game_id = game['game_id']
             home_team_id = game['home_team_id']
             away_team_id = game['away_team_id']
-            status = game.get('status', 'scheduled')
+            actual_status = game.get('actual_status', 'scheduled')
             home_score = game.get('home_score')
             away_score = game.get('away_score')
             home_abbr = game.get('home_abbr', 'HOME')
             away_abbr = game.get('away_abbr', 'AWAY')
             
-            if status == 'scheduled':
+            # Track actual status counts
+            if actual_status == 'scheduled':
                 scheduled_count += 1
-            elif status == 'completed':
+            elif actual_status == 'completed':
                 completed_count += 1
             else:
                 in_progress_count += 1
+            
+            db_status = 'scheduled'
             
             cur.execute("""
                 INSERT INTO games (
@@ -398,25 +401,24 @@ def collect_schedule_html(target_date=None):
                 away_team_id,
                 home_score,
                 away_score,
-                status,
+                db_status,
                 'regular_season'
             ))
             
-            print(f"  {away_abbr} @ {home_abbr} - {status}")
+            print(f"  {away_abbr} @ {home_abbr} - actual: {actual_status}, saved as: {db_status}")
         
         conn.commit()
         cur.close()
         conn.close()
         
         print(f"\n{'='*50}")
-        print(f"Scheduled: {scheduled_count}")
-        print(f"In Progress: {in_progress_count}")
-        print(f"Completed: {completed_count}")
+        print(f"Actual Status - Scheduled: {scheduled_count}, In Progress: {in_progress_count}, Completed: {completed_count}")
+        print(f"All games saved to database as 'scheduled': {scheduled_count + in_progress_count + completed_count}")
         print(f"Total: {len(valid_games)}")
         print(f"{'='*50}")
         
-        if scheduled_count > 0:
-            print(f"\nFound {scheduled_count} games ready for predictions")
+        if scheduled_count + in_progress_count + completed_count > 0:
+            print(f"\nFound {scheduled_count + in_progress_count + completed_count} games ready for predictions")
         
     except Exception as e:
         print(f"Error collecting schedule: {e}")

@@ -88,6 +88,7 @@ export function useCommunityPicks(filter: CommunityFilter) {
 
   return useQuery<CommunityPick[], Error>({
     queryKey: ['communityPicks', filter, user?.id],
+    placeholderData: (previousData) => previousData,
     queryFn: async () => {
       if (!user) {
         throw new Error('You must be logged in to view community picks.');

@@ -83,7 +83,7 @@ export default function Notifications() {
   
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 animate-fade-in">
         <div>
           <div className="h-8 w-48 bg-muted animate-pulse rounded mb-2" />
           <div className="h-4 w-64 bg-muted animate-pulse rounded" />
@@ -139,7 +139,7 @@ export default function Notifications() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       
       <div className="min-w-0">
         <h1 className="text-3xl font-bold leading-tight truncate">Notifications</h1>

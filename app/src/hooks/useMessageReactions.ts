@@ -88,7 +88,6 @@ export function useBatchMessageReactions(messageIds: string[], enabled: boolean 
         return new Map();
       }
 
-      
       const { data: reactions, error } = await supabase
         .from('message_reactions')
         .select('id, message_id, user_id, emoji, created_at')
@@ -148,7 +147,7 @@ export function useBatchMessageReactions(messageIds: string[], enabled: boolean 
       return reactionMap;
     },
     enabled: enabled && !!user && messageIds.length > 0,
-    staleTime: 30000, 
+    staleTime: 0,
     gcTime: 5 * 60 * 1000, 
   });
 }

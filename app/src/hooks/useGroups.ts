@@ -647,6 +647,7 @@ export function useRemoveGroupMember() {
     onSuccess: async (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['group', variables.groupId] });
       queryClient.invalidateQueries({ queryKey: ['groups'] });
+      queryClient.invalidateQueries({ queryKey: ['conversations', variables.userId] });
       
       
       const { data: groupData } = await supabase
@@ -691,6 +692,7 @@ export function useLeaveGroup() {
     onSuccess: (_, groupId) => {
       queryClient.invalidateQueries({ queryKey: ['group', groupId] });
       queryClient.invalidateQueries({ queryKey: ['groups'] });
+      queryClient.invalidateQueries({ queryKey: ['conversations', user?.id] });
       toast.success('Left group successfully');
     },
     onError: (error: any) => {

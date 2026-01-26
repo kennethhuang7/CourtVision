@@ -39,14 +39,20 @@ export function useRemoveReaction() {
       return { messageId, emoji };
     },
     onSuccess: (_, variables) => {
-      
       queryClient.invalidateQueries({
         queryKey: ['messageReactions', variables.messageId],
       });
 
-      
       queryClient.invalidateQueries({
-        queryKey: ['batchMessageReactions'],
+        predicate: (query) => {
+          return query.queryKey[0] === 'batchMessageReactions';
+        },
+      });
+      
+      queryClient.refetchQueries({
+        predicate: (query) => {
+          return query.queryKey[0] === 'batchMessageReactions';
+        },
       });
     },
     onError: (error: any) => {

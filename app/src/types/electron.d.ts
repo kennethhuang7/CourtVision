@@ -65,16 +65,15 @@ export interface ElectronAPI {
   discordSetActivity: (activity: DiscordActivity) => Promise<void>;
   discordClearActivity: () => Promise<void>;
   discordIsConnected: () => Promise<boolean>;
-  // OAuth methods for production Electron
   getOAuthRedirectUrl: () => Promise<string>;
   isElectronProduction: () => Promise<boolean>;
   onOAuthCallback: (callback: (tokens: OAuthTokens) => void) => () => void;
-  // Auto-updater methods
   checkForUpdates: () => Promise<void>;
   downloadUpdate: () => Promise<void>;
   installUpdate: () => Promise<void>;
   getAppVersion: () => Promise<string>;
   onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void;
+  openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 declare global {

@@ -1,5 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import {
   LayoutDashboard,
   Users,
@@ -34,8 +35,104 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
+function CollapseButton({ isCollapsed, onClick }: { isCollapsed: boolean; onClick: () => void }) {
+  const [isHovered, setIsHovered] = useState(false);
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn(
+            "p-0 text-muted-foreground hover:text-foreground hover:bg-secondary/50",
+            isCollapsed ? "h-6 w-6" : "h-7 w-7 shrink-0"
+          )}
+          onClick={onClick}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-current overflow-visible">
+            {isCollapsed ? (
+              <>
+                <line
+                  x1="13" y1="3" x2="13" y2="13"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+                <motion.g
+                  animate={isHovered ? {
+                    x: [0, 10, 0],
+                    opacity: [1, 0, 0, 1],
+                  } : { x: 0, opacity: 1 }}
+                  transition={{
+                    duration: 0.8,
+                    ease: "easeInOut",
+                  }}
+                >
+                  <path
+                    d="M6 4L10 8L6 12"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <line
+                    x1="3" y1="8" x2="9" y2="8"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </motion.g>
+              </>
+            ) : (
+              <>
+                <line
+                  x1="3" y1="3" x2="3" y2="13"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+                <motion.g
+                  animate={isHovered ? {
+                    x: [0, -10, 0],
+                    opacity: [1, 0, 0, 1],
+                  } : { x: 0, opacity: 1 }}
+                  transition={{
+                    duration: 0.8,
+                    ease: "easeInOut",
+                  }}
+                >
+                  <path
+                    d="M10 4L6 8L10 12"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <line
+                    x1="7" y1="8" x2="13" y2="8"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </motion.g>
+              </>
+            )}
+          </svg>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="right">
+        {isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function ChatWindowToggle({ isCollapsed }: { isCollapsed?: boolean }) {
   const { isVisible, toggle } = useChatWindow();
+  const [isHovered, setIsHovered] = useState(false);
 
   const button = (
     <Button
@@ -46,6 +143,8 @@ function ChatWindowToggle({ isCollapsed }: { isCollapsed?: boolean }) {
         isVisible && "bg-primary/10 text-primary hover:bg-primary/20"
       )}
       onClick={toggle}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
       <MessageSquare className="h-4 w-4" />
     </Button>
@@ -84,7 +183,27 @@ function DoNotDisturbToggle({ isCollapsed }: { isCollapsed?: boolean }) {
       )}
       onClick={handleToggle}
     >
-      {doNotDisturb ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
+      <div className="relative h-4 w-4">
+        <Bell className="h-4 w-4 absolute inset-0" />
+        <motion.div
+          initial={false}
+          animate={{
+            opacity: doNotDisturb ? 1 : 0,
+            scale: doNotDisturb ? 1 : 0.5
+          }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          className="absolute inset-0"
+        >
+          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <motion.line
+              x1="2" y1="2" x2="22" y2="22"
+              initial={false}
+              animate={{ pathLength: doNotDisturb ? 1 : 0 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+            />
+          </svg>
+        </motion.div>
+      </div>
     </Button>
   );
 
@@ -104,10 +223,10 @@ function DoNotDisturbToggle({ isCollapsed }: { isCollapsed?: boolean }) {
 
 const mainNavigation = [
   { name: 'Predictions', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Pick Finder', href: '/dashboard/pick-finder', icon: Search },
   { name: 'Player Analysis', href: '/dashboard/player-analysis', icon: Users },
-  { name: 'My Picks', href: '/dashboard/saved-picks', icon: Trophy },
+  { name: 'Pick Finder', href: '/dashboard/pick-finder', icon: Search },
   { name: 'Trends', href: '/dashboard/trends', icon: Flame },
+  { name: 'My Picks', href: '/dashboard/saved-picks', icon: Trophy },
 ];
 
 const socialNavigation = [
@@ -118,8 +237,8 @@ const socialNavigation = [
 ];
 
 const insightsNavigation = [
-  { name: 'Model Performance', href: '/dashboard/model-performance', icon: BarChart3 },
   { name: 'Analytics', href: '/dashboard/analytics', icon: Activity },
+  { name: 'Model Performance', href: '/dashboard/model-performance', icon: BarChart3 },
   { name: 'How It Works', href: '/dashboard/how-it-works', icon: HelpCircle },
 ];
 
@@ -135,7 +254,6 @@ export function Sidebar() {
 
   useEffect(() => {
     localStorage.setItem('sidebar-collapsed', String(isCollapsed));
-    // Dispatch custom event for DashboardLayout to listen to
     window.dispatchEvent(new CustomEvent('sidebar-collapse', { detail: { isCollapsed } }));
   }, [isCollapsed]);
 
@@ -162,12 +280,11 @@ export function Sidebar() {
             isCollapsed && 'justify-center px-2'
           )}
         >
-          {/* Active indicator bar */}
           {isActive && (
             <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full" />
           )}
           <item.icon className={cn(
-            'h-5 w-5 shrink-0 transition-all duration-200 group-hover:scale-105',
+            'h-5 w-5 shrink-0 transition-transform duration-200 group-hover:scale-110',
             isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'
           )} />
           {!isCollapsed && (
@@ -196,6 +313,8 @@ export function Sidebar() {
     });
   };
 
+  const [settingsHovered, setSettingsHovered] = useState(false);
+
   const settingsButton = (
     <Button
       variant="ghost"
@@ -205,8 +324,15 @@ export function Sidebar() {
         settingsOpen && "bg-primary/10 text-primary hover:bg-primary/20"
       )}
       onClick={() => setSettingsOpen(true)}
+      onMouseEnter={() => setSettingsHovered(true)}
+      onMouseLeave={() => setSettingsHovered(false)}
     >
-      <Settings className="h-4 w-4" />
+      <motion.div
+        animate={{ rotate: settingsHovered ? 90 : 0 }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+      >
+        <Settings className="h-4 w-4" />
+      </motion.div>
     </Button>
   );
   const logoUrl = `${import.meta.env.BASE_URL}courtvision.png`;
@@ -226,38 +352,14 @@ export function Sidebar() {
             <img src={logoUrl} alt="CourtVision" className="h-full w-full object-contain" />
           </div>
           {isCollapsed ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                  onClick={() => setIsCollapsed(false)}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right">Expand sidebar</TooltipContent>
-            </Tooltip>
+            <CollapseButton isCollapsed={true} onClick={() => setIsCollapsed(false)} />
           ) : (
             <>
               <div className="overflow-hidden flex-1 min-w-0">
                 <h1 className="text-lg font-bold text-foreground truncate leading-tight">CourtVision</h1>
                 <p className="text-xs text-muted-foreground/80 truncate leading-tight">NBA Player Predictions</p>
               </div>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground shrink-0"
-                    onClick={() => setIsCollapsed(true)}
-                  >
-                    <PanelLeftClose className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="right">Collapse sidebar</TooltipContent>
-              </Tooltip>
+              <CollapseButton isCollapsed={false} onClick={() => setIsCollapsed(true)} />
             </>
           )}
         </div>
@@ -341,10 +443,15 @@ export function Sidebar() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive group"
                     onClick={logout}
                   >
-                    <LogOut className="h-4 w-4" />
+                    <motion.div
+                      whileHover={{ x: 3, scale: 1.1 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <LogOut className="h-4 w-4" />
+                    </motion.div>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="right">Logout</TooltipContent>
@@ -377,13 +484,19 @@ export function Sidebar() {
                   {settingsButton}
                 </div>
               </div>
-              <button
+              <motion.button
                 onClick={logout}
-                className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-destructive hover:bg-destructive/10 transition-colors duration-200"
+                className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-destructive hover:bg-destructive/10 transition-colors duration-200 group"
+                whileHover="hover"
               >
-                <LogOut className="h-5 w-5 shrink-0" />
+                <motion.div
+                  variants={{ hover: { x: 3, scale: 1.1 } }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <LogOut className="h-5 w-5 shrink-0" />
+                </motion.div>
                 <span className="font-medium truncate min-w-0">Logout</span>
-              </button>
+              </motion.button>
             </>
           )}
         </div>

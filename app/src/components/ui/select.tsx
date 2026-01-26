@@ -13,26 +13,63 @@ const SelectValue = SelectPrimitive.Value;
 const SelectTrigger = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>
->(({ className, children, ...props }, ref) => (
-  <SelectPrimitive.Trigger
-    ref={ref}
-    className={cn(
-      "flex h-10 w-full items-center justify-between rounded-lg border border-border/60 bg-input/50 px-3 py-2 text-sm ring-offset-background transition-all duration-200",
-      "placeholder:text-muted-foreground/70",
-      "hover:border-border hover:bg-input/70",
-      "focus:outline-none focus:ring-2 focus:ring-ring/50 focus:ring-offset-2 focus:border-primary/50",
-      "disabled:cursor-not-allowed disabled:opacity-50",
-      "[&>span]:line-clamp-1",
-      className,
-    )}
-    {...props}
-  >
-    {children}
-    <SelectPrimitive.Icon asChild>
-      <ChevronDown className="h-4 w-4 opacity-50 transition-transform duration-200" />
-    </SelectPrimitive.Icon>
-  </SelectPrimitive.Trigger>
-));
+>(({ className, children, ...props }, ref) => {
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
+  const [isOpen, setIsOpen] = React.useState(false);
+  
+  React.useEffect(() => {
+    const trigger = (ref && 'current' in ref ? ref.current : null) || triggerRef.current;
+    if (!trigger) return;
+    
+    const observer = new MutationObserver(() => {
+      const ariaExpanded = trigger.getAttribute('aria-expanded');
+      setIsOpen(ariaExpanded === 'true');
+    });
+    
+    observer.observe(trigger, {
+      attributes: true,
+      attributeFilter: ['aria-expanded', 'data-state'],
+    });
+    
+    const ariaExpanded = trigger.getAttribute('aria-expanded');
+    setIsOpen(ariaExpanded === 'true');
+    
+    return () => observer.disconnect();
+  }, [ref]);
+  
+  const combinedRef = React.useCallback((node: HTMLButtonElement | null) => {
+    triggerRef.current = node;
+    if (typeof ref === 'function') {
+      ref(node);
+    } else if (ref) {
+      (ref as React.MutableRefObject<HTMLButtonElement | null>).current = node;
+    }
+  }, [ref]);
+  
+  return (
+    <SelectPrimitive.Trigger
+      ref={combinedRef}
+      className={cn(
+        "flex h-10 w-full items-center justify-between rounded-lg border border-border/60 bg-input/50 px-3 py-2 text-sm ring-offset-background transition-all duration-200",
+        "placeholder:text-muted-foreground/70",
+        "hover:border-border hover:bg-input/70",
+        "focus:outline-none focus:ring-2 focus:ring-ring/50 focus:ring-offset-2 focus:border-primary/50",
+        "disabled:cursor-not-allowed disabled:opacity-50",
+        "[&>span]:line-clamp-1",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+      <SelectPrimitive.Icon asChild>
+        <ChevronDown className={cn(
+          "h-4 w-4 opacity-50 transition-transform duration-200",
+          isOpen && "rotate-180"
+        )} />
+      </SelectPrimitive.Icon>
+    </SelectPrimitive.Trigger>
+  );
+});
 SelectTrigger.displayName = SelectPrimitive.Trigger.displayName;
 
 const SelectScrollUpButton = React.forwardRef<
@@ -112,8 +149,10 @@ const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex w-full cursor-default select-none items-center rounded-md py-1.5 pl-8 pr-2 text-sm outline-none transition-colors duration-150",
-      "focus:bg-primary/15 focus:text-foreground",
+      "relative flex w-full cursor-default select-none items-center rounded-md py-1.5 pl-8 pr-2 text-sm outline-none transition-all duration-150",
+      "hover:bg-secondary hover:text-secondary-foreground",
+      "focus:bg-secondary focus:text-secondary-foreground",
+      "data-[highlighted]:bg-secondary data-[highlighted]:text-secondary-foreground",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
       className,
     )}
@@ -121,7 +160,7 @@ const SelectItem = React.forwardRef<
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <SelectPrimitive.ItemIndicator>
-        <Check className="h-4 w-4 text-primary" />
+        <Check className="h-4 w-4 text-primary animate-in fade-in zoom-in-95 duration-150" />
       </SelectPrimitive.ItemIndicator>
     </span>
 

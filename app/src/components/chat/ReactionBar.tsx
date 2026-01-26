@@ -143,9 +143,9 @@ export function ReactionBar({ messageId, reactions, className }: ReactionBarProp
             whileTap={{ scale: 0.9 }}
             whileHover={{ scale: 1.05 }}
             onClick={() => setShowAllReactions(true)}
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border border-border bg-accent/30 hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border border-border bg-secondary hover:bg-secondary/80 text-secondary-foreground transition-colors"
           >
-            <span className="font-medium">+{hiddenCount}</span>
+            +{hiddenCount}
           </motion.button>
         )}
 
@@ -160,7 +160,7 @@ export function ReactionBar({ messageId, reactions, className }: ReactionBarProp
             whileTap={{ scale: 0.9 }}
             whileHover={{ scale: 1.05 }}
             onClick={() => setShowAllReactions(false)}
-            className="inline-flex items-center px-2 py-0.5 rounded-full text-xs border border-border bg-accent/30 hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+            className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border border-border bg-secondary hover:bg-secondary/80 text-secondary-foreground transition-colors"
           >
             Show less
           </motion.button>

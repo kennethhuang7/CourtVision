@@ -10,14 +10,37 @@ const Command = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive>
 >(({ className, ...props }, ref) => (
-  <CommandPrimitive
-    ref={ref}
-    className={cn(
-      "flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground",
-      className,
-    )}
-    {...props}
-  />
+  <>
+    <style>{`
+      [cmdk-item],
+      [cmdk-item][data-selected="true"],
+      [cmdk-item][data-selected="true"]:hover,
+      [cmdk-item][data-selected="true"]:focus,
+      [cmdk-item]:hover,
+      [cmdk-item]:focus,
+      [cmdk-item][aria-selected="true"],
+      [cmdk-item][aria-selected="true"]:hover,
+      div[cmdk-item],
+      div[cmdk-item]:hover,
+      div[cmdk-item]:focus {
+        background-color: hsl(var(--secondary)) !important;
+        background: hsl(var(--secondary)) !important;
+        color: hsl(var(--secondary-foreground)) !important;
+      }
+      [cmdk-item]:not(:hover):not(:focus):not([data-selected="true"]):not([aria-selected="true"]) {
+        background-color: transparent !important;
+        background: transparent !important;
+      }
+    `}</style>
+    <CommandPrimitive
+      ref={ref}
+      className={cn(
+        "flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground",
+        className,
+      )}
+      {...props}
+    />
+  </>
 ));
 Command.displayName = CommandPrimitive.displayName;
 
@@ -84,6 +107,9 @@ const CommandGroup = React.forwardRef<
     ref={ref}
     className={cn(
       "overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground",
+      "[&_[cmdk-item][data-selected='true']]:bg-secondary [&_[cmdk-item][data-selected='true']]:text-secondary-foreground",
+      "[&_[cmdk-item]:hover]:bg-secondary [&_[cmdk-item]:hover]:text-secondary-foreground",
+      "[&_[cmdk-item]:focus]:bg-secondary [&_[cmdk-item]:focus]:text-secondary-foreground",
       className,
     )}
     {...props}
@@ -107,7 +133,11 @@ const CommandItem = React.forwardRef<
   <CommandPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50",
+      "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-all duration-150",
+      "data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50",
+      "data-[selected='true']:bg-secondary data-[selected=true]:text-secondary-foreground",
+      "hover:bg-secondary hover:text-secondary-foreground",
+      "focus:bg-secondary focus:text-secondary-foreground",
       className,
     )}
     {...props}

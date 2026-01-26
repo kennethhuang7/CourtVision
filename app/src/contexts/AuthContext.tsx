@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, queryWithTimeout } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
 import { cleanupLocalStorage } from '@/lib/localStorageCleanup';
 
@@ -15,6 +15,8 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isSupabaseError: boolean;
+  retryAuth: () => void;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (email: string, username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -25,6 +27,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSupabaseError, setIsSupabaseError] = useState(false);
   const queryClient = useQueryClient();
 
   
@@ -39,73 +42,113 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   
-  useEffect(() => {
-    let isMounted = true;
+  const initAuth = useCallback(async (isMountedRef: { current: boolean }) => {
+    setIsLoading(true);
+    setIsSupabaseError(false);
 
-    const init = async () => {
-      try {
+    try {
+      const rememberMe = localStorage.getItem('courtvision-remember-me');
+      if (rememberMe === 'false') {
+        const sessionKeys = Object.keys(sessionStorage).filter(key =>
+          key.startsWith('sb-') && key.includes('-auth-token')
+        );
+
         
-        const rememberMe = localStorage.getItem('courtvision-remember-me');
+        sessionKeys.forEach(key => {
+          const value = sessionStorage.getItem(key);
+          if (value) {
+            localStorage.setItem(key, value);
+          }
+        });
+      }
+
+      const startTime = Date.now();
+      const {
+        data: { session },
+        error,
+      } = await queryWithTimeout(
+        supabase.auth.getSession(),
+        15000
+      );
+
+      const responseTime = Date.now() - startTime;
+
+      if (error) {
+        const errorMessage = error.message || String(error);
+        const isSupabaseIssue = 
+          errorMessage.includes('timeout') ||
+          errorMessage.includes('Failed to fetch') ||
+          errorMessage.includes('NetworkError') ||
+          errorMessage.includes('522') ||
+          errorMessage.includes('504') ||
+          errorMessage.includes('503') ||
+          responseTime > 10000;
+
+        if (isSupabaseIssue) {
+          logger.warn('Supabase connection issue detected during auth init', { error, responseTime });
+          if (isMountedRef.current) {
+            setIsSupabaseError(true);
+            setIsLoading(false);
+          }
+          return;
+        }
+        
+        logger.error('Error getting Supabase session', error as Error);
+      }
+
+      if (session?.user && isMountedRef.current) {
+        setUser(mapUser(session.user));
+
+        cleanupLocalStorage(session.user.id);
+
         if (rememberMe === 'false') {
-          
-          const sessionKeys = Object.keys(sessionStorage).filter(key =>
+          const sessionKeys = Object.keys(localStorage).filter(key =>
             key.startsWith('sb-') && key.includes('-auth-token')
           );
 
-          
           sessionKeys.forEach(key => {
-            const value = sessionStorage.getItem(key);
+            const value = localStorage.getItem(key);
             if (value) {
-              localStorage.setItem(key, value);
+              sessionStorage.setItem(key, value);
+              localStorage.removeItem(key);
             }
           });
         }
+      }
+    } catch (err: any) {
+      const errorMessage = err?.message || String(err);
+      const isSupabaseIssue = 
+        errorMessage.includes('timeout') ||
+        errorMessage.includes('Query timeout') ||
+        errorMessage.includes('Failed to fetch') ||
+        errorMessage.includes('NetworkError');
 
-        const {
-          data: { session },
-          error,
-        } = await supabase.auth.getSession();
-
-        if (error) {
-          logger.error('Error getting Supabase session', error as Error);
-        }
-
-        if (session?.user && isMounted) {
-          setUser(mapUser(session.user));
-
-
-          cleanupLocalStorage(session.user.id);
-
-
-          if (rememberMe === 'false') {
-            const sessionKeys = Object.keys(localStorage).filter(key =>
-              key.startsWith('sb-') && key.includes('-auth-token')
-            );
-
-            sessionKeys.forEach(key => {
-              const value = localStorage.getItem(key);
-              if (value) {
-                sessionStorage.setItem(key, value);
-                localStorage.removeItem(key);
-              }
-            });
-          }
-        }
-      } catch (err) {
-        logger.error('Unexpected error during auth init', err as Error);
-      } finally {
-        if (isMounted) {
+      if (isSupabaseIssue) {
+        logger.warn('Supabase connection issue detected during auth init (catch)', { error: err });
+        if (isMountedRef.current) {
+          setIsSupabaseError(true);
           setIsLoading(false);
         }
+        return;
       }
-    };
 
-    init();
+      logger.error('Unexpected error during auth init', err as Error);
+    } finally {
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const isMountedRef = { current: true };
+    
+    initAuth(isMountedRef);
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!isMounted) return;
+      if (!isMountedRef.current) return;
 
       if (session?.user) {
         setUser(mapUser(session.user));
@@ -115,10 +158,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => {
-      isMounted = false;
+      isMountedRef.current = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [initAuth]);
+
+  const retryAuth = useCallback(() => {
+    initAuth();
+  }, [initAuth]);
 
   const login = useCallback(async (email: string, password: string, rememberMe = true) => {
     logger.debug('Login attempt started', { email: email.substring(0, 3) + '***', rememberMe });
@@ -228,14 +275,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       user,
-      
       isAuthenticated: !!user,
       isLoading,
+      isSupabaseError,
+      retryAuth,
       login,
       register,
       logout,
     }),
-    [user, isLoading, login, register, logout]
+    [user, isLoading, isSupabaseError, retryAuth, login, register, logout]
   );
 
   return (

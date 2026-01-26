@@ -26,19 +26,15 @@ export default function Register() {
   const oauthCleanupRef = useRef<(() => void) | null>(null);
   const logoUrl = `${import.meta.env.BASE_URL}courtvision.png`;
 
-  // Listen for OAuth callbacks from Electron main process
   useEffect(() => {
     const setupElectronOAuthListener = async () => {
       if (!window.electron?.onOAuthCallback) return;
 
       try {
-        // Set up listener for OAuth callback from main process
-        // This works in both dev and production Electron builds
         oauthCleanupRef.current = window.electron.onOAuthCallback(async (response: any) => {
           try {
             logger.debug('Received OAuth callback in Register');
 
-            // Check for error response
             if (response.error) {
               logger.error('OAuth callback error', new Error(response.errorDescription || response.error));
               if (response.error === 'access_denied') {
@@ -49,7 +45,6 @@ export default function Register() {
               return;
             }
 
-            // Set the session with the received tokens
             const { data, error: sessionError } = await supabase.auth.setSession({
               access_token: response.access_token,
               refresh_token: response.refresh_token || '',
@@ -63,7 +58,6 @@ export default function Register() {
 
             if (data.session) {
               toast.success('Account created successfully!');
-              // Navigation will happen automatically via isAuthenticated check
             }
           } catch (err) {
             logger.error('Error processing OAuth callback', err as Error);
@@ -84,7 +78,6 @@ export default function Register() {
     };
   }, []);
 
-  // Check for OAuth errors in URL params
   useEffect(() => {
     const errorParam = searchParams.get('error');
     const errorDescription = searchParams.get('error_description');
@@ -163,7 +156,6 @@ export default function Register() {
 
   const handleOAuthLogin = async (provider: 'google' | 'discord') => {
     try {
-      // Get the appropriate redirect URL (custom protocol for production Electron)
       let redirectUrl = `${window.location.origin}/dashboard`;
 
       if (window.electron?.getOAuthRedirectUrl) {
@@ -175,7 +167,6 @@ export default function Register() {
           }
         } catch (err) {
           logger.error('Error getting Electron OAuth redirect URL', err as Error);
-          // Fall back to web redirect URL
         }
       }
 

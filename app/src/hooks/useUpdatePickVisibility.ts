@@ -51,7 +51,7 @@ export function useUpdatePickVisibility() {
       };
 
       if (visibility === 'private') {
-        updateData.visibility = null;
+        updateData.visibility = 'private';
         updateData.shared_group_id = null;
         updateData.shared_group_ids = [];
         updateData.shared_friend_ids = [];

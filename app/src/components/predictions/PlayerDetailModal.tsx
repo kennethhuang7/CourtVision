@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useConfidenceComponents } from '@/hooks/useConfidenceComponents';
 import { useEnsemble } from '@/contexts/EnsembleContext';
-import { toDateOnlyString } from '@/lib/dateUtils';
+import { toDateOnlyString, parseStoredDate } from '@/lib/dateUtils';
 
 interface PlayerDetailModalProps {
   prediction: Prediction;
@@ -565,10 +565,11 @@ export function PlayerDetailModal({ prediction, open, onOpenChange }: PlayerDeta
   
   const isPastGame = useMemo(() => {
     if (!gameDate) return false;
-    const gameDateObj = new Date(gameDate);
+    const dateStr = typeof gameDate === 'string' ? gameDate.split('T')[0] : gameDate;
+    const gameDateObj = parseStoredDate(dateStr);
+    if (!gameDateObj) return false;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    gameDateObj.setHours(0, 0, 0, 0);
     return gameDateObj < today;
   }, [gameDate]);
   
@@ -580,13 +581,16 @@ export function PlayerDetailModal({ prediction, open, onOpenChange }: PlayerDeta
   
   const handleAnalyzePlayer = () => {
     if (gameDate) {
-      const gameDateObj = new Date(gameDate);
-      gameDateObj.setHours(0, 0, 0, 0);
-      sessionStorage.setItem('shared-selected-date', toDateOnlyString(gameDateObj));
+      const dateStr = typeof gameDate === 'string' ? gameDate.split('T')[0] : gameDate;
+      const gameDateObj = parseStoredDate(dateStr);
+      if (gameDateObj) {
+        sessionStorage.setItem('shared-selected-date', toDateOnlyString(gameDateObj));
+      }
     }
     localStorage.setItem('player-analysis-selected-game', gameId);
     localStorage.setItem('player-analysis-selected-player', playerId);
     localStorage.setItem('player-analysis-selected-stat', 'points');
+    localStorage.setItem('player-analysis-nav-timestamp', Date.now().toString());
     onOpenChange(false);
     setTimeout(() => {
       navigate('/dashboard/player-analysis');
@@ -837,12 +841,12 @@ export function PlayerDetailModal({ prediction, open, onOpenChange }: PlayerDeta
               <div className="flex items-center gap-2 mt-2 flex-wrap">
                 <ConfidenceBadge confidence={confidence} size="sm" />
                 <span className={cn(
-                  'inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border',
+                  'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-normal border',
                   isHome
                     ? 'bg-gradient-to-r from-accent/20 to-primary/20 text-accent border-accent/30'
                     : 'bg-gradient-to-r from-warning/20 to-warning/10 text-warning border-warning/30'
                 )}>
-                  <MapPin className="h-3 w-3 shrink-0" />
+                  <MapPin className="h-2 w-2 shrink-0" />
                   <span className="whitespace-nowrap">{isHome ? 'HOME' : 'AWAY'}</span>
                 </span>
                 {canShowActuals && (

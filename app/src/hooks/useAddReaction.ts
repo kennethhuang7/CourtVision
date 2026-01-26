@@ -23,7 +23,6 @@ export function useAddReaction() {
         throw new Error('Message ID and emoji are required.');
       }
 
-      
       const { data, error } = await supabase
         .from('message_reactions')
         .insert({
@@ -35,26 +34,48 @@ export function useAddReaction() {
         .single();
 
       if (error) {
+        const isConflict = error.code === '23505' || 
+                          (error as any).status === 409 || 
+                          (error as any).statusCode === 409 ||
+                          (error as any).code === '23505';
         
-        if (error.code === '23505') {
-          throw new Error('You already reacted with this emoji');
+        if (isConflict) {
+          const { error: deleteError } = await supabase
+            .from('message_reactions')
+            .delete()
+            .eq('message_id', messageId)
+            .eq('user_id', user.id)
+            .eq('emoji', emoji);
+          
+          if (deleteError) {
+            logger.error('Failed to remove existing reaction', deleteError as Error, { messageId, emoji });
+            throw new Error('You already reacted with this emoji');
+          }
+          
+          return { removed: true, messageId, emoji };
         }
 
-        logger.error('Failed to add reaction', error as Error, { messageId, emoji });
+        logger.error('Failed to add reaction', error as Error, { messageId, emoji, errorCode: error.code, status: (error as any).status });
         throw error;
       }
 
       return data;
     },
-    onSuccess: (_, variables) => {
-      
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({
         queryKey: ['messageReactions', variables.messageId],
       });
 
-      
       queryClient.invalidateQueries({
-        queryKey: ['batchMessageReactions'],
+        predicate: (query) => {
+          return query.queryKey[0] === 'batchMessageReactions';
+        },
+      });
+      
+      queryClient.refetchQueries({
+        predicate: (query) => {
+          return query.queryKey[0] === 'batchMessageReactions';
+        },
       });
     },
     onError: (error: any) => {
