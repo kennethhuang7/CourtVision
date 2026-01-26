@@ -75,6 +75,12 @@ function setActivity(activity: any) {
     smallImageKey: activity.smallImageKey,
     smallImageText: activity.smallImageText,
     instance: false,
+    buttons: [
+      {
+        label: 'Download CourtVision',
+        url: 'https://github.com/kennethhuang7/CourtVision/releases'
+      }
+    ]
   };
 
   const cleanActivity: any = {};
@@ -123,13 +129,11 @@ function isDiscordRPCConnected(): boolean {
   return isDiscordConnected;
 }
 
-// Auto-updater configuration
 let updateAvailable = false;
 let updateDownloaded = false;
 let updateInfo: any = null;
 
 function initAutoUpdater() {
-  // Configure auto-updater
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = false;
 
@@ -158,7 +162,7 @@ function initAutoUpdater() {
     if (win) {
       win.webContents.send('update-status', {
         status: 'not-available',
-        version: app.getVersion(), // Use current app version, not info.version which may not exist
+        version: app.getVersion(),
       });
     }
   });
@@ -199,7 +203,6 @@ function initAutoUpdater() {
 
 function checkForUpdates() {
   if (isDev) {
-    // In dev mode, simulate no update available
     if (win) {
       win.webContents.send('update-status', {
         status: 'not-available',
@@ -253,8 +256,6 @@ function installUpdate() {
     }
     return;
   }
-  // quitAndInstall will close the app, install the update, and restart it
-  // The second parameter (true) means it will restart the app after installation
   autoUpdater.quitAndInstall(false, true);
 }
 
@@ -289,20 +290,15 @@ if (isDev) {
   process.env.DIST = join(__dirname, '../dist');
 }
 
-// Protocol registration will happen in app.whenReady() to ensure proper timing
-
-// Handle OAuth callback URL from custom protocol
 function handleOAuthCallback(url: string) {
   if (!url || !win) return;
 
   try {
     const parsedUrl = new URL(url);
 
-    // Extract hash fragment (contains tokens) or query params (contains errors)
     const hashParams = new URLSearchParams(parsedUrl.hash.slice(1));
     const queryParams = new URLSearchParams(parsedUrl.search);
 
-    // Check for errors first
     const error = queryParams.get('error') || hashParams.get('error');
     const errorDescription = queryParams.get('error_description') || hashParams.get('error_description');
 
@@ -314,7 +310,6 @@ function handleOAuthCallback(url: string) {
       return;
     }
 
-    // Extract tokens from hash (Supabase uses hash fragment for tokens)
     const accessToken = hashParams.get('access_token');
     const refreshToken = hashParams.get('refresh_token');
     const expiresIn = hashParams.get('expires_in');
@@ -343,7 +338,6 @@ function handleOAuthCallback(url: string) {
     }
   }
 
-  // Focus the window after OAuth
   if (win) {
     if (win.isMinimized()) win.restore();
     if (!win.isVisible()) win.show();
@@ -422,18 +416,18 @@ async function createWindow() {
   });
 
   
-  if (startMinimized) {
-    if (minimizeToTray) {
-      
-      
+  win.webContents.once('did-finish-load', () => {
+    if (startMinimized) {
+      if (minimizeToTray) {
+        
+      } else {
+        win.minimize();
+      }
     } else {
-      
-      win.minimize();
+      win.maximize();
+      win.show();
     }
-  } else {
-    win.maximize();
-    win.show();
-  }
+  });
 
   
   win.webContents.on('did-finish-load', () => {
@@ -651,14 +645,12 @@ if (!gotTheLock) {
 } else {
   
   app.on('second-instance', (event, commandLine) => {
-    // Check if this is an OAuth callback (Windows/Linux)
     const oauthUrl = commandLine.find(arg => arg.startsWith(`${OAUTH_PROTOCOL}://`));
     if (oauthUrl) {
       handleOAuthCallback(oauthUrl);
       return;
     }
 
-    // Normal second instance handling
     if (win) {
       if (win.isMinimized()) {
         win.restore();
@@ -670,7 +662,6 @@ if (!gotTheLock) {
     }
   });
 
-  // Handle OAuth callback on macOS
   app.on('open-url', (event, url) => {
     event.preventDefault();
     if (url.startsWith(`${OAUTH_PROTOCOL}://`)) {
@@ -678,31 +669,27 @@ if (!gotTheLock) {
     }
   });
 
-  app.whenReady().then(() => {
-    // Register custom protocol for OAuth callbacks
-    // This must be registered in both dev and production for OAuth to work
-    // In production, electron-builder also registers it, but calling it here ensures it works
-    if (process.defaultApp || isDev) {
-      // Dev mode or running as default app
-      if (process.platform === 'win32') {
-        // On Windows, we need to specify the executable path
-        const exePath = process.execPath;
+app.whenReady().then(() => {
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('com.courtvision.app');
+  }
+  
+  if (process.defaultApp || isDev) {
+    if (process.platform === 'win32') {
+      const exePath = process.execPath;
         app.setAsDefaultProtocolClient(OAUTH_PROTOCOL, exePath);
       } else {
         app.setAsDefaultProtocolClient(OAUTH_PROTOCOL);
       }
     } else {
-      // Production mode - protocol is also registered by electron-builder, but ensure it's set
       app.setAsDefaultProtocolClient(OAUTH_PROTOCOL);
     }
     
     applyInstallerStoragePath();
     
-    // Handle OAuth callback if app was launched with OAuth URL (first instance)
     if (process.platform === 'win32' || process.platform === 'linux') {
       const oauthUrl = process.argv.find(arg => arg.startsWith(`${OAUTH_PROTOCOL}://`));
       if (oauthUrl) {
-        // Delay handling to ensure window is created first
         setTimeout(() => {
           handleOAuthCallback(oauthUrl);
         }, 1000);
@@ -727,12 +714,9 @@ if (!gotTheLock) {
       initDiscordRPC();
     }
 
-    // Initialize auto-updater
     initAutoUpdater();
 
-    // Check for updates on startup if enabled
     if (store.get('checkForUpdatesOnStartup', true)) {
-      // Delay the check slightly to let the app fully load
       setTimeout(() => {
         checkForUpdates();
       }, 3000);
@@ -980,9 +964,9 @@ function logMainWarn(message, error) {
   writeMainLog('WARN', message, error);
 }
 
-ipcMain.handle('write-log-file', async (event, folderPath, content) => {
+ipcMain.handle('write-log-file', async (event, content) => {
   try {
-    const actualContent = typeof content === 'string' ? content : typeof folderPath === 'string' ? folderPath : '';
+    const actualContent = typeof content === 'string' ? content : '';
     if (!actualContent) return;
 
     const folders = ensureFolders(getCourtVisionFolders(getStoragePath()));
@@ -993,13 +977,16 @@ ipcMain.handle('write-log-file', async (event, folderPath, content) => {
 
     fs.appendFileSync(logFilePath, actualContent, 'utf8');
 
-    
-    const stats = fs.statSync(logFilePath);
-    if (stats.size > 5 * 1024 * 1024) {
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const rotatedName = `courtvision-error-${timestamp}.txt`;
-      const rotatedPath = path.join(folderPath, rotatedName);
-      fs.renameSync(logFilePath, rotatedPath);
+    if (fs.existsSync(logFilePath)) {
+      const stats = fs.statSync(logFilePath);
+      if (stats.size > 5 * 1024 * 1024) {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const rotatedName = `courtvision-error-${timestamp}.txt`;
+        const rotatedPath = path.join(resolvedPath, rotatedName);
+        if (fs.existsSync(logFilePath)) {
+          fs.renameSync(logFilePath, rotatedPath);
+        }
+      }
     }
   } catch (error) {
     logMainError('Failed to write log file', error);
@@ -1181,14 +1168,28 @@ ipcMain.handle('get-app-version', () => {
   return app.getVersion();
 });
 
-// OAuth helpers
 ipcMain.handle('get-oauth-redirect-url', () => {
-  // Always use custom protocol for OAuth redirects in Electron
-  // This ensures OAuth works properly in both dev and production
-  // The custom protocol handler will catch the redirect and process it
   return `${OAUTH_PROTOCOL}://auth/callback`;
 });
 
 ipcMain.handle('is-electron-production', () => {
   return !isDev;
+});
+
+ipcMain.handle('open-external', async (event, url) => {
+  try {
+    if (typeof url !== 'string') {
+      return { success: false, error: 'Invalid URL' };
+    }
+    
+    if (!url.startsWith('https://') && !url.startsWith('http://')) {
+      return { success: false, error: 'Only HTTP/HTTPS URLs are allowed' };
+    }
+    
+    await shell.openExternal(url);
+    return { success: true };
+  } catch (error) {
+    logMainError('Failed to open external URL', error);
+    return { success: false, error: error.message };
+  }
 });

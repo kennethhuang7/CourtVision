@@ -105,14 +105,33 @@ export function useTrackCurrentSession() {
 
         
         let locationData = null;
-        try {
-          const response = await fetch('https://ipapi.co/json/');
-          if (response.ok) {
-            locationData = await response.json();
+        const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        
+        if (!isDevelopment) {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+            
+            const response = await fetch('https://ipapi.co/json/', {
+              signal: controller.signal,
+              mode: 'cors',
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (response.ok) {
+              locationData = await response.json();
+            } else if (response.status === 429) {
+              // Rate limited - don't log, just skip location data
+              logger.debug('IP API rate limited, skipping location data');
+            }
+          } catch (e: any) {
+            // Silently fail - location data is optional
+            // Don't log CORS errors or rate limits as they're expected
+            if (e?.name !== 'AbortError' && !e?.message?.includes('CORS') && !e?.message?.includes('429')) {
+              logger.debug('Failed to get geolocation data', e);
+            }
           }
-        } catch (e) {
-          
-          logger.warn('Failed to get geolocation data', e);
         }
 
         

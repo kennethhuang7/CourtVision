@@ -94,10 +94,10 @@ export const rateLimiter = new RateLimiter();
 
 
 
-rateLimiter.configure('supabase-query', { maxRequests: 200, windowMs: 60000 }); 
-rateLimiter.configure('supabase-mutation', { maxRequests: 50, windowMs: 60000 }); 
-rateLimiter.configure('filter-change', { maxRequests: 10, windowMs: 1000 }); 
-rateLimiter.configure('date-change', { maxRequests: 5, windowMs: 1000 }); 
+rateLimiter.configure('supabase-query', { maxRequests: 500, windowMs: 60000 });
+rateLimiter.configure('supabase-mutation', { maxRequests: 100, windowMs: 60000 });
+rateLimiter.configure('filter-change', { maxRequests: 20, windowMs: 1000 });
+rateLimiter.configure('date-change', { maxRequests: 10, windowMs: 1000 }); 
 
 
 export function debounce<T extends (...args: unknown[]) => unknown>(

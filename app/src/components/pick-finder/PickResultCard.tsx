@@ -30,8 +30,12 @@ export function PickResultCard({ result }: PickResultCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   const handleViewAnalysis = () => {
-    
-    
+    sessionStorage.setItem('shared-selected-date', result.gameDate);
+    localStorage.setItem('player-analysis-selected-game', result.gameId);
+    localStorage.setItem('player-analysis-selected-player', result.playerId);
+    localStorage.setItem('player-analysis-selected-stat', result.statType);
+    localStorage.setItem('player-analysis-line-value', result.line.toString());
+    localStorage.setItem('player-analysis-nav-timestamp', Date.now().toString());
     navigate('/dashboard/player-analysis');
   };
 
@@ -169,14 +173,18 @@ export function PickResultCard({ result }: PickResultCardProps) {
   }, [result.reasons]);
 
   return (
-    <div className="group overflow-hidden rounded-2xl border border-border/40 bg-card transition-all duration-200 hover:border-border/70 hover:bg-accent/10 hover:shadow-sm hover:-translate-y-0.5 animate-in fade-in slide-in-from-bottom-2">
-      <div className="flex flex-col gap-4 px-4 pt-4 pb-3 sm:flex-row sm:items-center sm:px-6 sm:pt-6 sm:pb-3">
+    <div className="group relative overflow-hidden rounded-2xl border border-border/40 bg-card transition-all duration-200 hover:border-border/70 hover:bg-secondary/50 hover:shadow-sm hover:-translate-y-0.5 animate-in fade-in slide-in-from-bottom-2">
+      {/* Shine effect */}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+      </div>
+      <div className="relative flex flex-col gap-4 px-4 pt-4 pb-3 sm:flex-row sm:items-center sm:px-6 sm:pt-6 sm:pb-3">
         <div className="flex flex-1 gap-3 min-w-0">
           <div className="relative shrink-0">
             <img
               src={result.playerPhotoUrl || '/player-placeholder.png'}
               alt={result.playerName}
-              className="h-14 w-14 rounded-xl object-cover bg-accent ring-1 ring-border sm:h-16 sm:w-16"
+              className="h-14 w-14 rounded-xl object-cover bg-secondary ring-1 ring-border sm:h-16 sm:w-16"
               onError={(e) => {
                 e.currentTarget.src = '/player-placeholder.png';
               }}
@@ -221,7 +229,7 @@ export function PickResultCard({ result }: PickResultCardProps) {
         </div>
       </div>
 
-      <div className="-mx-4 border-y border-primary/10 border-l-4 border-primary bg-primary/10 px-4 py-3.5 sm:-mx-6 sm:px-6">
+      <div className="relative -mx-4 border-y border-primary/10 border-l-4 border-primary bg-secondary/50 px-4 py-3.5 sm:-mx-6 sm:px-6">
         <div className="flex flex-wrap items-center gap-3">
           <Badge variant="secondary" className="text-sm font-medium">
             {statLabels[result.statType]}
@@ -301,7 +309,7 @@ export function PickResultCard({ result }: PickResultCardProps) {
               {result.reasons.map((reason, idx) => (
                 <div
                   key={idx}
-                  className="flex items-start gap-2 rounded-md p-2 text-sm transition-colors hover:bg-accent/20"
+                  className="flex items-start gap-2 rounded-md p-2 text-sm transition-colors hover:bg-secondary/70"
                 >
                   <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
                   <span className="leading-relaxed text-foreground/90">{reason}</span>

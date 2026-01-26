@@ -11,7 +11,7 @@ interface Group {
   id: string;
   name: string;
   description?: string | null;
-  group_picture_url?: string | null;
+  profile_picture_url?: string | null;
   member_count?: number;
 }
 
@@ -118,7 +118,7 @@ export function GroupSelectModal({
                 return (
                   <div
                     key={group.id}
-                    className="flex items-center gap-3 p-3 rounded-lg border hover:bg-accent/50 cursor-pointer transition-colors"
+                    className="flex items-center gap-3 p-3 rounded-lg border hover:bg-secondary/50 cursor-pointer transition-colors"
                     onClick={() => toggleGroup(group.id)}
                   >
                     <Checkbox
@@ -126,13 +126,12 @@ export function GroupSelectModal({
                       onCheckedChange={() => toggleGroup(group.id)}
                     />
                     <Avatar className="h-10 w-10">
-                      {group.group_picture_url ? (
-                        <AvatarImage src={group.group_picture_url} alt={group.name} />
-                      ) : (
-                        <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white">
-                          <Users className="h-5 w-5" />
-                        </AvatarFallback>
-                      )}
+                      {group.profile_picture_url ? (
+                        <AvatarImage src={group.profile_picture_url} alt={group.name} />
+                      ) : null}
+                      <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white">
+                        <Users className="h-5 w-5" />
+                      </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-foreground truncate">{group.name}</p>

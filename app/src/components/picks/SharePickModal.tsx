@@ -1,10 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUpdatePickVisibility } from '@/hooks/useUpdatePickVisibility';
 import { useGroups } from '@/hooks/useGroups';
 import { useFriends } from '@/hooks/useFriends';
+import { useEnsureGroupConversation } from '@/hooks/useEnsureGroupConversation';
+import { useSendPickShareMessage } from '@/hooks/useSendPickShareMessage';
+import { useCreateDM } from '@/hooks/useCreateDM';
 import { FriendSelectModal } from './FriendSelectModal';
 import { GroupSelectModal } from './GroupSelectModal';
+import { logger } from '@/lib/logger';
+import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
 import {
   Dialog,
   DialogContent,
@@ -19,19 +25,31 @@ import { Users, UserPlus, Globe, Lock, X, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PickVisibility } from '@/hooks/useUpdatePickVisibility';
 
+interface PickData {
+  player_id: number;
+  game_id: string;
+  stat_name: string;
+  line_value: number;
+  over_under: 'over' | 'under';
+}
+
 interface SharePickModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   pickId: string;
   currentVisibility: PickVisibility;
   currentGroupId?: string | null;
+  pickData?: PickData;
 }
 
-export function SharePickModal({ open, onOpenChange, pickId, currentVisibility, currentGroupId }: SharePickModalProps) {
+export function SharePickModal({ open, onOpenChange, pickId, currentVisibility, currentGroupId, pickData }: SharePickModalProps) {
   const { user } = useAuth();
   const updateVisibility = useUpdatePickVisibility();
   const { data: groups = [] } = useGroups();
   const { data: friendships = [] } = useFriends();
+  const ensureGroupConversation = useEnsureGroupConversation();
+  const sendPickShareMessage = useSendPickShareMessage();
+  const createDM = useCreateDM();
 
   
   const friends = friendships
@@ -55,49 +73,70 @@ export function SharePickModal({ open, onOpenChange, pickId, currentVisibility, 
 
   useEffect(() => {
     if (open) {
-      
-      if (!currentVisibility || currentVisibility === 'private') {
-        setShareMode('private');
-        setShareFriends(false);
-        setShareGroups(false);
-        setSharePublic(false);
-      } else {
-        setShareMode('shared');
-        setShareFriends(currentVisibility === 'friends' || currentVisibility === 'custom');
-        setShareGroups(currentVisibility === 'group' || currentVisibility === 'custom');
-        setSharePublic(currentVisibility === 'public');
-      }
+      const initializeSelections = async () => {
+        const { data: currentPick } = await supabase
+          .from('user_picks')
+          .select('shared_group_ids, shared_friend_ids, visibility')
+          .eq('id', pickId)
+          .single();
 
-      if (currentVisibility === 'group' && currentGroupId) {
-        setSelectedGroupIds([currentGroupId]);
-      } else {
-        setSelectedGroupIds([]);
-      }
-      setSelectedFriendIds([]);
+        const actualVisibility = currentPick?.visibility || currentVisibility;
+        const actualGroupIds = currentPick?.shared_group_ids || [];
+        const actualFriendIds = currentPick?.shared_friend_ids || [];
+
+        if (!actualVisibility || actualVisibility === 'private') {
+          setShareMode('private');
+          setShareFriends(false);
+          setShareGroups(false);
+          setSharePublic(false);
+        } else {
+          setShareMode('shared');
+          setShareFriends(actualVisibility === 'friends' || actualVisibility === 'custom');
+          setShareGroups(actualVisibility === 'group' || actualVisibility === 'custom');
+          setSharePublic(actualVisibility === 'public');
+        }
+
+        if (actualVisibility === 'group' && actualGroupIds.length > 0) {
+          setSelectedGroupIds(actualGroupIds);
+        } else if (actualVisibility === 'custom') {
+          setSelectedGroupIds(actualGroupIds);
+          setSelectedFriendIds(actualFriendIds);
+        } else {
+          setSelectedGroupIds([]);
+          setSelectedFriendIds([]);
+        }
+      };
+
+      initializeSelections();
     }
-  }, [open, currentVisibility, currentGroupId]);
+  }, [open, pickId]);
 
   const handleSave = async () => {
     try {
-      
       let visibility: PickVisibility;
 
       if (shareMode === 'private') {
         visibility = 'private';
       } else if (sharePublic) {
-        
         visibility = 'public';
       } else if (shareFriends && shareGroups) {
-        
         visibility = 'custom';
       } else if (shareFriends) {
         visibility = 'friends';
       } else if (shareGroups) {
         visibility = 'group';
       } else {
-        
         visibility = 'private';
       }
+
+      const { data: currentPick } = await supabase
+        .from('user_picks')
+        .select('shared_group_ids, shared_friend_ids')
+        .eq('id', pickId)
+        .single();
+      
+      const previousGroupIds: string[] = currentPick?.shared_group_ids || [];
+      const previousFriendIds: string[] = currentPick?.shared_friend_ids || [];
 
       await updateVisibility.mutateAsync({
         pickId,
@@ -106,9 +145,66 @@ export function SharePickModal({ open, onOpenChange, pickId, currentVisibility, 
         friendIds: shareFriends ? selectedFriendIds : undefined,
         previousVisibility: currentVisibility
       });
+
+      if (pickData) {
+        const newGroupIds = (visibility === 'group' || visibility === 'custom') && shareGroups ? selectedGroupIds : [];
+        const newFriendIds = (visibility === 'friends' || visibility === 'custom') && shareFriends ? selectedFriendIds : [];
+        
+        const groupsToNotify = newGroupIds.filter(gid => !previousGroupIds.includes(gid));
+        const friendsToNotify = newFriendIds.filter(fid => !previousFriendIds.includes(fid));
+
+        for (const groupId of groupsToNotify) {
+          try {
+            const conversationId = await ensureGroupConversation.mutateAsync(groupId);
+            if (conversationId) {
+              await sendPickShareMessage.mutateAsync({
+                conversationType: 'group',
+                conversationId,
+                pickId,
+                playerId: pickData.player_id,
+                gameId: pickData.game_id,
+                statName: pickData.stat_name,
+                lineValue: pickData.line_value,
+                overUnder: pickData.over_under,
+              });
+            } else {
+              logger.error('No conversation ID returned for group', { groupId });
+              toast.error('Failed to send message to group chat');
+            }
+          } catch (msgError: any) {
+            logger.error('Failed to send pick share message to group', msgError as Error, { groupId });
+            toast.error(msgError?.message || 'Failed to send message to group chat');
+          }
+        }
+
+        for (const friendId of friendsToNotify) {
+          try {
+            const conversationId = await createDM.mutateAsync(friendId);
+            if (conversationId) {
+              await sendPickShareMessage.mutateAsync({
+                conversationType: 'dm',
+                conversationId,
+                pickId,
+                playerId: pickData.player_id,
+                gameId: pickData.game_id,
+                statName: pickData.stat_name,
+                lineValue: pickData.line_value,
+                overUnder: pickData.over_under,
+              });
+            } else {
+              logger.error('No conversation ID returned for friend', { friendId });
+              toast.error('Failed to send message to friend');
+            }
+          } catch (msgError: any) {
+            logger.error('Failed to send pick share message to friend', msgError as Error, { friendId });
+            toast.error(msgError?.message || 'Failed to send message to friend');
+          }
+        }
+      }
+
       onOpenChange(false);
     } catch (error) {
-      
+      logger.error('Failed to update pick visibility', error as Error);
     }
   };
 
@@ -137,7 +233,12 @@ export function SharePickModal({ open, onOpenChange, pickId, currentVisibility, 
 
         <div className="space-y-4">
           <RadioGroup value={shareMode} onValueChange={(value) => setShareMode(value as 'private' | 'shared')}>
-            <div className="flex items-center space-x-2 p-3 rounded-lg border hover:bg-accent/50 cursor-pointer">
+            <div className={cn(
+              "flex items-center space-x-2 p-3 rounded-lg border cursor-pointer transition-colors",
+              shareMode === 'private'
+                ? "border-primary/50 bg-primary/5"
+                : "hover:bg-muted/50"
+            )}>
               <RadioGroupItem value="private" id="private" />
               <Label htmlFor="private" className="flex-1 cursor-pointer flex items-center gap-2">
                 <Lock className="h-4 w-4 text-muted-foreground" />
@@ -149,7 +250,12 @@ export function SharePickModal({ open, onOpenChange, pickId, currentVisibility, 
             </div>
 
             <div className="space-y-2">
-              <div className="p-3 rounded-lg border hover:bg-accent/50">
+              <div className={cn(
+                "p-3 rounded-lg border transition-colors",
+                shareMode === 'shared'
+                  ? "border-primary/50 bg-primary/5"
+                  : "hover:bg-muted/50"
+              )}>
                 <div className="flex items-center space-x-2 cursor-pointer">
                   <RadioGroupItem value="shared" id="shared" />
                   <Label htmlFor="shared" className="flex-1 cursor-pointer flex items-center gap-2">

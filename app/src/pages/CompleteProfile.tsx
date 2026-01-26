@@ -24,10 +24,8 @@ export default function CompleteProfile() {
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [isUsernameAvailable, setIsUsernameAvailable] = useState<boolean | null>(null);
 
-  // Check if user needs to complete profile
   const needsCompletion = userProfile?.username?.startsWith(OAUTH_PENDING_PREFIX) ?? false;
 
-  // Redirect if profile is already complete or user is not OAuth
   useEffect(() => {
     if (isProfileLoading || !userProfile) return;
 
@@ -36,7 +34,6 @@ export default function CompleteProfile() {
       return;
     }
 
-    // Pre-fill display name from OAuth provider if available
     const prefillDisplayName = async () => {
       try {
         const { data: { user: authUser } } = await supabase.auth.getUser();
@@ -54,7 +51,6 @@ export default function CompleteProfile() {
     prefillDisplayName();
   }, [userProfile, isProfileLoading, needsCompletion, navigate, displayName]);
 
-  // Check username availability with debounce
   useEffect(() => {
     if (!username || username.length < 3) {
       setIsUsernameAvailable(null);
@@ -112,7 +108,6 @@ export default function CompleteProfile() {
     try {
       setIsSubmitting(true);
 
-      // Update user profile
       const { error: updateError } = await supabase
         .from('user_profiles')
         .update({
@@ -130,7 +125,6 @@ export default function CompleteProfile() {
         throw updateError;
       }
 
-      // Also update user_metadata for consistency
       await supabase.auth.updateUser({
         data: {
           username: username.trim(),
@@ -165,7 +159,6 @@ export default function CompleteProfile() {
     </div>
   );
 
-  // Show loading while checking profile
   if (isProfileLoading || !userProfile) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -174,7 +167,6 @@ export default function CompleteProfile() {
     );
   }
 
-  // If profile is complete, redirect happens in useEffect
   if (!needsCompletion) {
     return null;
   }

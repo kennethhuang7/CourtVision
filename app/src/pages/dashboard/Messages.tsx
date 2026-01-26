@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
-import { MessageSquare, Plus, Search, Send, Trash2, Users, Archive, ArchiveRestore, Smile, SmilePlus } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { MessageSquare, Plus, Search, Send, Trash2, Users, Archive, ArchiveRestore, Smile, SmilePlus, ChevronDown, ChevronsDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -30,6 +31,7 @@ import { EmojiPicker } from '@/components/chat/EmojiPicker';
 import { ReactionBar } from '@/components/chat/ReactionBar';
 import { useBatchMessageReactions } from '@/hooks/useMessageReactions';
 import { useAddReaction } from '@/hooks/useAddReaction';
+import { useRemoveReaction } from '@/hooks/useRemoveReaction';
 import { useReactionSubscription } from '@/hooks/useReactionSubscription';
 import { shouldDisplayAsLargeEmoji } from '@/lib/emojiUtils';
 import {
@@ -69,9 +71,14 @@ export default function Messages() {
   const [messageContent, setMessageContent] = useState('');
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [reactionPickerMessageId, setReactionPickerMessageId] = useState<string | null>(null);
+  const [archivedExpanded, setArchivedExpanded] = useState(false);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [newMessageCount, setNewMessageCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const lastMessageCountRef = useRef(0);
+  const prevMessagesLengthRef = useRef(0);
 
   const { data: conversations = [], isLoading: conversationsLoading } = useConversations();
   const { data: messages = [], isLoading: messagesLoading, hasMore, loadMore } = useMessages(
@@ -86,12 +93,71 @@ export default function Messages() {
   const archiveMutation = useArchiveConversation();
   const ensureGroupConvMutation = useEnsureGroupConversation();
   const addReaction = useAddReaction();
+  const removeReaction = useRemoveReaction();
   const { data: friends = [] } = useFriends();
   const { data: groups = [] } = useGroups();
 
-  
+  const scrollToBottom = useCallback((smooth = false) => {
+    if (!messagesContainerRef.current) return;
+    const viewport = messagesContainerRef.current.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement;
+    if (!viewport) return;
+    
+    if (smooth && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      setTimeout(() => {
+        viewport.scrollTop = viewport.scrollHeight;
+        setIsAtBottom(true);
+        setNewMessageCount(0);
+      }, 300);
+    } else {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
+      }
+      
+      const scroll = () => {
+        const targetScroll = viewport.scrollHeight;
+        viewport.scrollTop = targetScroll;
+        
+        requestAnimationFrame(() => {
+          const currentScroll = viewport.scrollTop;
+          const maxScroll = viewport.scrollHeight - viewport.clientHeight;
+          
+          if (currentScroll < maxScroll - 5) {
+            viewport.scrollTop = viewport.scrollHeight;
+          }
+          
+          setIsAtBottom(true);
+          setNewMessageCount(0);
+        });
+      };
+      
+      requestAnimationFrame(scroll);
+    }
+  }, []);
+
+  const checkIfAtBottom = useCallback(() => {
+    if (!messagesContainerRef.current) return false;
+    const viewport = messagesContainerRef.current.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement;
+    if (!viewport) return false;
+    const threshold = 100;
+    const isNearBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < threshold;
+    return isNearBottom;
+  }, []);
+
   const messageIds = messages.map(m => m.id);
-  const { data: reactionsMap = new Map() } = useBatchMessageReactions(messageIds, !!selectedConversation);
+  const { data: reactionsMap = new Map(), isLoading: reactionsLoading } = useBatchMessageReactions(messageIds, !!selectedConversation);
+  
+  useEffect(() => {
+    const pickShareMessages = messages.filter(m => m.message_type === 'pick_share');
+    if (pickShareMessages.length > 0 && selectedConversation?.type === 'group') {
+      logger.info('Pick share messages in group chat', {
+        messageIds: pickShareMessages.map(m => m.id),
+        allMessageIds: messageIds,
+        reactionsMapSize: reactionsMap.size,
+        reactionsLoading
+      });
+    }
+  }, [reactionsMap, messages, selectedConversation, messageIds, reactionsLoading]);
 
   
   useReactionSubscription(messageIds, !!selectedConversation);
@@ -101,42 +167,38 @@ export default function Messages() {
     const state = location.state as { openConversation?: { type: 'dm' | 'group'; id: string } };
     if (state?.openConversation) {
       const { type, id } = state.openConversation;
-      
-      
+      window.history.replaceState({}, '');
+
       if (type === 'group') {
         ensureGroupConvMutation.mutate(id, {
-          onSuccess: () => {
-            setSelectedConversation({ type, id });
-          },
-          onError: (error) => {
-            logger.error('Failed to ensure group conversation', error as Error);
-            
-            setSelectedConversation({ type, id });
+          onSuccess: (conversationId) => {
+            if (conversationId) {
+              setSelectedConversation({ type, id: conversationId });
+            }
           },
         });
       } else {
         setSelectedConversation({ type, id });
       }
-      
-      
-      window.history.replaceState({}, '');
     }
-  }, [location, ensureGroupConvMutation]);
+  }, [location.state]);
 
-  
+  const lastUnarchiveRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (selectedConversation) {
       markReadMutation.mutate({
         conversationType: selectedConversation.type,
         conversationId: selectedConversation.id,
       });
-      
-      
+
+      const convKey = `${selectedConversation.type}:${selectedConversation.id}`;
       const conv = conversations.find(
         c => c.conversation_type === selectedConversation.type &&
         c.conversation_id === selectedConversation.id
       );
-      if (conv?.is_archived) {
+      if (conv?.is_archived && lastUnarchiveRef.current !== convKey && !archiveMutation.isPending) {
+        lastUnarchiveRef.current = convKey;
         archiveMutation.mutate({
           conversationType: selectedConversation.type,
           conversationId: selectedConversation.id,
@@ -144,14 +206,76 @@ export default function Messages() {
         });
       }
     }
-  }, [selectedConversation, conversations]);
+  }, [selectedConversation?.type, selectedConversation?.id]);
 
-  
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (selectedConversation && !messagesLoading) {
+      if (messages.length > 0) {
+        const scrollAfterLoad = () => {
+          if (!messagesContainerRef.current) return;
+          const viewport = messagesContainerRef.current.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement;
+          if (!viewport) return;
+          
+          viewport.scrollTop = 0;
+          
+          const attemptScroll = (delay: number) => {
+            setTimeout(() => {
+              if (!messagesContainerRef.current) return;
+              const viewport = messagesContainerRef.current.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement;
+              if (!viewport) return;
+              
+              if (messagesEndRef.current) {
+                messagesEndRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
+              }
+              
+              viewport.scrollTop = viewport.scrollHeight;
+              
+              requestAnimationFrame(() => {
+                const maxScroll = viewport.scrollHeight - viewport.clientHeight;
+                if (viewport.scrollTop < maxScroll - 5) {
+                  viewport.scrollTop = viewport.scrollHeight;
+                }
+                setIsAtBottom(true);
+                setNewMessageCount(0);
+                prevMessagesLengthRef.current = messages.length;
+              });
+            }, delay);
+          };
+          
+          attemptScroll(50);
+          attemptScroll(150);
+          attemptScroll(300);
+          attemptScroll(500);
+        };
+        
+        scrollAfterLoad();
+      } else {
+        setIsAtBottom(true);
+        setNewMessageCount(0);
+        prevMessagesLengthRef.current = 0;
+      }
     }
-  }, [messages]);
+  }, [selectedConversation?.id, messages.length, messagesLoading]);
+
+
+  useEffect(() => {
+    if (!selectedConversation || messages.length === 0) return;
+
+    const currentLength = messages.length;
+    const prevLength = prevMessagesLengthRef.current;
+
+    if (currentLength > prevLength) {
+      const newMessages = currentLength - prevLength;
+      
+      if (isAtBottom) {
+        setTimeout(() => scrollToBottom(false), 100);
+      } else {
+        setNewMessageCount(prev => prev + newMessages);
+      }
+    }
+
+    prevMessagesLengthRef.current = currentLength;
+  }, [messages.length, isAtBottom, selectedConversation, scrollToBottom]);
 
   
   useEffect(() => {
@@ -161,6 +285,12 @@ export default function Messages() {
     if (!viewport) return;
 
     const handleScroll = () => {
+      const atBottom = checkIfAtBottom();
+      setIsAtBottom(atBottom);
+      if (atBottom) {
+        setNewMessageCount(0);
+      }
+      
       if (viewport.scrollTop < 100 && hasMore && !messagesLoading) {
         const previousScrollHeight = viewport.scrollHeight;
         loadMore();
@@ -174,7 +304,7 @@ export default function Messages() {
 
     viewport.addEventListener('scroll', handleScroll);
     return () => viewport.removeEventListener('scroll', handleScroll);
-  }, [hasMore, messagesLoading, selectedConversation, loadMore]);
+  }, [hasMore, messagesLoading, selectedConversation, loadMore, checkIfAtBottom]);
 
   const handleSendMessage = async () => {
     if (!selectedConversation || !messageContent.trim()) return;
@@ -186,8 +316,9 @@ export default function Messages() {
         content: messageContent,
       });
       setMessageContent('');
+      setTimeout(() => scrollToBottom(false), 100);
     } catch (error) {
-      
+
     }
   };
 
@@ -280,7 +411,7 @@ export default function Messages() {
   );
 
   return (
-    <div className="flex h-[calc(100vh-10rem)] border rounded-lg overflow-hidden">
+    <div className="flex h-[calc(100vh-10rem)] border rounded-lg overflow-hidden animate-fade-in">
       <div className="w-80 border-r border-border flex flex-col bg-card/50">
         <div className="h-14 px-4 border-b border-border flex items-center justify-between shrink-0 bg-card">
           <h2 className="text-base font-semibold text-foreground">Messages</h2>
@@ -306,17 +437,26 @@ export default function Messages() {
               <p className="leading-tight">No conversations yet</p>
               <p className="text-sm mt-1 leading-tight">Start a new DM to get started</p>
             </div>
-          ) : (
-            <div>
-              {conversations.map((conv) => {
-                const display = getConversationDisplay(conv);
-                const isSelected = 
-                  selectedConversation?.type === conv.conversation_type &&
-                  selectedConversation?.id === conv.conversation_id;
+          ) : (() => {
+            const activeConversations = conversations.filter(c => !c.is_archived);
+            const archivedConversations = conversations.filter(c => c.is_archived);
 
-                return (
+            const renderConversation = (conv: Conversation, isArchived: boolean) => {
+              const display = getConversationDisplay(conv);
+              const isSelected =
+                selectedConversation?.type === conv.conversation_type &&
+                selectedConversation?.id === conv.conversation_id;
+
+              return (
+                <motion.div
+                  key={conv.id}
+                  layout
+                  initial={{ opacity: 0, x: isArchived ? -20 : 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: isArchived ? 20 : -20 }}
+                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                >
                   <button
-                    key={conv.id}
                     onClick={() => setSelectedConversation({
                       type: conv.conversation_type,
                       id: conv.conversation_id,
@@ -329,9 +469,7 @@ export default function Messages() {
                   >
                     <div className="flex items-start gap-3">
                       <Avatar className="h-12 w-12 flex-shrink-0">
-                        {display.avatar ? (
-                          <AvatarImage src={display.avatar} alt={display.name} />
-                        ) : null}
+                        <AvatarImage src={display.avatar} alt={display.name} />
                         <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-sm font-semibold text-white">
                           {getInitials(display.name)}
                         </AvatarFallback>
@@ -362,10 +500,80 @@ export default function Messages() {
                       </div>
                     </div>
                   </button>
-                );
-              })}
-            </div>
-          )}
+                </motion.div>
+              );
+            };
+
+            return (
+              <div>
+                <AnimatePresence mode="popLayout">
+                  {activeConversations.length === 0 && archivedConversations.length > 0 ? (
+                    <motion.div
+                      key="no-active"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="p-4 text-center text-muted-foreground"
+                    >
+                      <MessageSquare className="h-12 w-12 mx-auto mb-2 opacity-50 shrink-0" />
+                      <p className="leading-tight">No active conversations</p>
+                    </motion.div>
+                  ) : (
+                    activeConversations.map(conv => renderConversation(conv, false))
+                  )}
+                </AnimatePresence>
+
+                <div className="border-t border-border/50 mt-2">
+                  <button
+                    onClick={() => setArchivedExpanded(!archivedExpanded)}
+                    disabled={archivedConversations.length === 0}
+                    className={cn(
+                      'w-full px-4 py-2.5 flex items-center justify-between text-sm transition-colors',
+                      archivedConversations.length === 0
+                        ? 'text-muted-foreground/50 cursor-not-allowed'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-secondary/30'
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Archive className="h-4 w-4" />
+                      <span>Archived</span>
+                      {archivedConversations.length > 0 && (
+                        <span className="text-xs bg-muted px-1.5 py-0.5 rounded-full">
+                          {archivedConversations.length}
+                        </span>
+                      )}
+                    </div>
+                    {archivedConversations.length > 0 && (
+                      <motion.div
+                        animate={{ rotate: archivedExpanded ? 180 : 0 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </motion.div>
+                    )}
+                  </button>
+
+                  <AnimatePresence initial={false} mode="popLayout">
+                    {archivedExpanded && archivedConversations.length > 0 && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2, ease: "easeInOut" }}
+                        className="overflow-hidden"
+                      >
+                        <div className="bg-muted/20">
+                          <AnimatePresence mode="popLayout">
+                            {archivedConversations.map(conv => renderConversation(conv, true))}
+                          </AnimatePresence>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+            );
+          })()}
         </ScrollArea>
       </div>
 
@@ -379,9 +587,7 @@ export default function Messages() {
                   return (
                     <>
                       <Avatar className="h-9 w-9 flex-shrink-0">
-                        {display.avatar ? (
-                          <AvatarImage src={display.avatar} alt={display.name} />
-                        ) : null}
+                        <AvatarImage src={display.avatar} alt={display.name} />
                         <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-xs font-semibold text-white">
                           {getInitials(display.name)}
                         </AvatarFallback>
@@ -421,7 +627,24 @@ export default function Messages() {
               )}
             </div>
 
-            <ScrollArea className="flex-1" ref={messagesContainerRef}>
+            <ScrollArea className="flex-1 relative" ref={messagesContainerRef}>
+              {!isAtBottom && newMessageCount > 0 && (
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50">
+                  <div className="flex items-center gap-3 bg-card border border-border rounded-lg px-4 py-2 shadow-lg">
+                    <span className="text-sm text-muted-foreground">
+                      {newMessageCount} new {newMessageCount === 1 ? 'message' : 'messages'}
+                    </span>
+                    <Button
+                      onClick={() => scrollToBottom(true)}
+                      size="sm"
+                      variant="default"
+                    >
+                      <ChevronsDown className="h-4 w-4 mr-1" />
+                      Jump to bottom
+                    </Button>
+                  </div>
+                </div>
+              )}
               <div className="p-4">
                 {messagesLoading && messages.length === 0 ? (
                   <div className="space-y-4 py-4">
@@ -443,27 +666,28 @@ export default function Messages() {
                   </div>
                 ) : (
                   <div>
+                    <AnimatePresence initial={false}>
                     {messages.map((message, index) => {
                       const isOwn = message.sender_id === user?.id;
-                      const isDeleted = message.is_deleted;
+                      const isDeleted = message.is_deleted === true;
 
-                      
+
                       const currentMessageDate = new Date(message.created_at);
                       const prevMessage = index > 0 ? messages[index - 1] : null;
                       const prevMessageDate = prevMessage ? new Date(prevMessage.created_at) : null;
                       const showDateDivider = !prevMessageDate || !isSameDay(currentMessageDate, prevMessageDate);
 
-                      
+
                       const nextMessage = index < messages.length - 1 ? messages[index + 1] : null;
-                      const showHeader = 
-                        index === 0 || 
+                      const showHeader =
+                        index === 0 ||
                         !prevMessage ||
                         prevMessage.sender_id !== message.sender_id ||
                         new Date(message.created_at).getTime() - new Date(prevMessage.created_at).getTime() > 300000;
 
-                      
-                      const senderProfile = isOwn 
-                        ? currentUserProfile 
+
+                      const senderProfile = isOwn
+                        ? currentUserProfile
                         : message.sender_profile;
                       const senderName = isOwn
                         ? (currentUserProfile?.display_name || currentUserProfile?.username || user?.username || 'You')
@@ -473,7 +697,13 @@ export default function Messages() {
                         : message.sender_profile?.profile_picture_url;
 
                       return (
-                        <div key={message.id}>
+                        <motion.div
+                          key={message.id}
+                          initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.98 }}
+                          transition={{ duration: 0.2, ease: "easeOut" }}
+                        >
                           {showDateDivider && (
                             <div className="flex items-center gap-3 my-6">
                               <div className="flex-1 h-px bg-border"></div>
@@ -484,131 +714,156 @@ export default function Messages() {
                             </div>
                           )}
 
-                          <ContextMenu>
-                          <ContextMenuTrigger asChild>
-                            <div
-                              className={cn(
-                                index < messages.length - 1 ? (
-                                  reactionsMap.get(message.id) && reactionsMap.get(message.id)!.length > 0
-                                    ? 'mb-4'  
-                                    : 'mb-3'
-                                ) : 'mb-2'
-                              )}
-                            >
-                              <div className={cn(
-                                'flex gap-3 items-end',
-                                isOwn ? 'flex-row-reverse' : 'flex-row'
-                              )}>
-                                <div className="flex flex-col flex-shrink-0">
-                                  {showHeader && <div className="h-5 mb-1" />}
-                                  <Avatar className="h-9 w-9 flex-shrink-0">
-                                    {senderAvatar ? (
-                                      <AvatarImage
-                                        src={senderAvatar}
-                                        alt={senderName}
-                                      />
-                                    ) : null}
-                                    <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-xs font-semibold text-white">
-                                      {getInitials(senderName)}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                </div>
-
-                                <div className={cn(
-                                  'flex flex-col max-w-[70%] min-w-0 flex-1',
-                                  isOwn ? 'items-end' : 'items-start'
-                                )}>
-                                  {showHeader && (
-                                    <div className={cn(
-                                      'flex items-center gap-2 mb-1 px-1',
-                                      isOwn ? 'flex-row-reverse' : 'flex-row'
-                                    )}>
-                                      <p className="text-xs font-medium text-foreground">
-                                        {senderName}
-                                      </p>
-                                      <span className="text-xs text-muted-foreground">
-                                        {formatUserTime(new Date(message.created_at), timeFormat)}
-                                      </span>
-                                    </div>
-                                  )}
-
-                                  {message.message_type === 'pick_share' && message.metadata ? (
-                                    <PickShareMessageCard
-                                      metadata={message.metadata}
-                                      isOwn={isOwn}
-                                    />
-                                  ) : shouldDisplayAsLargeEmoji(message.content) && !isDeleted ? (
-                                    
-                                    <div className="text-6xl leading-none">
-                                      {message.content}
-                                    </div>
-                                  ) : (
-                                    <div
-                                      className={cn(
-                                        'rounded-xl px-3 py-2 text-sm break-words',
-                                        isDeleted
-                                          ? 'bg-muted/50 text-muted-foreground italic'
-                                          : isOwn
-                                          ? 'bg-primary text-primary-foreground'
-                                          : 'bg-secondary text-secondary-foreground'
-                                      )}
-                                    >
-                                      {isDeleted ? (
-                                        <p className="text-xs">Message deleted</p>
-                                      ) : (
-                                        <p className="whitespace-pre-wrap">{message.content}</p>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
+                          <div
+                            className={cn(
+                              index < messages.length - 1 ? (
+                                reactionsMap.get(message.id) && reactionsMap.get(message.id)!.length > 0
+                                  ? 'mb-4'  
+                                  : 'mb-3'
+                              ) : 'mb-2'
+                            )}
+                          >
+                            <div className={cn(
+                              'flex gap-3 items-end',
+                              isOwn ? 'flex-row-reverse' : 'flex-row'
+                            )}>
+                              <div className="flex flex-col flex-shrink-0">
+                                {showHeader && <div className="h-5 mb-1" />}
+                                <Avatar className="h-9 w-9 flex-shrink-0">
+                                  <AvatarImage
+                                    src={senderAvatar}
+                                    alt={senderName}
+                                  />
+                                  <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-xs font-semibold text-white">
+                                    {getInitials(senderName)}
+                                  </AvatarFallback>
+                                </Avatar>
                               </div>
 
-                              {!isDeleted && reactionsMap.get(message.id) && reactionsMap.get(message.id)!.length > 0 && (
-                                <div className={cn(
-                                  'flex gap-3',
-                                  isOwn ? 'flex-row-reverse' : 'flex-row'
-                                )}>
-                                  <div className="w-9 flex-shrink-0" />
+                              <div className={cn(
+                                'flex flex-col max-w-[70%] min-w-0 flex-1',
+                                isOwn ? 'items-end' : 'items-start'
+                              )}>
+                                {showHeader && (
                                   <div className={cn(
-                                    'max-w-[70%] min-w-0 flex-1',
-                                    isOwn ? 'flex justify-end' : 'flex justify-start'
+                                    'flex items-center gap-2 mb-1 px-1',
+                                    isOwn ? 'flex-row-reverse' : 'flex-row'
                                   )}>
-                                    <ReactionBar
-                                      messageId={message.id}
-                                      reactions={reactionsMap.get(message.id)!}
-                                    />
+                                    <p className="text-xs font-medium text-foreground">
+                                      {senderName}
+                                    </p>
+                                    <span className="text-xs text-muted-foreground">
+                                      {formatUserTime(new Date(message.created_at), timeFormat)}
+                                    </span>
                                   </div>
-                                </div>
-                              )}
+                                )}
+
+                                {(() => {
+                                  const messageIdForMenu = message.id;
+                                  return (
+                                    <ContextMenu key={`context-menu-${messageIdForMenu}`}>
+                                    <ContextMenuTrigger 
+                                      asChild
+                                    >
+                                      {message.message_type === 'pick_share' && message.metadata ? (
+                                        <div>
+                                          <PickShareMessageCard
+                                            metadata={message.metadata}
+                                            isOwn={isOwn}
+                                            conversationType={selectedConversation?.type}
+                                            groupId={selectedConv?.group_id}
+                                            friendId={selectedConv?.other_user_id}
+                                          />
+                                        </div>
+                                      ) : shouldDisplayAsLargeEmoji(message.content) && !isDeleted ? (
+                                        <div className="text-6xl leading-none" data-message-id={messageIdForMenu}>
+                                          {message.content}
+                                        </div>
+                                      ) : (
+                                        <div
+                                          className={cn(
+                                            'rounded-xl px-3 py-2 text-sm break-words',
+                                            isDeleted
+                                              ? 'bg-muted/50 text-muted-foreground italic'
+                                              : isOwn
+                                              ? 'bg-primary text-primary-foreground'
+                                              : 'bg-secondary text-secondary-foreground'
+                                          )}
+                                          data-message-id={messageIdForMenu}
+                                        >
+                                          {isDeleted ? (
+                                            <p className="text-xs">Message deleted</p>
+                                          ) : (
+                                            <p className="whitespace-pre-wrap">{message.content}</p>
+                                          )}
+                                        </div>
+                                      )}
+                                    </ContextMenuTrigger>
+                                    <ContextMenuContent className="z-[200] min-w-[180px] w-auto" onCloseAutoFocus={(e) => e.preventDefault()}>
+                                      {!isDeleted && (
+                                        <ContextMenuItem
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setReactionPickerMessageId(messageIdForMenu);
+                                          }}
+                                          className="cursor-pointer"
+                                        >
+                                          <SmilePlus className="h-4 w-4 mr-2 shrink-0" />
+                                          <span className="whitespace-nowrap">Add Reaction</span>
+                                        </ContextMenuItem>
+                                      )}
+                                      {isOwn && (
+                                        <>
+                                          <ContextMenuSeparator />
+                                          <ContextMenuItem
+                                            onClick={message.message_type !== 'pick_share' && !isDeleted ? () => handleDeleteMessage(messageIdForMenu) : undefined}
+                                            className={cn(
+                                              message.message_type === 'pick_share' || isDeleted
+                                                ? "text-muted-foreground/50 cursor-not-allowed"
+                                                : "text-destructive focus:text-destructive cursor-pointer"
+                                            )}
+                                            disabled={message.message_type === 'pick_share' || isDeleted}
+                                          >
+                                            <Trash2 className="h-4 w-4 mr-2 shrink-0" />
+                                            <span className="whitespace-nowrap">Delete Message</span>
+                                          </ContextMenuItem>
+                                        </>
+                                      )}
+                                    </ContextMenuContent>
+                                  </ContextMenu>
+                                  );
+                                })()}
+
+                              {(() => {
+                                const messageReactions = reactionsMap.get(message.id);
+                                const shouldShowReactions = messageReactions && messageReactions.length > 0;
+                                
+                                if (shouldShowReactions) {
+                                  return (
+                                    <div 
+                                      className={cn(
+                                        'mt-1.5 w-full',
+                                        isOwn ? 'flex justify-end' : 'flex justify-start'
+                                      )}
+                                      style={{ position: 'relative', zIndex: 10 }}
+                                    >
+                                      <ReactionBar
+                                        messageId={message.id}
+                                        reactions={messageReactions}
+                                      />
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
+                              </div>
                             </div>
-                          </ContextMenuTrigger>
-                          <ContextMenuContent className="z-[200]">
-                            {!isDeleted && (
-                              <>
-                                <ContextMenuItem
-                                  onClick={() => setReactionPickerMessageId(message.id)}
-                                  className="cursor-pointer"
-                                >
-                                  <SmilePlus className="h-4 w-4 mr-2 shrink-0" />
-                                  <span className="whitespace-nowrap">Add Reaction</span>
-                                </ContextMenuItem>
-                                {isOwn && <ContextMenuSeparator />}
-                              </>
-                            )}
-                            {isOwn && !isDeleted && (
-                              <ContextMenuItem
-                                onClick={() => handleDeleteMessage(message.id)}
-                                className="text-destructive focus:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4 mr-2 shrink-0" />
-                                <span className="whitespace-nowrap">Delete Message</span>
-                              </ContextMenuItem>
-                            )}
-                          </ContextMenuContent>
-                        </ContextMenu>
-                        </div>
+                          </div>
+                        </motion.div>
                       );
                     })}
+                    </AnimatePresence>
                     <div ref={messagesEndRef} />
                   </div>
                 )}
@@ -706,10 +961,8 @@ export default function Messages() {
                           disabled={createDMMutation.isPending}
                         >
                           <Avatar className="h-10 w-10">
-                            {friend.profile_picture_url ? (
-                              <AvatarImage src={friend.profile_picture_url} alt={displayName} />
-                            ) : null}
-                            <AvatarFallback>
+                            <AvatarImage src={friend.profile_picture_url} alt={displayName} />
+                            <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-sm font-semibold text-white">
                               {getInitials(displayName)}
                             </AvatarFallback>
                           </Avatar>
@@ -738,10 +991,8 @@ export default function Messages() {
                         disabled={ensureGroupConvMutation.isPending}
                       >
                         <Avatar className="h-10 w-10">
-                          {group.profile_picture_url ? (
-                            <AvatarImage src={group.profile_picture_url} alt={group.name} />
-                          ) : null}
-                          <AvatarFallback>
+                          <AvatarImage src={group.profile_picture_url} alt={group.name} />
+                          <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white">
                             <Users className="h-5 w-5" />
                           </AvatarFallback>
                         </Avatar>
@@ -785,13 +1036,55 @@ export default function Messages() {
           <div className="mt-4">
             <EmojiPicker
               mode="react"
+              userReactions={
+                reactionPickerMessageId && reactionsMap.get(reactionPickerMessageId)
+                  ? reactionsMap.get(reactionPickerMessageId)!
+                      .filter(r => r.user_ids.includes(user?.id || ''))
+                      .map(r => r.emoji)
+                  : []
+              }
+              onEmojiToggle={async (emoji, isRemoving) => {
+                if (reactionPickerMessageId) {
+                  try {
+                    if (isRemoving) {
+                      await removeReaction.mutateAsync({
+                        messageId: reactionPickerMessageId,
+                        emoji,
+                      });
+                    } else {
+                      await addReaction.mutateAsync({
+                        messageId: reactionPickerMessageId,
+                        emoji,
+                      });
+                    }
+                    setReactionPickerMessageId(null);
+                  } catch (error: any) {
+                    logger.error('Failed to toggle reaction', error as Error, { 
+                      messageId: reactionPickerMessageId, 
+                      emoji,
+                      isRemoving,
+                      errorCode: error?.code,
+                      errorMessage: error?.message 
+                    });
+                  }
+                }
+              }}
               onEmojiSelect={async (emoji) => {
                 if (reactionPickerMessageId) {
-                  await addReaction.mutateAsync({
-                    messageId: reactionPickerMessageId,
-                    emoji,
-                  });
-                  setReactionPickerMessageId(null);
+                  try {
+                    await addReaction.mutateAsync({
+                      messageId: reactionPickerMessageId,
+                      emoji,
+                    });
+                    setReactionPickerMessageId(null);
+                  } catch (error: any) {
+                    logger.error('Failed to add reaction', error as Error, { 
+                      messageId: reactionPickerMessageId, 
+                      emoji,
+                      errorCode: error?.code,
+                      errorMessage: error?.message 
+                    });
+                  }
                 }
               }}
               onClose={() => setReactionPickerMessageId(null)}

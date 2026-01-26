@@ -113,7 +113,7 @@ export function FriendSelectModal({
                 return (
                   <div
                     key={friend.user_id}
-                    className="flex items-center gap-3 p-3 rounded-lg border hover:bg-accent/50 cursor-pointer transition-colors"
+                    className="flex items-center gap-3 p-3 rounded-lg border hover:bg-secondary/50 cursor-pointer transition-colors"
                     onClick={() => toggleFriend(friend.user_id)}
                   >
                     <Checkbox

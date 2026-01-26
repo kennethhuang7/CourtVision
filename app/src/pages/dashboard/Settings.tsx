@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme, ThemeMode, UIDensity } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
@@ -16,7 +17,7 @@ import DOMPurify from 'dompurify';
 
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { User, Palette, Bell, Database, Save, Eye, EyeOff, Check, RefreshCw, Sun, Moon, Pencil, X, Upload, Trash2, AlertTriangle, ExternalLink, Hash, Copy, Monitor } from 'lucide-react';
+import { User, Palette, Bell, Database, Save, Eye, EyeOff, Check, RefreshCw, Sun, Moon, Pencil, X, Upload, Trash2, AlertTriangle, ExternalLink, Hash, Copy, Monitor, HelpCircle } from 'lucide-react';
 import { 
   FaInstagram, 
   FaTwitter, 
@@ -48,6 +49,7 @@ import type { SkinTone } from '@/lib/emojiData';
 import { CacheManagementModal } from '@/components/settings/CacheManagementModal';
 import { DeviceManagement } from '@/components/settings/DeviceManagement';
 import { ExportDataSection } from '@/components/settings/ExportDataSection';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { DangerZone } from '@/components/settings/DangerZone';
 import { getAvailableSounds, type NotificationSoundType } from '@/lib/notificationSounds';
 import { Volume2, FolderOpen, FileText, Image as ImageIcon, CheckCircle2, Info, Database as DatabaseIcon, Download, AlertCircle } from 'lucide-react';
@@ -123,6 +125,7 @@ export default function Settings() {
   const [isEditingUsername, setIsEditingUsername] = useState(false);
   const [isEditingEmail, setIsEditingEmail] = useState(false);
   const [isEditingAboutMe, setIsEditingAboutMe] = useState(false);
+  const [markdownTooltipOpen, setMarkdownTooltipOpen] = useState(false);
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [linkWarningUrl, setLinkWarningUrl] = useState<string | null>(null);
@@ -174,9 +177,14 @@ export default function Settings() {
   const [showRedditOnProfile, setShowRedditOnProfile] = useState(false);
   
   const [isSavingConnections, setIsSavingConnections] = useState(false);
-  const [hasUnsavedConnections, setHasUnsavedConnections] = useState(false);
   const [activeConnections, setActiveConnections] = useState<Array<{ id: string; platform: typeof platforms[0] }>>([]);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  
+  const [originalConnections, setOriginalConnections] = useState<{
+    usernames: Record<string, string>;
+    showOnProfile: Record<string, boolean>;
+    order: string[];
+  } | null>(null);
 
   
   useEffect(() => {
@@ -209,24 +217,19 @@ export default function Settings() {
     }
   }, []);
 
-  // Get app version and listen for update status
   useEffect(() => {
     if (!window.electron) return;
 
-    // Get current app version
     window.electron.getAppVersion?.().then((version) => {
       setCurrentVersion(version);
     }).catch(() => {
-      // Ignore errors
     });
 
-    // Use a ref to track previous status for toast notifications
     let previousStatus = updateStatus.status;
 
-    // Listen for update status events
     const cleanup = window.electron.onUpdateStatus?.((status) => {
       const oldStatus = previousStatus;
-      previousStatus = status.status; // Update ref before setState
+      previousStatus = status.status;
       
       setUpdateStatus({
         status: status.status,
@@ -235,7 +238,6 @@ export default function Settings() {
         error: status.error,
       });
 
-      // Show toast notifications for important update events
       if (status.status === 'available' && oldStatus !== 'available') {
         toast.info(`Update available: v${status.version}`, {
           description: 'Click Download in Settings to install the update.',
@@ -385,6 +387,16 @@ export default function Settings() {
   
   const [errorLoggingEnabled, setErrorLoggingEnabled] = useState(true);
   const [errorLogLevel, setErrorLogLevel] = useState<'debug' | 'info' | 'warn' | 'error'>('error');
+  
+  const [originalPreferences, setOriginalPreferences] = useState<{
+    defaultTimeWindow: string;
+    defaultStat: string;
+    defaultConfidence: string;
+    autoRefresh: AutoRefreshInterval;
+    errorLoggingEnabled: boolean;
+    errorLogLevel: 'debug' | 'info' | 'warn' | 'error';
+  } | null>(null);
+  
   const [storagePath, setStoragePath] = useState<string>('');
   const [courtVisionFolders, setCourtVisionFolders] = useState<{ base: string; logs: string; exports: string } | null>(null);
 
@@ -400,7 +412,6 @@ export default function Settings() {
   } | null>(null);
   const [isLoadingAppSettings, setIsLoadingAppSettings] = useState(false);
 
-  // Update-related state
   const [updateStatus, setUpdateStatus] = useState<{
     status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
     version?: string;
@@ -420,38 +431,45 @@ export default function Settings() {
       setDisplayUserStats((profile as any).display_user_stats || false);
       
       
-      if (profile.default_time_window) {
-        setDefaultTimeWindow(profile.default_time_window);
-      }
-      if (profile.default_stat) {
-        setDefaultStat(profile.default_stat);
-      }
-      if (profile.default_confidence_filter) {
-        setDefaultConfidence(profile.default_confidence_filter);
-      }
-      if (profile.auto_refresh_interval) {
-        setAutoRefresh(profile.auto_refresh_interval);
-        localStorage.setItem('courtvision-auto-refresh-interval', profile.auto_refresh_interval);
-      } else {
-        const defaultInterval = 'never';
-        setAutoRefresh(defaultInterval);
-        localStorage.setItem('courtvision-auto-refresh-interval', defaultInterval);
-      }
+      const timeWindow = profile.default_time_window || 'L10';
+      const stat = profile.default_stat || 'points';
+      const confidence = profile.default_confidence_filter || 'all';
+      const refresh = profile.auto_refresh_interval || 'never';
+      const loggingEnabled = (profile as any).error_logging_enabled !== undefined && (profile as any).error_logging_enabled !== null 
+        ? (profile as any).error_logging_enabled 
+        : true;
       
-      
-      if ((profile as any).error_logging_enabled !== undefined) {
-        setErrorLoggingEnabled((profile as any).error_logging_enabled !== null ? (profile as any).error_logging_enabled : true);
-      }
-      
-      
+      let logLevel: 'debug' | 'info' | 'warn' | 'error' = 'error';
       try {
         const loggerConfig = localStorage.getItem('courtvision-logger-config');
         if (loggerConfig) {
           const config = JSON.parse(loggerConfig);
-          setErrorLogLevel(config.logLevel || 'error');
+          logLevel = config.logLevel || 'error';
         }
       } catch (e) {
         logger.warn('Failed to load error logging config from localStorage', { error: e });
+      }
+      
+      setDefaultTimeWindow(timeWindow);
+      setDefaultStat(stat);
+      setDefaultConfidence(confidence);
+      setAutoRefresh(refresh);
+      setErrorLoggingEnabled(loggingEnabled);
+      setErrorLogLevel(logLevel);
+      
+      setOriginalPreferences({
+        defaultTimeWindow: timeWindow,
+        defaultStat: stat,
+        defaultConfidence: confidence,
+        autoRefresh: refresh,
+        errorLoggingEnabled: loggingEnabled,
+        errorLogLevel: logLevel,
+      });
+      
+      if (refresh) {
+        localStorage.setItem('courtvision-auto-refresh-interval', refresh);
+      } else {
+        localStorage.setItem('courtvision-auto-refresh-interval', 'never');
       }
       
       setInstagramUsername((profile as any).instagram_username || '');
@@ -475,8 +493,50 @@ export default function Settings() {
       setShowTwitchOnProfile((profile as any).show_twitch_on_profile || false);
       setShowYoutubeOnProfile((profile as any).show_youtube_on_profile || false);
       setShowRedditOnProfile((profile as any).show_reddit_on_profile || false);
+      
+      const originalUsernames: Record<string, string> = {
+        instagram: (profile as any).instagram_username || '',
+        twitter: (profile as any).twitter_username || '',
+        discord: (profile as any).discord_username || '',
+        tiktok: (profile as any).tiktok_username || '',
+        facebook: (profile as any).facebook_username || '',
+        spotify: (profile as any).spotify_username || '',
+        github: (profile as any).github_username || '',
+        twitch: (profile as any).twitch_username || '',
+        youtube: (profile as any).youtube_username || '',
+        reddit: (profile as any).reddit_username || '',
+      };
+      
+      const originalShowOnProfile: Record<string, boolean> = {
+        instagram: (profile as any).show_instagram_on_profile || false,
+        twitter: (profile as any).show_twitter_on_profile || false,
+        discord: (profile as any).show_discord_on_profile || false,
+        tiktok: (profile as any).show_tiktok_on_profile || false,
+        facebook: (profile as any).show_facebook_on_profile || false,
+        spotify: (profile as any).show_spotify_on_profile || false,
+        github: (profile as any).show_github_on_profile || false,
+        twitch: (profile as any).show_twitch_on_profile || false,
+        youtube: (profile as any).show_youtube_on_profile || false,
+        reddit: (profile as any).show_reddit_on_profile || false,
+      };
+      
+      setOriginalConnections({
+        usernames: originalUsernames,
+        showOnProfile: originalShowOnProfile,
+        order: [],
+      });
     }
   }, [profile]);
+  
+  useEffect(() => {
+    if (originalConnections && originalConnections.order.length === 0) {
+      const initialOrder = activeConnections.map(ac => ac.id);
+      setOriginalConnections(prev => prev ? {
+        ...prev,
+        order: initialOrder
+      } : null);
+    }
+  }, [activeConnections, originalConnections]);
 
   const refreshStorageInfo = useCallback(async () => {
     if (!window.electron) return;
@@ -806,15 +866,39 @@ export default function Settings() {
       setAboutMe(profile?.about_me || '');
       setIsEditingAboutMe(false);
     }
-    if (hasUnsavedConnections) {
-      const active: Array<{ id: string; platform: typeof platforms[0] }> = [];
-      platforms.forEach((platform) => {
-        if (platform.username) {
-          active.push({ id: platform.id, platform });
-        }
-      });
-      setActiveConnections(active);
-      setHasUnsavedConnections(false);
+    if (hasUnsavedConnections && originalConnections) {
+      setInstagramUsername(originalConnections.usernames.instagram || '');
+      setTwitterUsername(originalConnections.usernames.twitter || '');
+      setDiscordUsername(originalConnections.usernames.discord || '');
+      setTiktokUsername(originalConnections.usernames.tiktok || '');
+      setFacebookUsername(originalConnections.usernames.facebook || '');
+      setSpotifyUsername(originalConnections.usernames.spotify || '');
+      setGithubUsername(originalConnections.usernames.github || '');
+      setTwitchUsername(originalConnections.usernames.twitch || '');
+      setYoutubeUsername(originalConnections.usernames.youtube || '');
+      setRedditUsername(originalConnections.usernames.reddit || '');
+      
+      setShowInstagramOnProfile(originalConnections.showOnProfile.instagram);
+      setShowTwitterOnProfile(originalConnections.showOnProfile.twitter);
+      setShowDiscordOnProfile(originalConnections.showOnProfile.discord);
+      setShowTiktokOnProfile(originalConnections.showOnProfile.tiktok);
+      setShowFacebookOnProfile(originalConnections.showOnProfile.facebook);
+      setShowSpotifyOnProfile(originalConnections.showOnProfile.spotify);
+      setShowGithubOnProfile(originalConnections.showOnProfile.github);
+      setShowTwitchOnProfile(originalConnections.showOnProfile.twitch);
+      setShowYoutubeOnProfile(originalConnections.showOnProfile.youtube);
+      setShowRedditOnProfile(originalConnections.showOnProfile.reddit);
+      
+      setTimeout(() => {
+        const restoredActive: Array<{ id: string; platform: typeof platforms[0] }> = [];
+        originalConnections.order.forEach(platformId => {
+          const platform = platforms.find(p => p.id === platformId);
+          if (platform && originalConnections.usernames[platformId]) {
+            restoredActive.push({ id: platformId, platform });
+          }
+        });
+        setActiveConnections(restoredActive);
+      }, 0);
     }
   };
 
@@ -915,7 +999,40 @@ export default function Settings() {
         show_youtube_on_profile: showYoutubeOnProfile,
         show_reddit_on_profile: showRedditOnProfile,
       } as any);
-      setHasUnsavedConnections(false);
+      
+      const updatedUsernames: Record<string, string> = {
+        instagram: instagramUsername,
+        twitter: twitterUsername,
+        discord: discordUsername,
+        tiktok: tiktokUsername,
+        facebook: facebookUsername,
+        spotify: spotifyUsername,
+        github: githubUsername,
+        twitch: twitchUsername,
+        youtube: youtubeUsername,
+        reddit: redditUsername,
+      };
+      
+      const updatedShowOnProfile: Record<string, boolean> = {
+        instagram: showInstagramOnProfile,
+        twitter: showTwitterOnProfile,
+        discord: showDiscordOnProfile,
+        tiktok: showTiktokOnProfile,
+        facebook: showFacebookOnProfile,
+        spotify: showSpotifyOnProfile,
+        github: showGithubOnProfile,
+        twitch: showTwitchOnProfile,
+        youtube: showYoutubeOnProfile,
+        reddit: showRedditOnProfile,
+      };
+      
+      const updatedOrder = activeConnections.map(ac => ac.id);
+      
+      setOriginalConnections({
+        usernames: updatedUsernames,
+        showOnProfile: updatedShowOnProfile,
+        order: updatedOrder,
+      });
     } catch (error) {
 
     } finally {
@@ -1097,6 +1214,60 @@ export default function Settings() {
     facebookUsername, spotifyUsername, githubUsername, twitchUsername,
     youtubeUsername, redditUsername, profile
   ]);
+  
+  const hasUnsavedConnections = useMemo(() => {
+    if (!originalConnections) return false;
+    
+    const currentUsernames: Record<string, string> = {
+      instagram: instagramUsername,
+      twitter: twitterUsername,
+      discord: discordUsername,
+      tiktok: tiktokUsername,
+      facebook: facebookUsername,
+      spotify: spotifyUsername,
+      github: githubUsername,
+      twitch: twitchUsername,
+      youtube: youtubeUsername,
+      reddit: redditUsername,
+    };
+    
+    const currentShowOnProfile: Record<string, boolean> = {
+      instagram: showInstagramOnProfile,
+      twitter: showTwitterOnProfile,
+      discord: showDiscordOnProfile,
+      tiktok: showTiktokOnProfile,
+      facebook: showFacebookOnProfile,
+      spotify: showSpotifyOnProfile,
+      github: showGithubOnProfile,
+      twitch: showTwitchOnProfile,
+      youtube: showYoutubeOnProfile,
+      reddit: showRedditOnProfile,
+    };
+    
+    const usernamesChanged = Object.keys(currentUsernames).some(
+      key => (currentUsernames[key] || '') !== (originalConnections.usernames[key] || '')
+    );
+    
+    const showOnProfileChanged = Object.keys(currentShowOnProfile).some(
+      key => currentShowOnProfile[key] !== originalConnections.showOnProfile[key]
+    );
+    
+    const currentOrder = activeConnections.map(ac => ac.id);
+    const orderChanged = currentOrder.length !== originalConnections.order.length ||
+      currentOrder.some((id, index) => id !== originalConnections.order[index]);
+    
+    return usernamesChanged || showOnProfileChanged || orderChanged;
+  }, [
+    originalConnections,
+    instagramUsername, twitterUsername, discordUsername, tiktokUsername,
+    facebookUsername, spotifyUsername, githubUsername, twitchUsername,
+    youtubeUsername, redditUsername,
+    showInstagramOnProfile, showTwitterOnProfile, showDiscordOnProfile,
+    showTiktokOnProfile, showFacebookOnProfile, showSpotifyOnProfile,
+    showGithubOnProfile, showTwitchOnProfile, showYoutubeOnProfile,
+    showRedditOnProfile,
+    activeConnections
+  ]);
 
   
   const handleAddConnection = (platformId: string) => {
@@ -1107,7 +1278,6 @@ export default function Settings() {
     if (activeConnections.some(ac => ac.id === platformId)) return;
 
     setActiveConnections([...activeConnections, { id: platformId, platform }]);
-    setHasUnsavedConnections(true);
   };
 
   
@@ -1119,7 +1289,6 @@ export default function Settings() {
       platform.setUsername('');
       platform.setShowOnProfile(false);
     }
-    setHasUnsavedConnections(true);
   };
 
   
@@ -1138,7 +1307,6 @@ export default function Settings() {
       newConnections.splice(index, 0, draggedItem);
       setActiveConnections(newConnections);
       setDraggedIndex(index);
-      setHasUnsavedConnections(true);
     }
   };
 
@@ -1203,12 +1371,47 @@ export default function Settings() {
         logger.warn('Failed to sync error logging config to localStorage', { error: e });
       }
 
+      setOriginalPreferences({
+        defaultTimeWindow,
+        defaultStat,
+        defaultConfidence,
+        autoRefresh,
+        errorLoggingEnabled,
+        errorLogLevel,
+      });
+
       toast.success('Preferences saved successfully');
     } catch (err) {
       logger.error('Error saving data preferences', err as Error);
       toast.error('Failed to save preferences');
     }
   };
+  
+  const handleDiscardPreferences = () => {
+    if (!originalPreferences) return;
+    
+    setDefaultTimeWindow(originalPreferences.defaultTimeWindow);
+    setDefaultStat(originalPreferences.defaultStat);
+    setDefaultConfidence(originalPreferences.defaultConfidence);
+    setAutoRefresh(originalPreferences.autoRefresh);
+    setErrorLoggingEnabled(originalPreferences.errorLoggingEnabled);
+    setErrorLogLevel(originalPreferences.errorLogLevel);
+    
+    toast.success('Changes discarded');
+  };
+  
+  const hasUnsavedPreferences = useMemo(() => {
+    if (!originalPreferences) return false;
+    
+    return (
+      defaultTimeWindow !== originalPreferences.defaultTimeWindow ||
+      defaultStat !== originalPreferences.defaultStat ||
+      defaultConfidence !== originalPreferences.defaultConfidence ||
+      autoRefresh !== originalPreferences.autoRefresh ||
+      errorLoggingEnabled !== originalPreferences.errorLoggingEnabled ||
+      errorLogLevel !== originalPreferences.errorLogLevel
+    );
+  }, [originalPreferences, defaultTimeWindow, defaultStat, defaultConfidence, autoRefresh, errorLoggingEnabled, errorLogLevel]);
 
   const themes: { id: ThemeMode; label: string; colors: { bg: string; sidebar: string; card: string; text: string; textMuted: string; primary: string; border: string } }[] = [
     {
@@ -1264,9 +1467,12 @@ export default function Settings() {
     );
   }
 
+  const [activeTab, setActiveTab] = useState('account');
+  const [accountSubTab, setAccountSubTab] = useState('profile');
+
   return (
     <div className="space-y-6 animate-fade-in p-6">
-      <Tabs defaultValue="account" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="bg-card border border-border">
           <TabsTrigger value="account" className="gap-2">
             <User className="h-4 w-4 shrink-0" />
@@ -1292,14 +1498,33 @@ export default function Settings() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="account" className="space-y-4">
-          {(isEditingDisplayName || isEditingUsername || isEditingEmail || isEditingAboutMe || hasUnsavedConnections) && (
+        <AnimatePresence mode="wait">
+          {activeTab === 'account' && (
+            <TabsContent value="account" className="space-y-4" asChild>
+              <motion.div
+                key="account"
+                initial={{ opacity: 0, x: -30 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 30 }}
+                transition={{ duration: 0.25, ease: "easeInOut" }}
+              >
+              {(() => {
+            const hasDisplayNameChange = isEditingDisplayName && displayName.trim() !== (profile?.display_name || profile?.username || '');
+            const hasUsernameChange = isEditingUsername && username.trim() !== (profile?.username || '');
+            const hasEmailChange = isEditingEmail && email !== (user?.email || '');
+            const hasAboutMeChange = isEditingAboutMe && aboutMe !== (profile?.about_me || '');
+            const hasActualChanges = hasDisplayNameChange || hasUsernameChange || hasEmailChange || hasAboutMeChange || hasUnsavedConnections;
+            return hasActualChanges;
+          })() && (
             <div className="rounded-lg bg-warning/10 border border-warning/20 p-4 flex items-start gap-3">
               <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground">You have unsaved changes</p>
                 <p className="text-sm text-muted-foreground">
-                  {isEditingDisplayName || isEditingUsername || isEditingEmail || isEditingAboutMe
+                  {(isEditingDisplayName && displayName.trim() !== (profile?.display_name || profile?.username || '')) || 
+                    (isEditingUsername && username.trim() !== (profile?.username || '')) || 
+                    (isEditingEmail && email !== (user?.email || '')) || 
+                    (isEditingAboutMe && aboutMe !== (profile?.about_me || ''))
                     ? 'Save or discard your profile changes.'
                     : 'Save or discard your connection changes.'}
                 </p>
@@ -1316,7 +1541,7 @@ export default function Settings() {
           )}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="space-y-4">
-              <Tabs defaultValue="profile" className="w-full">
+              <Tabs value={accountSubTab} onValueChange={setAccountSubTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="profile">Profile</TabsTrigger>
                   <TabsTrigger value="connections">Connections</TabsTrigger>
@@ -1492,52 +1717,106 @@ export default function Settings() {
                       </div>
 
                       <div className="space-y-2 border-t border-border pt-4">
-                        <div className="flex items-center justify-between">
+                        <div className="space-y-3">
                           <div>
-                            <Label>About Me</Label>
-                            <p className="text-xs text-muted-foreground">Tell others about yourself. Supports basic markdown: **bold**, *italic*, [links](url).</p>
-                          </div>
-                        </div>
-                        {isEditingAboutMe ? (
-                          <div className="space-y-2">
-                            <Textarea
-                              ref={aboutMeTextareaRef}
-                              value={aboutMe}
-                              onChange={(e) => setAboutMe(e.target.value)}
-                              placeholder="Write something about yourself..."
-                              rows={4}
-                              maxLength={500}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              {aboutMe.length}/500 characters. Use **bold**, *italic*, and [text](url) for links.
-                            </p>
-                            <div className="flex gap-2">
-                              <Button size="sm" onClick={handleSaveAboutMe}>Save</Button>
-                              <Button size="sm" variant="outline" onClick={() => {
-                                setAboutMe(profile?.about_me || '');
-                                setIsEditingAboutMe(false);
-                              }}>Cancel</Button>
+                            <Label className="mb-0">About Me</Label>
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <p className="text-xs text-muted-foreground">Tell others about yourself. Supports basic markdown</p>
+                              <Tooltip open={markdownTooltipOpen} onOpenChange={setMarkdownTooltipOpen}>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="inline-flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors cursor-help"
+                                    onPointerDown={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setMarkdownTooltipOpen(true);
+                                    }}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setMarkdownTooltipOpen(true);
+                                    }}
+                                  >
+                                    <HelpCircle className="h-3.5 w-3.5" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent 
+                                  side="right" 
+                                  className="max-w-sm p-2.5"
+                                  onPointerDown={(e) => e.stopPropagation()}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <div className="space-y-1.5">
+                                    <p className="font-medium text-xs mb-0.5">Markdown Formatting</p>
+                                    <div className="space-y-1.5 text-[11px]">
+                                      <div className="flex items-start gap-1.5">
+                                        <code className="bg-muted/50 px-1 py-0.5 rounded text-[11px] font-mono shrink-0">**text**</code>
+                                        <span className="text-muted-foreground leading-tight">Makes text <strong className="text-foreground">bold</strong></span>
+                                      </div>
+                                      <div className="flex items-start gap-1.5">
+                                        <code className="bg-muted/50 px-1 py-0.5 rounded text-[11px] font-mono shrink-0">*text*</code>
+                                        <span className="text-muted-foreground leading-tight">Makes text <em className="text-foreground">italic</em></span>
+                                      </div>
+                                      <div className="flex items-start gap-1.5">
+                                        <code className="bg-muted/50 px-1 py-0.5 rounded text-[11px] font-mono shrink-0">[text](url)</code>
+                                        <span className="text-muted-foreground leading-tight">Creates a <a href="#" className="text-primary hover:underline" onClick={(e) => e.preventDefault()}>link</a></span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
                             </div>
                           </div>
-                        ) : (
-                          <div className="space-y-2">
-                            {aboutMe ? (
-                              <div 
-                                className="text-sm text-muted-foreground prose prose-invert max-w-none"
-                                onClick={handleAboutMeLinkClick}
-                              >
-                                {renderAboutMe(aboutMe)}
+                          {isEditingAboutMe ? (
+                            <div className="space-y-2">
+                              <Textarea
+                                ref={aboutMeTextareaRef}
+                                value={aboutMe}
+                                onChange={(e) => {
+                                  const newValue = e.target.value;
+                                  const lineCount = (newValue.match(/\n/g) || []).length + 1;
+                                  if (lineCount <= 5) {
+                                    setAboutMe(newValue);
+                                  }
+                                }}
+                                placeholder="Write something about yourself..."
+                                rows={4}
+                                maxLength={500}
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                {aboutMe.length}/500 characters • {((aboutMe.match(/\n/g) || []).length + 1)}/5 lines
+                              </p>
+                              <div className="flex gap-2">
+                                <Button size="sm" onClick={handleSaveAboutMe}>Save</Button>
+                                <Button size="sm" variant="outline" onClick={() => {
+                                  setAboutMe(profile?.about_me || '');
+                                  setIsEditingAboutMe(false);
+                                }}>Cancel</Button>
                               </div>
-                            ) : (
-                              <p className="text-sm text-muted-foreground italic">No about me set</p>
-                            )}
-                            <Button size="sm" variant="outline" onClick={() => setIsEditingAboutMe(true)}>
-                              <Pencil className="h-3 w-3 mr-1" />
-                              {aboutMe ? 'Edit' : 'Add'}
-                            </Button>
-                          </div>
-                        )}
-              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-baseline justify-between gap-4">
+                              <div className="flex-1 min-w-0">
+                                {aboutMe ? (
+                                  <div 
+                                    className="text-sm text-muted-foreground prose prose-invert max-w-none leading-normal"
+                                    onClick={handleAboutMeLinkClick}
+                                  >
+                                    {renderAboutMe(aboutMe)}
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-muted-foreground italic">No about me set</p>
+                                )}
+                              </div>
+                              <Button size="sm" variant="outline" onClick={() => setIsEditingAboutMe(true)} className="shrink-0">
+                                <Pencil className="h-3 w-3 mr-1" />
+                                {aboutMe ? 'Edit' : 'Add'}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
             </div>
           </SettingsSection>
                 </TabsContent>
@@ -1636,7 +1915,6 @@ export default function Settings() {
                                         value={currentPlatform.username}
                                         onChange={(e) => {
                                           currentPlatform.setUsername(e.target.value);
-                                          setHasUnsavedConnections(true);
                                         }}
                                         placeholder={currentPlatform.placeholder}
                                         maxLength={currentPlatform.maxLength}
@@ -1678,7 +1956,6 @@ export default function Settings() {
                                       checked={currentPlatform.showOnProfile}
                                       onCheckedChange={(checked) => {
                                         currentPlatform.setShowOnProfile(checked);
-                                        setHasUnsavedConnections(true);
                                       }}
                                       disabled={!currentPlatform.username}
                                       onMouseDown={(e) => {
@@ -2028,10 +2305,20 @@ export default function Settings() {
             </div>
           </div>
 
-          <DangerZone />
-        </TabsContent>
+              <DangerZone />
+              </motion.div>
+            </TabsContent>
+          )}
 
-        <TabsContent value="display" className="space-y-4">
+          {activeTab === 'display' && (
+            <TabsContent value="display" className="space-y-4" asChild>
+              <motion.div
+                key="display"
+                initial={{ opacity: 0, x: -30 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 30 }}
+                transition={{ duration: 0.25, ease: "easeInOut" }}
+              >
           <SettingsSection title="Theme" description="Choose how CourtVision looks to you.">
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               {themes.map((t) => (
@@ -2292,15 +2579,20 @@ export default function Settings() {
               </p>
             </div>
           </SettingsSection>
-
-          <Button variant="hero" onClick={handleSavePreferences} className="gap-2">
-            <Save className="h-4 w-4" />
-            Save Display Settings
-          </Button>
+          </motion.div>
         </TabsContent>
+          )}
 
-        <TabsContent value="notifications" className="space-y-4">
-          <SettingsSection title="General">
+          {activeTab === 'notifications' && (
+            <TabsContent value="notifications" className="space-y-4" asChild>
+              <motion.div
+                key="notifications"
+                initial={{ opacity: 0, x: -30 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 30 }}
+                transition={{ duration: 0.25, ease: "easeInOut" }}
+              >
+                <SettingsSection title="General">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -2496,9 +2788,38 @@ export default function Settings() {
           <div className="text-sm text-muted-foreground">
             Notification settings are saved automatically.
           </div>
-        </TabsContent>
+              </motion.div>
+            </TabsContent>
+          )}
 
-        <TabsContent value="data" className="space-y-4">
+          {activeTab === 'data' && (
+            <TabsContent value="data" className="space-y-4" asChild>
+              <motion.div
+                key="data"
+                initial={{ opacity: 0, x: -30 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 30 }}
+                transition={{ duration: 0.25, ease: "easeInOut" }}
+              >
+          {hasUnsavedPreferences && (
+            <div className="rounded-lg bg-warning/10 border border-warning/20 p-4 flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground">You have unsaved changes</p>
+                <p className="text-sm text-muted-foreground">
+                  Save or discard your preference changes. Changes will persist if you navigate away.
+                </p>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button size="sm" onClick={handleSavePreferences}>
+                  Save Changes
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleDiscardPreferences}>
+                  Discard
+                </Button>
+              </div>
+            </div>
+          )}
           {pendingRetentionDays !== null && (
             <div className="rounded-lg bg-warning/10 border border-warning/20 p-4 flex items-start gap-3">
               <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
@@ -2509,10 +2830,10 @@ export default function Settings() {
                 </p>
               </div>
               <div className="flex gap-2 shrink-0">
-                <Button size="sm" onClick={handleSaveRetention}>
+                <Button size="sm" onClick={confirmRetentionChange}>
                   Save Changes
                 </Button>
-                <Button size="sm" variant="outline" onClick={handleCancelRetention}>
+                <Button size="sm" variant="outline" onClick={cancelRetentionChange}>
                   Discard
                 </Button>
               </div>
@@ -2791,63 +3112,90 @@ export default function Settings() {
             title="Storage & Data"
             description="Choose where CourtVision stores logs and exports."
           >
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div className="space-y-2">
                 <Label>Data Storage Location</Label>
                 {window.electron ? (
-                  <>
-                    <div className="flex gap-2">
-                      <Input
-                        value={storagePath}
-                        placeholder="Select a storage location..."
-                        readOnly
-                        className="flex-1"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleSelectStoragePath}
-                      >
-                        <FolderOpen className="h-4 w-4 mr-2" />
-                        Change Location
-                      </Button>
-                    </div>
-                    {courtVisionFolders ? (
-                      <div className="grid gap-2 sm:grid-cols-3">
-                        <Button type="button" variant="outline" className="gap-2 justify-start" onClick={() => handleOpenFolder('base')}>
-                          <FolderOpen className="h-4 w-4" />
-                          Open Data Folder
-                        </Button>
-                        <Button type="button" variant="outline" className="gap-2 justify-start" onClick={() => handleOpenFolder('logs')}>
-                          <FileText className="h-4 w-4" />
-                          Open Error Logs
-                        </Button>
-                        <Button type="button" variant="outline" className="gap-2 justify-start" onClick={() => handleOpenFolder('exports')}>
-                          <ImageIcon className="h-4 w-4" />
-                          Open Exports
-                        </Button>
-                      </div>
-                    ) : null}
-                  </>
+                  <div className="flex gap-2">
+                    <Input
+                      value={storagePath}
+                      placeholder="Select a storage location..."
+                      readOnly
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleSelectStoragePath}
+                    >
+                      <FolderOpen className="h-4 w-4 mr-2" />
+                      Change Location
+                    </Button>
+                  </div>
                 ) : (
                   <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 text-sm text-primary">
                     Storage location settings are available in the Electron desktop app.
                   </div>
                 )}
               </div>
+              
               {courtVisionFolders ? (
-                <div className="grid gap-2 md:grid-cols-3">
-                  <div className="rounded-lg border border-border bg-muted/30 p-3">
-                    <p className="text-xs text-muted-foreground">Logs</p>
-                    <p className="text-sm font-medium break-all">{courtVisionFolders.logs}</p>
-                  </div>
-                  <div className="rounded-lg border border-border bg-muted/30 p-3">
-                    <p className="text-xs text-muted-foreground">Exports</p>
-                    <p className="text-sm font-medium break-all">{courtVisionFolders.exports}</p>
-                  </div>
-                  <div className="rounded-lg border border-border bg-muted/30 p-3">
-                    <p className="text-xs text-muted-foreground">Base</p>
-                    <p className="text-sm font-medium break-all">{courtVisionFolders.base}</p>
+                <div className="space-y-3">
+                  <Label>Folder Paths</Label>
+                  <div className="space-y-3">
+                    <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">Data Folder</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground break-all pl-6">{courtVisionFolders.base}</p>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm"
+                        className="w-full"
+                        onClick={() => handleOpenFolder('base')}
+                      >
+                        <FolderOpen className="h-4 w-4 mr-2" />
+                        Open Folder
+                      </Button>
+                    </div>
+                    
+                    <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">Error Logs</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground break-all pl-6">{courtVisionFolders.logs}</p>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm"
+                        className="w-full"
+                        onClick={() => handleOpenFolder('logs')}
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        Open Folder
+                      </Button>
+                    </div>
+                    
+                    <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">Exports</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground break-all pl-6">{courtVisionFolders.exports}</p>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm"
+                        className="w-full"
+                        onClick={() => handleOpenFolder('exports')}
+                      >
+                        <ImageIcon className="h-4 w-4 mr-2" />
+                        Open Folder
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ) : null}
@@ -2914,14 +3262,35 @@ export default function Settings() {
             <ExportDataSection />
           </SettingsSection>
 
-          <Button variant="hero" onClick={handleSavePreferences} className="gap-2">
-            <Save className="h-4 w-4" />
-            Save Data Preferences
-          </Button>
-        </TabsContent>
+          <div className="rounded-lg border border-primary/30 bg-primary/10 p-4">
+            <div className="flex items-start gap-3">
+              <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+              <div className="flex-1 space-y-2">
+                <p className="text-sm font-medium text-foreground">Save Preferences</p>
+                <p className="text-xs text-muted-foreground">
+                  The settings above (Default Preferences and Error Logging) are saved to your account and sync across devices. 
+                  Cache settings save automatically to this device.
+                </p>
+                <Button variant="hero" onClick={handleSavePreferences} className="gap-2 mt-3">
+                  <Save className="h-4 w-4" />
+                  Save Preferences to Account
+                </Button>
+              </div>
+            </div>
+          </div>
+              </motion.div>
+            </TabsContent>
+          )}
 
-        {window.electron && (
-          <TabsContent value="application" className="space-y-4">
+          {window.electron && activeTab === 'application' && (
+            <TabsContent value="application" className="space-y-4" asChild>
+              <motion.div
+                key="application"
+                initial={{ opacity: 0, x: -30 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 30 }}
+                transition={{ duration: 0.25, ease: "easeInOut" }}
+              >
             {isLoadingAppSettings ? (
               <div className="flex items-center justify-center py-12">
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -3114,8 +3483,10 @@ export default function Settings() {
                 <p>Unable to load application settings.</p>
               </div>
             )}
-          </TabsContent>
-        )}
+              </motion.div>
+            </TabsContent>
+          )}
+        </AnimatePresence>
       </Tabs>
 
       <AlertDialog open={!!linkWarningUrl} onOpenChange={(open) => !open && setLinkWarningUrl(null)}>

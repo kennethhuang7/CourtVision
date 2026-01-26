@@ -1,4 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
+import { flushSync } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Trophy, CheckCircle2, XCircle, Clock, Brain, Filter, Eye, ArrowUpDown, ArrowUp, ArrowDown, Users, UserPlus, Globe, Copy } from 'lucide-react';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
@@ -38,6 +40,55 @@ export default function Community() {
   const navigate = useNavigate();
   const { dateFormat } = useTheme();
   const [filter, setFilter] = useState<CommunityFilter>('friends');
+  const hasNavigatedRef = useRef(false);
+
+  const SlidingTabsList = ({ children, value }: { children: React.ReactNode; value: string }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [indicatorStyle, setIndicatorStyle] = useState({ x: 0, width: 0 });
+
+    useEffect(() => {
+      const updateIndicator = () => {
+        if (!containerRef.current) return;
+        const activeElement = containerRef.current.querySelector('[data-state="active"]');
+        if (!activeElement) return;
+
+        const containerRect = containerRef.current.getBoundingClientRect();
+        const elementRect = activeElement.getBoundingClientRect();
+        const padding = containerRef.current.classList.contains('p-1') ? 4 : 0;
+        
+        const x = elementRect.left - containerRect.left - padding;
+        const width = elementRect.width;
+        
+        setIndicatorStyle({ x, width });
+      };
+
+      updateIndicator();
+      window.addEventListener('resize', updateIndicator);
+      const timeout = setTimeout(updateIndicator, 10);
+      const raf = requestAnimationFrame(updateIndicator);
+
+      return () => {
+        window.removeEventListener('resize', updateIndicator);
+        clearTimeout(timeout);
+        cancelAnimationFrame(raf);
+      };
+    }, [value]);
+
+    return (
+      <div ref={containerRef} className="relative">
+        <motion.div
+          className="absolute bottom-0 left-0 h-0.5 bg-primary z-10"
+          initial={false}
+          animate={{
+            x: indicatorStyle.x,
+            width: indicatorStyle.width,
+          }}
+          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        />
+        {children}
+      </div>
+    );
+  };
   const [statusFilter, setStatusFilter] = useState<string>('pending');
   const [playerSearch, setPlayerSearch] = useState('');
   const [statFilter, setStatFilter] = useState<string>('all');
@@ -116,7 +167,8 @@ export default function Community() {
     localStorage.setItem('player-analysis-selected-player', pick.player_id.toString());
     localStorage.setItem('player-analysis-selected-stat', pick.stat_name);
     localStorage.setItem('player-analysis-line-value', pick.line_value.toString());
-    
+    localStorage.setItem('player-analysis-nav-timestamp', Date.now().toString());
+
     navigate('/dashboard/player-analysis');
   };
 
@@ -196,7 +248,7 @@ export default function Community() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 animate-fade-in">
         <div>
           <div className="h-8 w-56 bg-muted animate-pulse rounded mb-2" />
           <div className="h-4 w-80 bg-muted animate-pulse rounded" />
@@ -252,17 +304,50 @@ export default function Community() {
       );
     }
     
+    const errorMessage = error?.message || '';
+    const isNetworkError = errorMessage.includes('fetch') || 
+                          errorMessage.includes('network') || 
+                          errorMessage.includes('timeout') ||
+                          errorMessage.includes('Failed to fetch');
+    const isServerError = errorMessage.includes('500') || 
+                        errorMessage.includes('502') || 
+                        errorMessage.includes('503') ||
+                        errorMessage.includes('Internal Server Error');
+    const isAuthError = errorMessage.includes('auth') || 
+                       errorMessage.includes('unauthorized') || 
+                       errorMessage.includes('401') ||
+                       errorMessage.includes('403');
+
+    let errorTitle = 'Error Loading Picks';
+    let errorDescription = 'Please try again. If this keeps happening, it may be a temporary connectivity or server issue.';
+
+    if (isNetworkError) {
+      errorTitle = 'Connection Error';
+      errorDescription = 'Unable to connect to the server. Please check your internet connection and try again.';
+    } else if (isServerError) {
+      errorTitle = 'Server Error';
+      errorDescription = 'The server is experiencing issues. Please try again in a few moments.';
+    } else if (isAuthError) {
+      errorTitle = 'Authentication Error';
+      errorDescription = 'Your session may have expired. Please refresh the page or log in again.';
+    }
+
     return (
       <div className="flex items-center justify-center h-64 p-6">
-        <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
-            <XCircle className="h-6 w-6 text-destructive shrink-0" />
+        <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 text-center space-y-4">
+          <div className="relative mx-auto w-fit">
+            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-destructive/20 via-destructive/10 to-transparent blur-xl" />
+            <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-destructive/20 to-destructive/10 flex items-center justify-center">
+              <XCircle className="h-8 w-8 text-destructive" />
+            </div>
           </div>
-          <h3 className="text-lg font-semibold text-foreground leading-tight">Error loading community picks</h3>
-          <p className="mt-1 text-sm text-muted-foreground leading-tight">
-            Please try again. If this keeps happening, it may be a temporary connectivity or server issue.
-          </p>
-          <div className="mt-4 flex justify-center">
+          <div className="space-y-2">
+            <h3 className="text-lg font-semibold text-foreground leading-tight break-words">{errorTitle}</h3>
+            <p className="text-sm text-muted-foreground leading-relaxed break-words px-2">
+              {errorDescription}
+            </p>
+          </div>
+          <div className="flex justify-center pt-2">
             <Button variant="outline" onClick={() => refetch()}>
               Retry
             </Button>
@@ -274,37 +359,47 @@ export default function Community() {
 
   if (picks.length === 0) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 animate-fade-in">
         <div>
           <h1 className="text-3xl font-bold">Community</h1>
           <p className="text-muted-foreground mt-1">Discover picks shared by the community</p>
         </div>
 
-        <Tabs value={filter} onValueChange={(v) => setFilter(v as CommunityFilter)} className="w-full">
-          <TabsList>
-            <TabsTrigger value="friends">
-              <UserPlus className="h-4 w-4 mr-2 shrink-0" />
-              <span className="whitespace-nowrap">Friends</span>
-            </TabsTrigger>
-            <TabsTrigger value="groups">
-              <Users className="h-4 w-4 mr-2 shrink-0" />
-              <span className="whitespace-nowrap">Groups</span>
-            </TabsTrigger>
-            <TabsTrigger value="public">
-              <Globe className="h-4 w-4 mr-2 shrink-0" />
-              <span className="whitespace-nowrap">Public</span>
-            </TabsTrigger>
-          </TabsList>
+        <Tabs value={filter} onValueChange={(v) => {
+        hasNavigatedRef.current = true;
+        setFilter(v as CommunityFilter);
+      }} className="w-full">
+          <SlidingTabsList value={filter}>
+            <TabsList>
+              <TabsTrigger value="friends">
+                <UserPlus className="h-4 w-4 mr-2 shrink-0" />
+                <span className="whitespace-nowrap">Friends</span>
+              </TabsTrigger>
+              <TabsTrigger value="groups">
+                <Users className="h-4 w-4 mr-2 shrink-0" />
+                <span className="whitespace-nowrap">Groups</span>
+              </TabsTrigger>
+              <TabsTrigger value="public">
+                <Globe className="h-4 w-4 mr-2 shrink-0" />
+                <span className="whitespace-nowrap">Public</span>
+              </TabsTrigger>
+            </TabsList>
+          </SlidingTabsList>
         </Tabs>
 
         <div className="flex items-center justify-center h-64 border rounded-lg">
-          <div className="text-center">
-            <Trophy className="h-12 w-12 text-muted-foreground mx-auto mb-4 shrink-0" />
-            <p className="text-lg font-medium leading-tight">No shared picks yet</p>
+          <div className="text-center max-w-md">
+            <div className="relative mx-auto mb-4 w-fit">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/20 via-primary/10 to-transparent blur-xl" />
+              <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-muted/80 to-muted/40 flex items-center justify-center">
+                <Trophy className="h-10 w-10 text-muted-foreground" />
+              </div>
+            </div>
+            <h3 className="text-xl font-semibold text-foreground mb-2">No Shared Picks Yet</h3>
             <p className="text-sm text-muted-foreground">
-              {filter === 'friends' && "No friends have shared picks yet."}
-              {filter === 'groups' && "No group members have shared picks yet."}
-              {filter === 'public' && "No public picks available yet."}
+              {filter === 'friends' && "No friends have shared picks yet. Add friends to see their picks here."}
+              {filter === 'groups' && "No group members have shared picks yet. Join or create a group to start sharing."}
+              {filter === 'public' && "No public picks available yet. Be the first to share!"}
             </p>
           </div>
         </div>
@@ -313,13 +408,16 @@ export default function Community() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div className="min-w-0">
         <h1 className="text-3xl font-bold leading-tight truncate">Community</h1>
         <p className="text-muted-foreground mt-1 leading-tight truncate">Discover picks shared by the community</p>
       </div>
 
-      <Tabs value={filter} onValueChange={(v) => setFilter(v as CommunityFilter)} className="w-full">
+      <Tabs value={filter} onValueChange={(v) => {
+        hasNavigatedRef.current = true;
+        setFilter(v as CommunityFilter);
+      }} className="w-full">
         <TabsList>
           <TabsTrigger value="friends">
             <UserPlus className="h-4 w-4 mr-2 shrink-0" />
@@ -409,10 +507,35 @@ export default function Community() {
         </div>
       </div>
 
-      <div className="space-y-3">
-        {filteredPicks.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            No picks match your filters.
+      <div className="relative min-h-[200px] overflow-hidden">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={filter}
+            initial={hasNavigatedRef.current ? { opacity: 0, y: 10 } : { opacity: 1, y: 0 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={hasNavigatedRef.current ? { 
+              duration: 0.2, 
+              ease: [0.4, 0, 0.2, 1],
+              opacity: { duration: 0.15 }
+            } : { duration: 0 }}
+            style={{ 
+              willChange: 'opacity, transform',
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden'
+            }}
+            className="space-y-3"
+          >
+          {filteredPicks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="relative mb-4">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-muted/40 via-muted/20 to-transparent blur-lg" />
+              <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-muted/60 to-muted/30 flex items-center justify-center">
+                <Filter className="h-8 w-8 text-muted-foreground" />
+              </div>
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-1">No Matching Picks</h3>
+            <p className="text-muted-foreground text-sm">Try adjusting your filters to see more picks.</p>
           </div>
         ) : (
           filteredPicks.map((pick) => {
@@ -446,13 +569,17 @@ export default function Community() {
               <div
                 key={pick.id}
                 className={cn(
-                  'stat-card border-l-4 transition-all hover:shadow-lg hover:scale-[1.01]',
+                  'group relative stat-card border-l-4 transition-all hover:shadow-lg hover:scale-[1.01] overflow-hidden',
                   isWin && 'border-l-green-600',
                   isLoss && 'border-l-red-600',
                   isPending && 'border-l-yellow-600'
                 )}
               >
-                <div className="flex items-center gap-2 mb-3 pb-3 border-b border-border/50">
+                {/* Shine effect */}
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                </div>
+                <div className="relative flex items-center gap-2 mb-3 pb-3 border-b border-border/50">
                   <Avatar className="h-6 w-6">
                     {profilePicture ? (
                       <AvatarImage src={profilePicture} alt={displayName} />
@@ -488,8 +615,8 @@ export default function Community() {
                   )}
                 </div>
 
-                <div className="flex items-center gap-4">
-                  <div className="relative flex-shrink-0">
+                <div className="relative flex items-center gap-4">
+                  <div className="flex-shrink-0 relative">
                     <div className="w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden ring-2 ring-primary/30 bg-gradient-to-br from-secondary via-muted to-secondary">
                       {playerPhotoUrl ? (
                         <img
@@ -630,7 +757,9 @@ export default function Community() {
               </div>
             );
           })
-        )}
+          )}
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       

@@ -185,7 +185,7 @@ export default function Friends() {
     !!friendRequests && (friendRequests.received.length > 0 || friendRequests.sent.length > 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div className="min-w-0">
         <h1 className="text-3xl font-bold text-foreground leading-tight truncate">My Friends</h1>
         <p className="text-sm text-muted-foreground mt-1 leading-tight truncate">
@@ -213,16 +213,38 @@ export default function Friends() {
                 </div>
               </div>
               {isLoadingFriends ? (
-                <div className="text-center py-8 text-muted-foreground">Loading...</div>
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="relative mb-4">
+                    <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/20 via-primary/10 to-transparent blur-xl animate-pulse" />
+                    <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-muted/80 to-muted/40 flex items-center justify-center">
+                      <UserPlus className="h-8 w-8 text-muted-foreground animate-pulse" />
+                    </div>
+                  </div>
+                  <p className="text-muted-foreground">Loading friends...</p>
+                </div>
               ) : !friends || friends.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  No friends yet. Use “Search Users” to add your first friend.
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="relative mb-4">
+                    <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/20 via-primary/10 to-transparent blur-xl" />
+                    <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-muted/80 to-muted/40 flex items-center justify-center">
+                      <UserPlus className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                  </div>
+                  <h3 className="text-lg font-semibold text-foreground mb-1">No Friends Yet</h3>
+                  <p className="text-sm text-muted-foreground">Use "Search Users" to add your first friend.</p>
                 </div>
               ) : (
                 <div className="space-y-2">
                   {filteredFriends.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No friends match "{friendsFilter.trim()}"
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <div className="relative mb-4">
+                        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-muted/40 via-muted/20 to-transparent blur-lg" />
+                        <div className="relative w-14 h-14 rounded-full bg-gradient-to-br from-muted/60 to-muted/30 flex items-center justify-center">
+                          <Search className="h-6 w-6 text-muted-foreground" />
+                        </div>
+                      </div>
+                      <h3 className="text-base font-semibold text-foreground mb-1">No Matches</h3>
+                      <p className="text-sm text-muted-foreground">No friends match "{friendsFilter.trim()}"</p>
                     </div>
                   ) : filteredFriends.map((friendship: any) => {
                     const friend = friendship.friend_profile;
@@ -386,7 +408,15 @@ export default function Friends() {
               ) : null}
 
               {((searchUsers.data && searchUsers.data.length === 0) || (!friendCodeResult && searchMode === 'friendcode')) && searchQuery && (
-                <p className="text-sm text-muted-foreground">No users found</p>
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <div className="relative mb-3">
+                    <div className="absolute inset-0 rounded-full bg-gradient-to-br from-muted/40 via-muted/20 to-transparent blur-lg" />
+                    <div className="relative w-12 h-12 rounded-full bg-gradient-to-br from-muted/60 to-muted/30 flex items-center justify-center">
+                      <Search className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">No users found</p>
+                </div>
               )}
             </div>
           </div>

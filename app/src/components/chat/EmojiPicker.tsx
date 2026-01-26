@@ -10,6 +10,8 @@ interface EmojiPickerProps {
   onClose: () => void;
   mode?: 'insert' | 'react'; 
   className?: string;
+  userReactions?: string[];
+  onEmojiToggle?: (emoji: string, isRemoving: boolean) => void;
 }
 
 const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -23,7 +25,7 @@ const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string }>
   symbols: Hash,
 };
 
-export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className }: EmojiPickerProps) {
+export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className, userReactions = [], onEmojiToggle }: EmojiPickerProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('recent');
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
@@ -46,15 +48,23 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
 
 
   const handleEmojiClick = (emoji: string, skinTone?: SkinTone) => {
-    // Just insert the emoji - don't change the default preference
-    // User must change default in Settings
+    if (mode === 'react' && onEmojiToggle) {
+      const isReacted = userReactions.includes(emoji);
+      onEmojiToggle(emoji, isReacted);
+      if (!isReacted) {
+        addToRecentlyUsed(emoji);
+        setRecentEmojis(getRecentlyUsedEmojis());
+      }
+      setSkinTonePopoverOpen(null);
+      onClose();
+      return;
+    }
+
     addToRecentlyUsed(emoji);
     setRecentEmojis(getRecentlyUsedEmojis());
     onEmojiSelect(emoji);
 
-    // Close popover
     setSkinTonePopoverOpen(null);
-
 
     if (mode === 'react') {
       onClose();
@@ -118,16 +128,22 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
 
     return (
       <div className={cn('flex items-center gap-1', className)}>
-        {quickReactions.map((item) => (
-          <button
-            key={item.emoji}
-            onClick={() => handleEmojiClick(item.displayEmoji)}
-            className="text-2xl hover:bg-accent rounded p-1 transition-colors"
-            aria-label={`React with ${item.displayEmoji}`}
-          >
-            {item.displayEmoji}
-          </button>
-        ))}
+        {quickReactions.map((item) => {
+          const isReacted = userReactions.includes(item.emoji);
+          return (
+            <button
+              key={item.emoji}
+              onClick={() => handleEmojiClick(item.displayEmoji)}
+              className={cn(
+                "text-2xl hover:bg-accent rounded p-1 transition-colors",
+                isReacted && "bg-primary/20 ring-2 ring-primary/50"
+              )}
+              aria-label={`React with ${item.displayEmoji}`}
+            >
+              {item.displayEmoji}
+            </button>
+          );
+        })}
         <div className="w-px h-6 bg-border mx-1" />
         <button
           onClick={() => setShowFullPicker(true)}
@@ -204,12 +220,15 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
           <div className="grid grid-cols-8 gap-1">
             {displayEmojis.map((item, index) => {
               if (!item.supportsSkinTone) {
-                // Regular emoji without skin tone support
+                const isReacted = userReactions.includes(item.emoji);
                 return (
                   <button
                     key={`${item.emoji}-${index}`}
                     onClick={() => handleEmojiClick(item.displayEmoji)}
-                    className="text-2xl hover:bg-accent rounded p-1 transition-colors aspect-square flex items-center justify-center"
+                    className={cn(
+                      "text-2xl hover:bg-accent rounded p-1 transition-colors aspect-square flex items-center justify-center",
+                      isReacted && "bg-primary/20 ring-2 ring-primary/50"
+                    )}
                     aria-label={`Select ${item.displayEmoji}`}
                   >
                     {item.displayEmoji}
@@ -217,9 +236,9 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
                 );
               }
 
-              // Emoji with skin tone support - show popover
               const variants = getSkinToneVariants(item.emoji);
               const skinToneKeys: SkinTone[] = ['default', 'light', 'mediumLight', 'medium', 'mediumDark', 'dark'];
+              const isReacted = variants.some(v => userReactions.includes(v));
 
               return (
                 <Popover
@@ -229,7 +248,10 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
                 >
                   <PopoverTrigger asChild>
                     <button
-                      className="text-2xl hover:bg-accent rounded p-1 transition-colors aspect-square flex items-center justify-center relative group"
+                      className={cn(
+                        "text-2xl hover:bg-accent rounded p-1 transition-colors aspect-square flex items-center justify-center relative group",
+                        isReacted && "bg-primary/20 ring-2 ring-primary/50"
+                      )}
                       aria-label={`Select ${item.displayEmoji} or choose skin tone`}
                     >
                       {item.displayEmoji}
@@ -238,17 +260,23 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-2" align="center">
                     <div className="flex gap-1">
-                      {variants.map((variant, variantIndex) => (
-                        <button
-                          key={variantIndex}
-                          onClick={() => handleEmojiClick(variant, skinToneKeys[variantIndex])}
-                          className="text-2xl hover:bg-accent rounded p-1 transition-colors w-10 h-10 flex items-center justify-center"
-                          aria-label={`Select ${SKIN_TONE_LABELS[skinToneKeys[variantIndex]]}`}
-                          title={SKIN_TONE_LABELS[skinToneKeys[variantIndex]]}
-                        >
-                          {variant}
-                        </button>
-                      ))}
+                      {variants.map((variant, variantIndex) => {
+                        const variantReacted = userReactions.includes(variant);
+                        return (
+                          <button
+                            key={variantIndex}
+                            onClick={() => handleEmojiClick(variant, skinToneKeys[variantIndex])}
+                            className={cn(
+                              "text-2xl hover:bg-accent rounded p-1 transition-colors w-10 h-10 flex items-center justify-center",
+                              variantReacted && "bg-primary/20 ring-2 ring-primary/50"
+                            )}
+                            aria-label={`Select ${SKIN_TONE_LABELS[skinToneKeys[variantIndex]]}`}
+                            title={SKIN_TONE_LABELS[skinToneKeys[variantIndex]]}
+                          >
+                            {variant}
+                          </button>
+                        );
+                      })}
                     </div>
                   </PopoverContent>
                 </Popover>

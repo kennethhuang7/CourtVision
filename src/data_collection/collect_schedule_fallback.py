@@ -109,12 +109,12 @@ def collect_schedule_fallback(target_date=None):
                 away_abbr = str(row[header_map['VISITOR_TEAM_ABBREVIATION']])
             
             if 'pm' in game_status_text.lower() or 'am' in game_status_text.lower():
-                status = 'scheduled'
+                actual_status = 'scheduled'
                 scheduled_count += 1
                 home_score = None
                 away_score = None
             elif 'final' in game_status_text.lower():
-                status = 'completed'
+                actual_status = 'completed'
                 completed_count += 1
                 home_score = None
                 away_score = None
@@ -129,10 +129,12 @@ def collect_schedule_fallback(target_date=None):
                     except (ValueError, TypeError):
                         pass
             else:
-                status = 'in_progress'
+                actual_status = 'in_progress'
                 in_progress_count += 1
                 home_score = None
                 away_score = None
+            
+            db_status = 'scheduled'
             
             cur.execute("""
                 INSERT INTO games (
@@ -151,25 +153,24 @@ def collect_schedule_fallback(target_date=None):
                 away_team_id,
                 home_score,
                 away_score,
-                status,
+                db_status,
                 'regular_season'
             ))
             
-            print(f"  {away_abbr} @ {home_abbr} - {status} ({game_status_text})")
+            print(f"  {away_abbr} @ {home_abbr} - actual: {actual_status}, saved as: {db_status} ({game_status_text})")
         
         conn.commit()
         cur.close()
         conn.close()
         
         print(f"\n{'='*50}")
-        print(f"Scheduled: {scheduled_count}")
-        print(f"In Progress: {in_progress_count}")
-        print(f"Completed: {completed_count}")
+        print(f"Actual Status - Scheduled: {scheduled_count}, In Progress: {in_progress_count}, Completed: {completed_count}")
+        print(f"All games saved to database as 'scheduled': {scheduled_count + in_progress_count + completed_count}")
         print(f"Total: {len(rows)}")
         print(f"{'='*50}")
         
-        if scheduled_count > 0:
-            print(f"\nFound {scheduled_count} games ready for predictions")
+        if scheduled_count + in_progress_count + completed_count > 0:
+            print(f"\nFound {scheduled_count + in_progress_count + completed_count} games ready for predictions")
         
     except Exception as e:
         print(f"Error collecting schedule: {e}")

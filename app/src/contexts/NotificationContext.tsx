@@ -105,7 +105,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         sound: nextSoundEnabled !== undefined ? nextSoundEnabled : prev.sound,
       };
 
-      // Avoid useless state updates (prevents render loops if upstream deps are unstable).
       if (
         updated.soundType === prev.soundType &&
         updated.soundVolume === prev.soundVolume &&

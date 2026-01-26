@@ -81,7 +81,6 @@ contextBridge.exposeInMainWorld('electron', {
   discordClearActivity: () => ipcRenderer.invoke('discord-clear-activity'),
   discordIsConnected: () => ipcRenderer.invoke('discord-is-connected'),
 
-  // OAuth methods for production Electron
   getOAuthRedirectUrl: () => ipcRenderer.invoke('get-oauth-redirect-url'),
   isElectronProduction: () => ipcRenderer.invoke('is-electron-production'),
   onOAuthCallback: (callback: (tokens: { access_token: string; refresh_token?: string }) => void) => {
@@ -90,7 +89,6 @@ contextBridge.exposeInMainWorld('electron', {
     return () => ipcRenderer.removeListener('oauth-callback', handler);
   },
 
-  // Auto-updater methods
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   downloadUpdate: () => ipcRenderer.invoke('download-update'),
   installUpdate: () => ipcRenderer.invoke('install-update'),
@@ -100,4 +98,5 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.on('update-status', handler);
     return () => ipcRenderer.removeListener('update-status', handler);
   },
+  openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
 });
