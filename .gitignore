@@ -33,6 +33,7 @@ catboost_info/
 **/catboost_info/
 *.tsv
 events.out.tfevents
+database_structure.txt
 app/node_modules/
 app/dist/
 app/dist-electron/
