@@ -1091,4 +1091,4 @@ export const ALL_EMOJIS: EmojiItem[] = EMOJI_CATEGORIES.flatMap(cat => cat.emoji
 
 
 export const RECENTLY_USED_KEY = 'courtvision-recently-used-emojis';
-export const MAX_RECENT_EMOJIS = 27; 
+export const MAX_RECENT_EMOJIS = 32;
