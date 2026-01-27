@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAddReaction } from '@/hooks/useAddReaction';
@@ -11,6 +11,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getCustomEmojisMap } from '@/lib/emojiUtils';
 
 interface ReactionBarProps {
   messageId: string;
@@ -25,6 +26,11 @@ export function ReactionBar({ messageId, reactions, className }: ReactionBarProp
   const addReaction = useAddReaction();
   const removeReaction = useRemoveReaction();
   const [showAllReactions, setShowAllReactions] = useState(false);
+  const [customEmojisMap, setCustomEmojisMap] = useState<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    getCustomEmojisMap().then(setCustomEmojisMap);
+  }, []);
 
   if (!reactions || reactions.length === 0) {
     return null;
@@ -70,6 +76,48 @@ export function ReactionBar({ messageId, reactions, className }: ReactionBarProp
     }
   };
 
+  const isCustomReactionEmoji = (emoji: string): boolean => {
+    return /^:([a-z0-9_+-]+):$/i.test(emoji) || /\/custom-emojis\//i.test(emoji);
+  };
+
+  const renderReactionEmoji = (emoji: string, size: 'chip' | 'tooltip' = 'chip') => {
+    const shortcodeMatch = emoji.match(/^:([a-z0-9_+-]+):$/i);
+    let url: string | undefined;
+
+    if (shortcodeMatch) {
+      const name = shortcodeMatch[1].toLowerCase();
+      url = customEmojisMap.get(name);
+    } else if (/\/custom-emojis\//i.test(emoji)) {
+      url = emoji;
+    }
+
+    if (url) {
+      const common = {
+        src: url,
+        alt: emoji,
+        style: { imageRendering: 'crisp-edges' as any },
+      };
+
+      if (size === 'tooltip') {
+        return (
+          <img
+            {...common}
+            className="inline-block align-middle ml-0.5 w-4 h-4 object-contain"
+          />
+        );
+      }
+
+      return (
+        <img
+          {...common}
+          className="block w-[1.4em] h-[1.4em] object-contain shrink-0"
+        />
+      );
+    }
+
+    return <span className="text-sm">{emoji}</span>;
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: -5 }}
@@ -103,14 +151,15 @@ export function ReactionBar({ messageId, reactions, className }: ReactionBarProp
                       whileHover={{ scale: 1.05 }}
                       onClick={() => handleReactionClick(reaction.emoji, reaction.user_ids)}
                       className={cn(
-                        'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-all duration-200',
+                        'inline-flex items-center gap-1 px-2 py-0.5 h-6 rounded-full text-xs leading-none border transition-all duration-200',
                         hasReacted
                           ? 'bg-primary/10 border-primary text-primary hover:bg-primary/20'
-                          : 'bg-accent/50 border-border hover:bg-accent hover:border-border/80'
+                          : 'bg-accent/50 border-border hover:bg-accent hover:border-border/80',
+                        isCustomReactionEmoji(reaction.emoji) && 'translate-y-[1px]'
                       )}
                       disabled={addReaction.isPending || removeReaction.isPending}
                     >
-                      <span className="text-sm">{reaction.emoji}</span>
+                      {renderReactionEmoji(reaction.emoji, 'chip')}
                       <motion.span
                         key={reaction.count}
                         initial={{ scale: 1.2 }}
@@ -122,8 +171,9 @@ export function ReactionBar({ messageId, reactions, className }: ReactionBarProp
                     </motion.button>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="max-w-xs">
-                    <p className="text-xs">
-                      {formatUsernames(reaction.users)} reacted with {reaction.emoji}
+                    <p className="text-xs flex items-center gap-1">
+                      <span>{formatUsernames(reaction.users)} reacted with</span>
+                      {renderReactionEmoji(reaction.emoji, 'tooltip')}
                     </p>
                   </TooltipContent>
                 </Tooltip>
