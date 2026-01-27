@@ -1,5 +1,6 @@
 
 
+import React from 'react';
 import { RECENTLY_USED_KEY, MAX_RECENT_EMOJIS, ALL_EMOJIS, type SkinTone, applySkinTone } from './emojiData';
 import { logger } from './logger';
 
@@ -12,17 +13,21 @@ const EMOJI_REGEX = /(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)/gu;
 export function isEmojiOnly(text: string): boolean {
   if (!text || text.trim().length === 0) return false;
 
-  
-  const withoutEmojis = text.replace(EMOJI_REGEX, '').replace(/\s/g, '');
+  const customEmojiPattern = /:([a-z0-9_+-]+):|\/custom-emojis\/[^\s]+/gi;
+  const withoutEmojis = text
+    .replace(EMOJI_REGEX, '')
+    .replace(customEmojiPattern, '')
+    .replace(/\s/g, '');
 
-  
   return withoutEmojis.length === 0;
 }
 
 
 export function countEmojis(text: string): number {
-  const matches = text.match(EMOJI_REGEX);
-  return matches ? matches.length : 0;
+  const unicodeMatches = text.match(EMOJI_REGEX) || [];
+  const customEmojiPattern = /:([a-z0-9_+-]+):|\/custom-emojis\/[^\s]+/gi;
+  const customMatches = text.match(customEmojiPattern) || [];
+  return unicodeMatches.length + (customMatches ? customMatches.length : 0);
 }
 
 
@@ -76,19 +81,14 @@ export function searchEmojis(query: string): string[] {
 
   const lowerQuery = query.toLowerCase().trim();
 
-  
   const matches = ALL_EMOJIS.filter(item => {
-    
     if (item.name.toLowerCase().includes(lowerQuery)) return true;
-
-    
     return item.keywords.some(keyword =>
       keyword.toLowerCase().includes(lowerQuery)
     );
   });
 
-  
-  return matches.map(item => item.emoji).slice(0, 50); 
+  return matches.map(item => item.emoji).slice(0, 50);
 }
 
 
@@ -156,4 +156,90 @@ export function applyDefaultSkinTone(emoji: string, supportsSkinTone: boolean): 
 
   const preference = getSkinTonePreference();
   return applySkinTone(emoji, preference);
+}
+
+let customEmojisCache: Array<{ name: string; url: string; emoji: string }> | null = null;
+
+export async function getCustomEmojisMap(forceReload = false): Promise<Map<string, string>> {
+  if (!customEmojisCache || forceReload) {
+    customEmojisCache = await loadCustomEmojis();
+  }
+  const map = new Map<string, string>();
+  customEmojisCache.forEach(emoji => {
+    map.set(emoji.name.toLowerCase(), emoji.url);
+  });
+  return map;
+}
+
+export function renderMessageWithCustomEmojis(content: string, customEmojisMap: Map<string, string>): React.ReactNode[] {
+  if (!content) return [content];
+  
+  const parts: React.ReactNode[] = [];
+  const customEmojiPattern = /:([a-z0-9_+-]+):|\/custom-emojis\/([a-z0-9_+-]+\.(png|gif|jpg|jpeg|webp))/gi;
+  let lastIndex = 0;
+  let key = 0;
+  const matches: Array<{ index: number; length: number; name: string | null; url: string }> = [];
+  
+  let match;
+  const pattern = new RegExp(customEmojiPattern.source, customEmojiPattern.flags);
+  while ((match = pattern.exec(content)) !== null) {
+    if (match.index === undefined) break;
+    
+    let emojiName: string | null = null;
+    let emojiUrl: string;
+    
+    if (match[1]) {
+      emojiName = match[1].toLowerCase();
+      emojiUrl = customEmojisMap.get(emojiName);
+      if (!emojiUrl) {
+        emojiUrl = `/custom-emojis/${emojiName}.png`;
+      }
+    } else if (match[2]) {
+      const filename = match[2];
+      const nameWithoutExt = filename.replace(/\.(png|gif|jpg|jpeg|webp)$/i, '');
+      emojiName = nameWithoutExt.toLowerCase();
+      emojiUrl = customEmojisMap.get(emojiName) || `/custom-emojis/${filename}`;
+    } else {
+      continue;
+    }
+    
+    matches.push({
+      index: match.index,
+      length: match[0].length,
+      name: emojiName,
+      url: emojiUrl
+    });
+  }
+
+  if (matches.length === 0) {
+    return [content];
+  }
+
+  matches.forEach((emojiMatch, idx) => {
+    if (emojiMatch.index > lastIndex) {
+      const textPart = content.substring(lastIndex, emojiMatch.index);
+      if (textPart) parts.push(textPart);
+    }
+    
+    parts.push(
+      React.createElement('img', {
+        key: key++,
+        src: emojiMatch.url,
+        alt: emojiMatch.name || 'custom emoji',
+        className: 'inline-block w-[1.2em] h-[1.2em] align-middle mx-0.5',
+        style: {
+          imageRendering: 'crisp-edges' as any,
+        }
+      })
+    );
+    
+    lastIndex = emojiMatch.index + emojiMatch.length;
+  });
+
+  if (lastIndex < content.length) {
+    const remaining = content.substring(lastIndex);
+    if (remaining) parts.push(remaining);
+  }
+
+  return parts.length > 0 ? parts : [content];
 }

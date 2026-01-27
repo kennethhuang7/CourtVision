@@ -5,6 +5,8 @@ export interface EmojiItem {
   name: string;
   keywords: string[];
   supportsSkinTone?: boolean;
+  isCustom?: boolean;
+  url?: string;
 }
 
 export interface EmojiCategory {

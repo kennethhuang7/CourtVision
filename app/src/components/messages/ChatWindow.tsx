@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, Send, Trash2, Archive, ArchiveRestore, Plus, Smile, SmilePlus, ChevronDown, ChevronsDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import { EmojiPicker } from '@/components/chat/EmojiPicker';
 import { ReactionBar } from '@/components/chat/ReactionBar';
 import { EmojiAutocomplete } from '@/components/chat/EmojiAutocomplete';
 import { ALL_EMOJIS } from '@/lib/emojiData';
-import { applyDefaultSkinTone } from '@/lib/emojiUtils';
+import { applyDefaultSkinTone, loadCustomEmojis } from '@/lib/emojiUtils';
 import { useConversations, type Conversation } from '@/hooks/useConversations';
 import { useMessages } from '@/hooks/useMessages';
 import { useSendMessage } from '@/hooks/useSendMessage';
@@ -33,7 +33,7 @@ import { format, formatDistanceToNow, isToday, isYesterday, isSameDay } from 'da
 import { formatUserTime } from '@/lib/dateUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { logger } from '@/lib/logger';
-import { shouldDisplayAsLargeEmoji } from '@/lib/emojiUtils';
+import { shouldDisplayAsLargeEmoji, getCustomEmojisMap, renderMessageWithCustomEmojis } from '@/lib/emojiUtils';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -75,11 +75,32 @@ export function ChatWindow() {
   const [newMessageCount, setNewMessageCount] = useState(0);
   const [cursorPosition, setCursorPosition] = useState(0);
   const [showEmojiAutocomplete, setShowEmojiAutocomplete] = useState(false);
+  const [customEmojisMap, setCustomEmojisMap] = useState<Map<string, string>>(new Map());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editableRef = useRef<HTMLDivElement>(null);
   const emojiAutocompleteRef = useRef<{ handleKeyDown: (e: React.KeyboardEvent) => boolean } | null>(null);
   const prevMessagesLengthRef = useRef(0);
+
+  useEffect(() => {
+    getCustomEmojisMap().then(map => {
+      setCustomEmojisMap(map);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (editableRef.current) {
+      const currentText = extractTextFromEditable(editableRef.current);
+      if (currentText !== messageContent) {
+        if (messageContent === '') {
+          editableRef.current.innerHTML = '';
+        } else {
+          updateEditableContent(editableRef.current, messageContent);
+        }
+      }
+    }
+  }, [messageContent]);
 
   const { data: conversations = [], isLoading: conversationsLoading } = useConversations();
   const { data: messages = [], isLoading: messagesLoading, hasMore, loadMore } = useMessages(
@@ -274,15 +295,24 @@ export function ChatWindow() {
   }, [hasMore, messagesLoading, selectedConversation, loadMore, checkIfAtBottom]);
 
   const handleSendMessage = async () => {
-    if (!selectedConversation || !messageContent.trim()) return;
+    if (!selectedConversation) return;
+    
+    const textToSend = editableRef.current 
+      ? extractTextFromEditable(editableRef.current)
+      : messageContent;
+    
+    if (!textToSend.trim()) return;
 
     try {
       await sendMessageMutation.mutateAsync({
         conversationType: selectedConversation.type,
         conversationId: selectedConversation.id,
-        content: messageContent,
+        content: textToSend,
       });
       setMessageContent('');
+      if (editableRef.current) {
+        editableRef.current.innerHTML = '';
+      }
       setTimeout(() => scrollToBottom(false), 100);
     } catch (error) {
       
@@ -326,40 +356,197 @@ export function ChatWindow() {
   };
 
   const handleEmojiSelect = (emoji: string) => {
-    if (!textareaRef.current) return;
+    if (!editableRef.current) return;
 
-    const start = textareaRef.current.selectionStart;
-    const end = textareaRef.current.selectionEnd;
-    const newContent = messageContent.substring(0, start) + emoji + messageContent.substring(end);
-
+    const text = extractTextFromEditable(editableRef.current);
+    const cursorPos = getCursorPosition(editableRef.current);
+    const newContent = text.substring(0, cursorPos) + emoji + text.substring(cursorPos);
     setMessageContent(newContent);
 
     setTimeout(() => {
-      if (textareaRef.current) {
-        const newPosition = start + emoji.length;
-        textareaRef.current.selectionStart = newPosition;
-        textareaRef.current.selectionEnd = newPosition;
-        textareaRef.current.focus();
+      if (editableRef.current) {
+        const newPosition = cursorPos + emoji.length;
+        updateEditableContent(editableRef.current, newContent);
+        setCursorPositionInEditable(editableRef.current, newPosition);
+        editableRef.current.focus();
       }
     }, 0);
   };
 
-  const handleEmojiAutocompleteSelect = (emoji: string, startPos: number, endPos: number) => {
-    if (!textareaRef.current) return;
+  const extractTextFromEditable = (element: HTMLElement): string => {
+    let text = '';
+    const walker = document.createTreeWalker(
+      element,
+      NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+      null
+    );
+    
+    let node;
+    while (node = walker.nextNode()) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        text += node.textContent;
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        if (el.tagName === 'IMG' && el.getAttribute('data-emoji-name')) {
+          text += `:${el.getAttribute('data-emoji-name')}:`;
+        } else if (el.tagName === 'BR') {
+          text += '\n';
+        }
+      }
+    }
+    return text;
+  };
 
-    const newContent = messageContent.substring(0, startPos) + emoji + messageContent.substring(endPos);
+  const getCursorPosition = (element: HTMLElement): number => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return 0;
+    
+    const range = selection.getRangeAt(0);
+    const preCaretRange = range.cloneRange();
+    preCaretRange.selectNodeContents(element);
+    preCaretRange.setEnd(range.endContainer, range.endOffset);
+    
+    let position = 0;
+    const walker = document.createTreeWalker(
+      element,
+      NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+      null
+    );
+    
+    let node;
+    while (node = walker.nextNode()) {
+      if (node === range.endContainer) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          position += range.endOffset;
+        }
+        break;
+      }
+      if (node.nodeType === Node.TEXT_NODE) {
+        position += node.textContent?.length || 0;
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        if (el.tagName === 'IMG' && el.getAttribute('data-emoji-name')) {
+          position += `:${el.getAttribute('data-emoji-name')}:`.length;
+        } else if (el.tagName === 'BR') {
+          position += 1;
+        }
+      }
+    }
+    return position;
+  };
+
+  const setCursorPositionInEditable = (element: HTMLElement, position: number) => {
+    const selection = window.getSelection();
+    if (!selection) return;
+    
+    const range = document.createRange();
+    let currentPos = 0;
+    const walker = document.createTreeWalker(
+      element,
+      NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+      null
+    );
+    
+    let node;
+    while (node = walker.nextNode()) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const textNode = node as Text;
+        const textLength = textNode.textContent?.length || 0;
+        if (currentPos + textLength >= position) {
+          range.setStart(textNode, position - currentPos);
+          range.setEnd(textNode, position - currentPos);
+          selection.removeAllRanges();
+          selection.addRange(range);
+          return;
+        }
+        currentPos += textLength;
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        if (el.tagName === 'IMG' && el.getAttribute('data-emoji-name')) {
+          const emojiLength = `:${el.getAttribute('data-emoji-name')}:`.length;
+          if (currentPos + emojiLength >= position) {
+            range.setStartBefore(el);
+            range.setEndBefore(el);
+            selection.removeAllRanges();
+            selection.addRange(range);
+            return;
+          }
+          currentPos += emojiLength;
+        } else if (el.tagName === 'BR') {
+          if (currentPos + 1 >= position) {
+            range.setStartBefore(el);
+            range.setEndBefore(el);
+            selection.removeAllRanges();
+            selection.addRange(range);
+            return;
+          }
+          currentPos += 1;
+        }
+      }
+    }
+    
+    range.selectNodeContents(element);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  };
+
+  const handleEmojiAutocompleteSelect = (emoji: string, startPos: number, endPos: number) => {
+    if (!editableRef.current) return;
+
+    const text = extractTextFromEditable(editableRef.current);
+    const newContent = text.substring(0, startPos) + emoji + text.substring(endPos);
     setMessageContent(newContent);
     setShowEmojiAutocomplete(false);
 
     setTimeout(() => {
-      if (textareaRef.current) {
+      if (editableRef.current) {
         const newPosition = startPos + emoji.length;
-        textareaRef.current.selectionStart = newPosition;
-        textareaRef.current.selectionEnd = newPosition;
-        textareaRef.current.focus();
+        setCursorPositionInEditable(editableRef.current, newPosition);
+        editableRef.current.focus();
         setCursorPosition(newPosition);
+        updateEditableContent(editableRef.current, newContent);
       }
     }, 0);
+  };
+
+  const updateEditableContent = (element: HTMLElement, text: string) => {
+    const selection = window.getSelection();
+    const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null;
+    const cursorOffset = range ? getCursorPosition(element) : null;
+    
+    const rendered = renderMessageWithCustomEmojis(text, customEmojisMap);
+    element.innerHTML = '';
+    rendered.forEach((node) => {
+      if (typeof node === 'string') {
+        const textNode = document.createTextNode(node);
+        element.appendChild(textNode);
+      } else if (React.isValidElement(node) && node.type === 'img') {
+        const img = document.createElement('img');
+        const src = (node.props as any).src;
+        const alt = (node.props as any).alt || '';
+        const className = (node.props as any).className || '';
+        const style = (node.props as any).style || {};
+        
+        img.src = src;
+        img.alt = alt;
+        img.className = className;
+        Object.assign(img.style, style);
+        img.setAttribute('contenteditable', 'false');
+        img.setAttribute('draggable', 'false');
+        
+        const emojiName = src.replace('/custom-emojis/', '').replace(/\.(png|gif|jpg|jpeg|webp)$/i, '');
+        img.setAttribute('data-emoji-name', emojiName);
+        
+        element.appendChild(img);
+      }
+    });
+    
+    if (cursorOffset !== null) {
+      setTimeout(() => {
+        setCursorPositionInEditable(element, cursorOffset);
+      }, 0);
+    }
   };
 
   const getConversationDisplay = (conv: Conversation) => {
@@ -461,8 +648,8 @@ export function ChatWindow() {
                             )}
                           </div>
                           {conv.last_message_preview && (
-                            <p className="text-xs text-muted-foreground truncate mb-1">
-                              {conv.last_message_preview}
+                            <p className="text-xs text-muted-foreground truncate mb-1 flex items-center gap-1">
+                              {renderMessageWithCustomEmojis(conv.last_message_preview, customEmojisMap)}
                             </p>
                           )}
                           {conv.unread_count > 0 && (
@@ -748,7 +935,25 @@ export function ChatWindow() {
                                             </div>
                                           ) : shouldDisplayAsLargeEmoji(message.content) && !isDeleted ? (
                                             <div className="text-6xl leading-none">
-                                              {message.content}
+                                              {(() => {
+                                                const hasCustomEmoji = /:([a-z0-9_+-]+):|\/custom-emojis\//i.test(message.content);
+                                                if (!hasCustomEmoji) {
+                                                  return message.content;
+                                                }
+                                                const rendered = renderMessageWithCustomEmojis(message.content, customEmojisMap);
+                                                return rendered.map((node, i) => {
+                                                  if (React.isValidElement(node) && node.type === 'img') {
+                                                    return React.cloneElement(node as React.ReactElement<{ className?: string; style?: React.CSSProperties }>, { 
+                                                      key: i,
+                                                      className: 'inline-block w-[5rem] h-[5rem] object-contain',
+                                                      style: {
+                                                        imageRendering: 'crisp-edges' as any,
+                                                      }
+                                                    });
+                                                  }
+                                                  return <span key={i}>{node}</span>;
+                                                });
+                                              })()}
                                             </div>
                                           ) : (
                                             <div
@@ -764,7 +969,9 @@ export function ChatWindow() {
                                               {isDeleted ? (
                                                 <p className="text-xs">Message deleted</p>
                                               ) : (
-                                                <p className="whitespace-pre-wrap">{message.content}</p>
+                                                <p className="whitespace-pre-wrap">
+                                                  {renderMessageWithCustomEmojis(message.content, customEmojisMap)}
+                                                </p>
                                               )}
                                             </div>
                                           )}
@@ -843,13 +1050,15 @@ export function ChatWindow() {
               <div className="h-auto px-4 py-3 border-t border-border shrink-0 bg-card">
                 <div className="flex items-end gap-2">
                   <div className="relative flex-1">
-                    <Textarea
-                      ref={textareaRef}
-                      value={messageContent}
-                      onChange={(e) => {
-                        const newValue = e.target.value;
-                        const newCursorPos = e.target.selectionStart;
-                        const beforeCursor = newValue.substring(0, newCursorPos);
+                    <div
+                      ref={editableRef}
+                      contentEditable
+                      suppressContentEditableWarning
+                      onInput={async (e) => {
+                        const target = e.currentTarget;
+                        const text = extractTextFromEditable(target);
+                        const newCursorPos = getCursorPosition(target);
+                        const beforeCursor = text.substring(0, newCursorPos);
                         
                         const shortcodePattern = /:([a-z0-9_+-]+):$/;
                         const match = beforeCursor.match(shortcodePattern);
@@ -860,33 +1069,53 @@ export function ChatWindow() {
                           if (exactMatch) {
                             const emoji = applyDefaultSkinTone(exactMatch.emoji, exactMatch.supportsSkinTone || false);
                             const startPos = beforeCursor.lastIndexOf(':' + shortcode + ':');
-                            const newContent = newValue.substring(0, startPos) + emoji + newValue.substring(newCursorPos);
+                            const newContent = text.substring(0, startPos) + emoji + text.substring(newCursorPos);
                             setMessageContent(newContent);
                             setShowEmojiAutocomplete(false);
                             setTimeout(() => {
-                              if (textareaRef.current) {
-                                const newPosition = startPos + emoji.length;
-                                textareaRef.current.selectionStart = newPosition;
-                                textareaRef.current.selectionEnd = newPosition;
-                                textareaRef.current.focus();
-                                setCursorPosition(newPosition);
-                              }
+                              updateEditableContent(target, newContent);
+                              const newPosition = startPos + emoji.length;
+                              setCursorPositionInEditable(target, newPosition);
+                              target.focus();
+                              setCursorPosition(newPosition);
                             }, 0);
                             return;
                           }
+                          
+                          const customEmojis = await loadCustomEmojis();
+                          const customMatch = customEmojis.find(item => item.name.toLowerCase() === shortcode);
+                          if (customMatch) {
+                            const startPos = beforeCursor.lastIndexOf(':' + shortcode + ':');
+                            const newContent = text.substring(0, startPos) + `:${shortcode}:` + text.substring(newCursorPos);
+                            setMessageContent(newContent);
+                            setShowEmojiAutocomplete(false);
+                            setTimeout(() => {
+                              updateEditableContent(target, newContent);
+                              const newPosition = startPos + shortcode.length + 2;
+                              setCursorPositionInEditable(target, newPosition);
+                              target.focus();
+                              setCursorPosition(newPosition);
+                            }, 0);
+                            return;
+                          }
+                          
+                          setMessageContent(text);
+                          setCursorPosition(newCursorPos);
+                          setShowEmojiAutocomplete(false);
+                          return;
                         }
                         
                         const colonIndex = beforeCursor.lastIndexOf(':');
                         if (colonIndex !== -1) {
                           const afterColon = beforeCursor.substring(colonIndex + 1);
                           if (!afterColon.includes(' ') && !afterColon.includes('\n') && !afterColon.includes(':')) {
-                            setMessageContent(newValue);
+                            setMessageContent(text);
                             setCursorPosition(newCursorPos);
                             setShowEmojiAutocomplete(true);
                             return;
                           }
                         }
-                        setMessageContent(newValue);
+                        setMessageContent(text);
                         setCursorPosition(newCursorPos);
                         setShowEmojiAutocomplete(false);
                       }}
@@ -900,24 +1129,27 @@ export function ChatWindow() {
                           handleSendMessage();
                         }
                       }}
-                      onSelect={(e) => {
-                        setCursorPosition(e.currentTarget.selectionStart);
-                        const beforeCursor = messageContent.substring(0, e.currentTarget.selectionStart);
-                        const colonIndex = beforeCursor.lastIndexOf(':');
-                        if (colonIndex !== -1) {
-                          const afterColon = beforeCursor.substring(colonIndex + 1);
-                          if (!afterColon.includes(' ') && !afterColon.includes('\n')) {
-                            setShowEmojiAutocomplete(true);
-                            return;
-                          }
+                      onBlur={() => {
+                        if (editableRef.current) {
+                          const text = extractTextFromEditable(editableRef.current);
+                          setMessageContent(text);
                         }
-                        setShowEmojiAutocomplete(false);
                       }}
-                      placeholder="Type a message..."
-                      className="min-h-[44px] max-h-[120px] resize-none text-sm bg-background pr-10"
-                      maxLength={2000}
-                      rows={1}
+                      className="min-h-[44px] max-h-[120px] resize-none text-sm bg-background pr-10 py-2 px-3 rounded-md border border-input focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 overflow-y-auto whitespace-pre-wrap break-words"
+                      style={{ 
+                        outline: 'none',
+                        wordWrap: 'break-word',
+                        overflowWrap: 'break-word'
+                      }}
+                      data-placeholder="Type a message..."
                     />
+                    <style>{`
+                      [contenteditable][data-placeholder]:empty:before {
+                        content: attr(data-placeholder);
+                        color: hsl(var(--muted-foreground));
+                        pointer-events: none;
+                      }
+                    `}</style>
                     {showEmojiAutocomplete && (
                       <EmojiAutocomplete
                         ref={emojiAutocompleteRef}
