@@ -148,14 +148,14 @@ export const EmojiAutocomplete = forwardRef<EmojiAutocompleteHandle, EmojiAutoco
             ref={el => itemRefs.current[index] = el}
             onClick={() => handleSelect(index)}
             className={cn(
-              "w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-secondary/50 transition-colors",
+              "w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-secondary/50 transition-colors relative",
               selectedIndex === index && "bg-secondary"
             )}
           >
             {item.isCustom ? (
-              <img src={item.displayEmoji} alt={item.name} className="w-6 h-6 object-contain" />
+              <img src={item.displayEmoji} alt={item.name} className="w-6 h-6 object-contain relative z-0" />
             ) : (
-              <span className="text-xl">{item.displayEmoji}</span>
+              <span className="text-xl relative z-0">{item.displayEmoji}</span>
             )}
             <span className="text-sm text-foreground">:{item.name}:</span>
           </button>
