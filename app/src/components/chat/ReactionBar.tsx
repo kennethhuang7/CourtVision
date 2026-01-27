@@ -86,7 +86,7 @@ export function ReactionBar({ messageId, reactions, className }: ReactionBarProp
 
     if (shortcodeMatch) {
       const name = shortcodeMatch[1].toLowerCase();
-      url = customEmojisMap.get(name);
+      url = customEmojisMap.get(name) || `/custom-emojis/${name}.png`;
     } else if (/\/custom-emojis\//i.test(emoji)) {
       url = emoji;
     }
@@ -108,14 +108,24 @@ export function ReactionBar({ messageId, reactions, className }: ReactionBarProp
       }
 
       return (
-        <img
-          {...common}
-          className="block w-[1.4em] h-[1.4em] object-contain shrink-0"
-        />
+        <span className="inline-flex items-center justify-center w-4 h-4 shrink-0 align-middle">
+          <img
+            {...common}
+            className="w-[1.2em] h-[1.2em] max-w-4 max-h-4 object-contain block"
+          />
+        </span>
       );
     }
 
-    return <span className="text-sm">{emoji}</span>;
+    if (size === 'tooltip') {
+      return <span className="text-sm">{emoji}</span>;
+    }
+
+    return (
+      <span className="inline-flex items-center justify-center w-4 h-4 text-sm leading-none shrink-0 align-middle">
+        {emoji}
+      </span>
+    );
   };
 
   return (
@@ -123,7 +133,7 @@ export function ReactionBar({ messageId, reactions, className }: ReactionBarProp
       initial={{ opacity: 0, y: -5 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className={cn('flex items-center gap-1 flex-wrap mt-1.5', className)}
+      className={cn('flex items-center gap-1 flex-wrap mt-0', className)}
     >
       <AnimatePresence mode="popLayout">
         {visibleReactions.map((reaction) => {
@@ -142,6 +152,7 @@ export function ReactionBar({ messageId, reactions, className }: ReactionBarProp
                 damping: 30,
                 duration: 0.2
               }}
+              className="inline-flex items-center"
             >
               <TooltipProvider>
                 <Tooltip delayDuration={300}>
@@ -151,20 +162,20 @@ export function ReactionBar({ messageId, reactions, className }: ReactionBarProp
                       whileHover={{ scale: 1.05 }}
                       onClick={() => handleReactionClick(reaction.emoji, reaction.user_ids)}
                       className={cn(
-                        'inline-flex items-center gap-1 px-2 py-0.5 h-6 rounded-full text-xs leading-none border transition-all duration-200',
+                        'inline-flex items-center justify-center gap-1 px-2 py-0.5 h-6 min-h-6 rounded-full text-xs leading-none border transition-all duration-200 align-middle',
                         hasReacted
                           ? 'bg-primary/10 border-primary text-primary hover:bg-primary/20'
-                          : 'bg-accent/50 border-border hover:bg-accent hover:border-border/80',
-                        isCustomReactionEmoji(reaction.emoji) && 'translate-y-[1px]'
+                          : 'bg-accent/50 border-border hover:bg-accent hover:border-border/80'
                       )}
                       disabled={addReaction.isPending || removeReaction.isPending}
+                      style={{ verticalAlign: 'middle' }}
                     >
                       {renderReactionEmoji(reaction.emoji, 'chip')}
                       <motion.span
                         key={reaction.count}
                         initial={{ scale: 1.2 }}
                         animate={{ scale: 1 }}
-                        className="font-medium"
+                        className="font-medium leading-none"
                       >
                         {reaction.count}
                       </motion.span>
