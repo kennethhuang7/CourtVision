@@ -465,8 +465,13 @@ export function ChatWindow() {
         if (el.tagName === 'IMG' && el.getAttribute('data-emoji-name')) {
           const emojiLength = `:${el.getAttribute('data-emoji-name')}:`.length;
           if (currentPos + emojiLength >= position) {
-            range.setStartBefore(el);
-            range.setEndBefore(el);
+            if (position === currentPos + emojiLength) {
+              range.setStartAfter(el);
+              range.setEndAfter(el);
+            } else {
+              range.setStartBefore(el);
+              range.setEndBefore(el);
+            }
             selection.removeAllRanges();
             selection.addRange(range);
             return;
@@ -502,11 +507,19 @@ export function ChatWindow() {
 
     setTimeout(() => {
       if (editableRef.current) {
-        const newPosition = startPos + emoji.length;
-        setCursorPositionInEditable(editableRef.current, newPosition);
-        editableRef.current.focus();
-        setCursorPosition(newPosition);
+        const selection = window.getSelection();
+        if (selection) {
+          selection.removeAllRanges();
+        }
         updateEditableContent(editableRef.current, newContent);
+        const newPosition = startPos + emoji.length;
+        setTimeout(() => {
+          if (editableRef.current) {
+            setCursorPositionInEditable(editableRef.current, newPosition);
+            editableRef.current.focus();
+            setCursorPosition(newPosition);
+          }
+        }, 0);
       }
     }, 0);
   };
