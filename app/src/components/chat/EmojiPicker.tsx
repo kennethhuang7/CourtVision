@@ -215,8 +215,8 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
                 key={item.emoji}
                 onClick={() => handleEmojiClick(item.displayEmoji)}
                 className={cn(
-                  "hover:bg-accent rounded p-1 transition-colors",
-                  isReacted && "bg-primary/20 ring-2 ring-primary/50"
+                  "hover:bg-muted rounded p-1 transition-colors",
+                  isReacted && "bg-muted/80 ring-2 ring-ring"
                 )}
                 aria-label={`React with ${item.customName || item.emoji}`}
               >
@@ -234,8 +234,8 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
               key={item.emoji}
               onClick={() => handleEmojiClick(item.displayEmoji)}
               className={cn(
-                "text-2xl hover:bg-accent rounded p-1 transition-colors",
-                isReacted && "bg-primary/20 ring-2 ring-primary/50"
+                "text-2xl hover:bg-muted rounded p-1 transition-colors",
+                isReacted && "bg-muted/80 ring-2 ring-ring"
               )}
               aria-label={`React with ${item.displayEmoji}`}
             >
@@ -246,7 +246,7 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
         <div className="w-px h-6 bg-border mx-1" />
         <button
           onClick={() => setShowFullPicker(true)}
-          className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 hover:bg-accent rounded transition-colors"
+          className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 hover:bg-muted rounded transition-colors"
         >
           View More
         </button>
@@ -265,7 +265,7 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search emojis..."
-            className="w-full pl-9 pr-9 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full pl-9 pr-9 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
           {searchQuery && (
             <button
@@ -283,8 +283,8 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
           <button
             onClick={() => setSelectedCategory('recent')}
             className={cn(
-              'p-2 rounded hover:bg-accent transition-colors flex-shrink-0',
-              selectedCategory === 'recent' && 'bg-accent'
+              'p-2 rounded hover:bg-muted transition-colors flex-shrink-0',
+              selectedCategory === 'recent' && 'bg-muted'
             )}
             aria-label="Recently Used"
           >
@@ -295,8 +295,8 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
             <button
               onClick={() => setSelectedCategory('custom')}
               className={cn(
-                'p-2 rounded hover:bg-accent transition-colors flex-shrink-0',
-                selectedCategory === 'custom' && 'bg-accent'
+                'p-2 rounded hover:bg-muted transition-colors flex-shrink-0',
+                selectedCategory === 'custom' && 'bg-muted'
               )}
               aria-label="Custom Emojis"
             >
@@ -311,8 +311,8 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
                 key={category.id}
                 onClick={() => setSelectedCategory(category.id)}
                 className={cn(
-                  'p-2 rounded hover:bg-accent transition-colors flex-shrink-0',
-                  selectedCategory === category.id && 'bg-accent'
+                  'p-2 rounded hover:bg-muted transition-colors flex-shrink-0',
+                  selectedCategory === category.id && 'bg-muted'
                 )}
                 aria-label={category.name}
               >
@@ -338,8 +338,8 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
                     key={`${item.emoji}-${index}`}
                     onClick={() => handleEmojiClick(item.displayEmoji)}
                     className={cn(
-                      "hover:bg-accent rounded p-1 transition-colors aspect-square flex items-center justify-center",
-                      isReacted && "bg-primary/20 ring-2 ring-primary/50"
+                      "hover:bg-muted rounded p-1 transition-colors aspect-square flex items-center justify-center",
+                      isReacted && "bg-muted/80 ring-2 ring-ring"
                     )}
                     aria-label={`Select ${item.customName || item.emoji}`}
                   >
@@ -360,8 +360,8 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
                     key={`${item.emoji}-${index}`}
                     onClick={() => handleEmojiClick(item.displayEmoji)}
                     className={cn(
-                      "text-2xl hover:bg-accent rounded p-1 transition-colors aspect-square flex items-center justify-center",
-                      isReacted && "bg-primary/20 ring-2 ring-primary/50"
+                      "text-2xl hover:bg-muted rounded p-1 transition-colors aspect-square flex items-center justify-center",
+                      isReacted && "bg-muted/80 ring-2 ring-ring"
                     )}
                     aria-label={`Select ${item.displayEmoji}`}
                   >
@@ -382,10 +382,10 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
                 >
                   <PopoverTrigger asChild>
                     <button
-                      className={cn(
-                        "text-2xl hover:bg-accent rounded p-1 transition-colors aspect-square flex items-center justify-center relative group",
-                        isReacted && "bg-primary/20 ring-2 ring-primary/50"
-                      )}
+                    className={cn(
+                      "text-2xl hover:bg-muted rounded p-1 transition-colors aspect-square flex items-center justify-center relative group",
+                      isReacted && "bg-muted/80 ring-2 ring-ring"
+                    )}
                       aria-label={`Select ${item.displayEmoji} or choose skin tone`}
                     >
                       {item.displayEmoji}
@@ -401,8 +401,8 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
                             key={variantIndex}
                             onClick={() => handleEmojiClick(variant, skinToneKeys[variantIndex])}
                             className={cn(
-                              "text-2xl hover:bg-accent rounded p-1 transition-colors w-10 h-10 flex items-center justify-center",
-                              variantReacted && "bg-primary/20 ring-2 ring-primary/50"
+                              "text-2xl hover:bg-muted rounded p-1 transition-colors w-10 h-10 flex items-center justify-center",
+                              variantReacted && "bg-muted/80 ring-2 ring-ring"
                             )}
                             aria-label={`Select ${SKIN_TONE_LABELS[skinToneKeys[variantIndex]]}`}
                             title={SKIN_TONE_LABELS[skinToneKeys[variantIndex]]}
