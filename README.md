@@ -718,6 +718,7 @@ When reporting bugs, please include as much of the following as possible:
 **Kenneth Huang** - Creator and Lead Developer
 - **GitHub**: [@kennethhuang7](https://github.com/kennethhuang7)
 - **LinkedIn**: [Kenneth Huang](https://www.linkedin.com/in/kennethhuang7)
+- **Discord**: `kenny.huang`
 
 ---
 
