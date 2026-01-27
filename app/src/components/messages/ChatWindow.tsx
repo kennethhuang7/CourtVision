@@ -1162,7 +1162,7 @@ export function ChatWindow() {
                     <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
                       <PopoverTrigger asChild>
                         <button
-                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-accent transition-colors opacity-60 hover:opacity-100"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted transition-colors opacity-60 hover:opacity-100"
                           type="button"
                         >
                           <Smile className="h-5 w-5 text-muted-foreground" />
