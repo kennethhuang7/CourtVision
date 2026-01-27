@@ -1,8 +1,8 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { X, Search, Smile, Users, TreePine, Coffee, Dumbbell, Plane, Lightbulb, Hash, Clock } from 'lucide-react';
+import { X, Search, Smile, Users, TreePine, Coffee, Dumbbell, Plane, Lightbulb, Hash, Clock, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { EMOJI_CATEGORIES, DEFAULT_REACTION_EMOJIS, ALL_EMOJIS, getSkinToneVariants, type SkinTone, SKIN_TONE_LABELS } from '@/lib/emojiData';
-import { searchEmojis, getRecentlyUsedEmojis, addToRecentlyUsed, applyDefaultSkinTone, setSkinTonePreference } from '@/lib/emojiUtils';
+import { searchEmojis, getRecentlyUsedEmojis, addToRecentlyUsed, applyDefaultSkinTone, setSkinTonePreference, loadCustomEmojis, getCustomEmojisMap } from '@/lib/emojiUtils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 interface EmojiPickerProps {
@@ -23,6 +23,7 @@ const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string }>
   travel: Plane,
   objects: Lightbulb,
   symbols: Hash,
+  custom: Sparkles,
 };
 
 export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className, userReactions = [], onEmojiToggle }: EmojiPickerProps) {
@@ -31,11 +32,15 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
   const [showFullPicker, setShowFullPicker] = useState(false);
   const [skinTonePopoverOpen, setSkinTonePopoverOpen] = useState<string | null>(null);
+  const [customEmojis, setCustomEmojis] = useState<Array<{ name: string; url: string; emoji: string }>>([]);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   
   useEffect(() => {
     setRecentEmojis(getRecentlyUsedEmojis());
+    loadCustomEmojis().then(emojis => {
+      setCustomEmojis(emojis);
+    });
   }, []);
 
   
@@ -73,9 +78,12 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
 
 
 
-  const displayEmojis = useMemo(() => {
-    let emojiList: Array<{ emoji: string; supportsSkinTone: boolean }> = [];
+  const isCustomEmoji = (emoji: string): boolean => {
+    return emoji.startsWith(':') && emoji.endsWith(':') || emoji.startsWith('/custom-emojis/');
+  };
 
+  const displayEmojis = useMemo(() => {
+    let emojiList: Array<{ emoji: string; supportsSkinTone: boolean; isCustom?: boolean; customUrl?: string; customName?: string }> = [];
 
     if (searchQuery.trim()) {
       const searchResults = searchEmojis(searchQuery);
@@ -86,17 +94,54 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
           supportsSkinTone: emojiData?.supportsSkinTone || false,
         };
       });
+
+      const queryLower = searchQuery.toLowerCase();
+      const matchingCustom = customEmojis.filter(ce => 
+        ce.name.toLowerCase().includes(queryLower)
+      );
+      matchingCustom.forEach(ce => {
+        emojiList.push({
+          emoji: `:${ce.name}:`,
+          supportsSkinTone: false,
+          isCustom: true,
+          customUrl: ce.url,
+          customName: ce.name,
+        });
+      });
     }
 
     else if (selectedCategory === 'recent') {
       const recent = recentEmojis.length > 0 ? recentEmojis : DEFAULT_REACTION_EMOJIS;
       emojiList = recent.map(emoji => {
+        if (isCustomEmoji(emoji)) {
+          const name = emoji.replace(/^:/, '').replace(/:$/, '').toLowerCase();
+          const customEmoji = customEmojis.find(ce => ce.name.toLowerCase() === name);
+          if (customEmoji) {
+            return {
+              emoji: `:${customEmoji.name}:`,
+              supportsSkinTone: false,
+              isCustom: true,
+              customUrl: customEmoji.url,
+              customName: customEmoji.name,
+            };
+          }
+        }
         const emojiData = ALL_EMOJIS.find(e => e.emoji === emoji);
         return {
           emoji,
           supportsSkinTone: emojiData?.supportsSkinTone || false,
         };
       });
+    }
+
+    else if (selectedCategory === 'custom') {
+      emojiList = customEmojis.map(ce => ({
+        emoji: `:${ce.name}:`,
+        supportsSkinTone: false,
+        isCustom: true,
+        customUrl: ce.url,
+        customName: ce.name,
+      }));
     }
 
     else {
@@ -107,29 +152,83 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
       })) : [];
     }
 
-    // Apply default skin tone to emojis that support it
-    return emojiList.map(item => ({
-      ...item,
-      displayEmoji: applyDefaultSkinTone(item.emoji, item.supportsSkinTone),
-    }));
-  }, [searchQuery, selectedCategory, recentEmojis]);
+    return emojiList.map(item => {
+      if (item.isCustom) {
+        return {
+          ...item,
+          displayEmoji: item.emoji,
+        };
+      }
+      return {
+        ...item,
+        displayEmoji: applyDefaultSkinTone(item.emoji, item.supportsSkinTone),
+      };
+    });
+  }, [searchQuery, selectedCategory, recentEmojis, customEmojis]);
 
 
 
   if (mode === 'react' && !showFullPicker) {
-    const quickReactions = DEFAULT_REACTION_EMOJIS.map(emoji => {
+    const recentForQuick = recentEmojis.slice(0, 6).filter(e => !isCustomEmoji(e));
+    const quickEmojis = recentForQuick.length > 0 ? recentForQuick : DEFAULT_REACTION_EMOJIS.slice(0, 6);
+    
+    type QuickReaction = {
+      emoji: string;
+      displayEmoji: string;
+      isCustom: boolean;
+      customUrl?: string;
+      customName?: string;
+    };
+
+    const quickReactions: QuickReaction[] = quickEmojis.map(emoji => {
       const emojiData = ALL_EMOJIS.find(e => e.emoji === emoji);
       const supportsSkinTone = emojiData?.supportsSkinTone || false;
       return {
         emoji,
         displayEmoji: applyDefaultSkinTone(emoji, supportsSkinTone),
+        isCustom: false,
       };
+    });
+
+    const recentCustom = recentEmojis.filter(e => isCustomEmoji(e)).slice(0, 2);
+    recentCustom.forEach(emoji => {
+      const name = emoji.replace(/^:/, '').replace(/:$/, '').toLowerCase();
+      const customEmoji = customEmojis.find(ce => ce.name.toLowerCase() === name);
+      if (customEmoji) {
+        quickReactions.push({
+          emoji: `:${customEmoji.name}:`,
+          displayEmoji: `:${customEmoji.name}:`,
+          isCustom: true,
+          customUrl: customEmoji.url,
+          customName: customEmoji.name,
+        });
+      }
     });
 
     return (
       <div className={cn('flex items-center gap-1', className)}>
         {quickReactions.map((item) => {
           const isReacted = userReactions.includes(item.emoji);
+          if (item.isCustom && item.customUrl) {
+            return (
+              <button
+                key={item.emoji}
+                onClick={() => handleEmojiClick(item.displayEmoji)}
+                className={cn(
+                  "hover:bg-accent rounded p-1 transition-colors",
+                  isReacted && "bg-primary/20 ring-2 ring-primary/50"
+                )}
+                aria-label={`React with ${item.customName || item.emoji}`}
+              >
+                <img
+                  src={item.customUrl}
+                  alt={item.customName || item.emoji}
+                  className="w-8 h-8 object-contain"
+                  style={{ imageRendering: 'crisp-edges' as any }}
+                />
+              </button>
+            );
+          }
           return (
             <button
               key={item.emoji}
@@ -156,7 +255,7 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
   }
 
   return (
-    <div className={cn('bg-popover border border-border rounded-lg shadow-lg w-[352px]', className)}>
+    <div className={cn('bg-popover border border-border rounded-lg shadow-lg w-[400px] max-w-[100vw]', className)}>
       <div className="p-3 border-b border-border">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -180,7 +279,7 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
       </div>
 
       {!searchQuery && (
-        <div className="flex items-center gap-1 px-2 py-2 border-b border-border overflow-x-auto">
+        <div className="flex flex-wrap items-center gap-1 px-2 py-2 border-b border-border">
           <button
             onClick={() => setSelectedCategory('recent')}
             className={cn(
@@ -191,6 +290,19 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
           >
             <Clock className="h-4 w-4" />
           </button>
+
+          {customEmojis.length > 0 && (
+            <button
+              onClick={() => setSelectedCategory('custom')}
+              className={cn(
+                'p-2 rounded hover:bg-accent transition-colors flex-shrink-0',
+                selectedCategory === 'custom' && 'bg-accent'
+              )}
+              aria-label="Custom Emojis"
+            >
+              <Sparkles className="h-4 w-4" />
+            </button>
+          )}
 
           {EMOJI_CATEGORIES.map(category => {
             const Icon = CATEGORY_ICONS[category.id] || Smile;
@@ -211,7 +323,7 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
         </div>
       )}
 
-      <div className="p-2 max-h-[280px] overflow-y-auto">
+      <div className="p-2 max-h-[320px] overflow-y-auto">
         {displayEmojis.length === 0 ? (
           <div className="text-center text-muted-foreground py-8 text-sm">
             {searchQuery ? 'No emojis found' : 'No recently used emojis'}
@@ -219,6 +331,28 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
         ) : (
           <div className="grid grid-cols-8 gap-1">
             {displayEmojis.map((item, index) => {
+              if (item.isCustom && item.customUrl) {
+                const isReacted = userReactions.includes(item.emoji);
+                return (
+                  <button
+                    key={`${item.emoji}-${index}`}
+                    onClick={() => handleEmojiClick(item.displayEmoji)}
+                    className={cn(
+                      "hover:bg-accent rounded p-1 transition-colors aspect-square flex items-center justify-center",
+                      isReacted && "bg-primary/20 ring-2 ring-primary/50"
+                    )}
+                    aria-label={`Select ${item.customName || item.emoji}`}
+                  >
+                    <img
+                      src={item.customUrl}
+                      alt={item.customName || item.emoji}
+                      className="w-[2em] h-[2em] object-contain"
+                      style={{ imageRendering: 'crisp-edges' as any }}
+                    />
+                  </button>
+                );
+              }
+
               if (!item.supportsSkinTone) {
                 const isReacted = userReactions.includes(item.emoji);
                 return (
