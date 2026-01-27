@@ -1,6 +1,106 @@
 [
   {
+    "name": "bonkers",
+    "filename": "bonkers.png"
+  },
+  {
+    "name": "boohoo",
+    "filename": "boohoo.png"
+  },
+  {
+    "name": "catumm",
+    "filename": "catumm.png"
+  },
+  {
+    "name": "ccp",
+    "filename": "ccp.png"
+  },
+  {
+    "name": "devastated",
+    "filename": "devastated.png"
+  },
+  {
+    "name": "flightnoo",
+    "filename": "flightnoo.png"
+  },
+  {
+    "name": "forreal",
+    "filename": "forreal.png"
+  },
+  {
+    "name": "kindahomeless",
+    "filename": "kindahomeless.png"
+  },
+  {
+    "name": "laughcat",
+    "filename": "laughcat.png"
+  },
+  {
+    "name": "monkeyhmm",
+    "filename": "monkeyhmm.png"
+  },
+  {
+    "name": "nerdface",
+    "filename": "nerdface.png"
+  },
+  {
+    "name": "patrick",
+    "filename": "patrick.png"
+  },
+  {
+    "name": "ptsd",
+    "filename": "ptsd.png"
+  },
+  {
     "name": "shaqtimeout",
     "filename": "shaqtimeout.png"
+  },
+  {
+    "name": "shrug",
+    "filename": "shrug.png"
+  },
+  {
+    "name": "sigma",
+    "filename": "sigma.png"
+  },
+  {
+    "name": "soldjacat",
+    "filename": "soldjacat.png"
+  },
+  {
+    "name": "steamhappy",
+    "filename": "steamhappy.png"
+  },
+  {
+    "name": "timeisticking",
+    "filename": "timeisticking.png"
+  },
+  {
+    "name": "ttcute",
+    "filename": "ttcute.png"
+  },
+  {
+    "name": "ttdisdain",
+    "filename": "ttdisdain.png"
+  },
+  {
+    "name": "ttheh",
+    "filename": "ttheh.png"
+  },
+  {
+    "name": "tthehe",
+    "filename": "tthehe.png"
+  },
+  {
+    "name": "ttrage",
+    "filename": "ttrage.png"
+  },
+  {
+    "name": "ttshock",
+    "filename": "ttshock.png"
+  },
+  {
+    "name": "ttslap",
+    "filename": "ttslap.png"
   }
 ]
