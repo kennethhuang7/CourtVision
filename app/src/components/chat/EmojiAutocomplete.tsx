@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useImperativeHandle, forwardRef } from 'react';
 import { ALL_EMOJIS } from '@/lib/emojiData';
-import { applyDefaultSkinTone } from '@/lib/emojiUtils';
+import { applyDefaultSkinTone, loadCustomEmojis } from '@/lib/emojiUtils';
 import { cn } from '@/lib/utils';
 
 interface EmojiAutocompleteProps {
@@ -17,8 +17,13 @@ export interface EmojiAutocompleteHandle {
 export const EmojiAutocomplete = forwardRef<EmojiAutocompleteHandle, EmojiAutocompleteProps>(
   ({ text, cursorPosition, onSelect, onClose }, ref) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [customEmojis, setCustomEmojis] = useState<Array<{ name: string; url: string; emoji: string }>>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  useEffect(() => {
+    loadCustomEmojis().then(setCustomEmojis);
+  }, []);
 
   const match = useMemo(() => {
     const beforeCursor = text.substring(0, cursorPosition);
@@ -27,19 +32,36 @@ export const EmojiAutocomplete = forwardRef<EmojiAutocompleteHandle, EmojiAutoco
     if (colonIndex === -1) return null;
     
     const afterColon = beforeCursor.substring(colonIndex + 1);
-    if (afterColon.includes(' ') || afterColon.includes('\n')) return null;
+    if (afterColon.includes(' ') || afterColon.includes('\n') || afterColon.includes(':')) return null;
+    
+    const completePattern = /:([a-z0-9_+-]+):$/;
+    if (completePattern.test(beforeCursor)) return null;
     
     const query = afterColon.toLowerCase();
-    const matches = ALL_EMOJIS
+    
+    const unicodeMatches = ALL_EMOJIS
       .filter(item => item.name.toLowerCase().startsWith(query))
-      .slice(0, 20)
       .map(item => ({
         emoji: item.emoji,
         displayEmoji: applyDefaultSkinTone(item.emoji, item.supportsSkinTone || false),
         name: item.name,
         startPos: colonIndex,
         endPos: cursorPosition,
+        isCustom: false,
       }));
+    
+    const customMatches = customEmojis
+      .filter(item => item.name.toLowerCase().startsWith(query))
+      .map(item => ({
+        emoji: `:${item.name}:`,
+        displayEmoji: item.url,
+        name: item.name,
+        startPos: colonIndex,
+        endPos: cursorPosition,
+        isCustom: true,
+      }));
+    
+    const matches = [...unicodeMatches, ...customMatches].slice(0, 20);
     
     if (matches.length === 0) return null;
     
@@ -49,7 +71,7 @@ export const EmojiAutocomplete = forwardRef<EmojiAutocompleteHandle, EmojiAutoco
       startPos: colonIndex,
       endPos: cursorPosition,
     };
-  }, [text, cursorPosition]);
+  }, [text, cursorPosition, customEmojis]);
 
   useEffect(() => {
     if (!match) {
@@ -79,7 +101,7 @@ export const EmojiAutocomplete = forwardRef<EmojiAutocompleteHandle, EmojiAutoco
 
   const handleSelect = (index: number) => {
     const selected = match.matches[index];
-    onSelect(selected.displayEmoji, selected.startPos, selected.endPos);
+    onSelect(selected.emoji, selected.startPos, selected.endPos);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent): boolean => {
@@ -130,7 +152,11 @@ export const EmojiAutocomplete = forwardRef<EmojiAutocompleteHandle, EmojiAutoco
               selectedIndex === index && "bg-secondary"
             )}
           >
-            <span className="text-xl">{item.displayEmoji}</span>
+            {item.isCustom ? (
+              <img src={item.displayEmoji} alt={item.name} className="w-6 h-6 object-contain" />
+            ) : (
+              <span className="text-xl">{item.displayEmoji}</span>
+            )}
             <span className="text-sm text-foreground">:{item.name}:</span>
           </button>
         ))}
