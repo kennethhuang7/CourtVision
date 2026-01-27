@@ -11,7 +11,7 @@ import { EmojiPicker } from '@/components/chat/EmojiPicker';
 import { ReactionBar } from '@/components/chat/ReactionBar';
 import { EmojiAutocomplete } from '@/components/chat/EmojiAutocomplete';
 import { ALL_EMOJIS } from '@/lib/emojiData';
-import { applyDefaultSkinTone, loadCustomEmojis } from '@/lib/emojiUtils';
+import { applyDefaultSkinTone, loadCustomEmojis, addToRecentlyUsed } from '@/lib/emojiUtils';
 import { useConversations, type Conversation } from '@/hooks/useConversations';
 import { useMessages } from '@/hooks/useMessages';
 import { useSendMessage } from '@/hooks/useSendMessage';
@@ -496,6 +496,7 @@ export function ChatWindow() {
 
     const text = extractTextFromEditable(editableRef.current);
     const newContent = text.substring(0, startPos) + emoji + text.substring(endPos);
+    addToRecentlyUsed(emoji);
     setMessageContent(newContent);
     setShowEmojiAutocomplete(false);
 
@@ -1070,6 +1071,7 @@ export function ChatWindow() {
                             const emoji = applyDefaultSkinTone(exactMatch.emoji, exactMatch.supportsSkinTone || false);
                             const startPos = beforeCursor.lastIndexOf(':' + shortcode + ':');
                             const newContent = text.substring(0, startPos) + emoji + text.substring(newCursorPos);
+                            addToRecentlyUsed(emoji);
                             setMessageContent(newContent);
                             setShowEmojiAutocomplete(false);
                             setTimeout(() => {
@@ -1086,12 +1088,14 @@ export function ChatWindow() {
                           const customMatch = customEmojis.find(item => item.name.toLowerCase() === shortcode);
                           if (customMatch) {
                             const startPos = beforeCursor.lastIndexOf(':' + shortcode + ':');
-                            const newContent = text.substring(0, startPos) + `:${shortcode}:` + text.substring(newCursorPos);
+                            const shortcodeToken = `:${shortcode}:`;
+                            const newContent = text.substring(0, startPos) + shortcodeToken + text.substring(newCursorPos);
+                            addToRecentlyUsed(shortcodeToken);
                             setMessageContent(newContent);
                             setShowEmojiAutocomplete(false);
                             setTimeout(() => {
                               updateEditableContent(target, newContent);
-                              const newPosition = startPos + shortcode.length + 2;
+                              const newPosition = startPos + shortcodeToken.length;
                               setCursorPositionInEditable(target, newPosition);
                               target.focus();
                               setCursorPosition(newPosition);
