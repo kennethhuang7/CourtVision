@@ -92,25 +92,30 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) return;
 
-    const nextSoundType =
-      (userSettings?.notification_sound_type as NotificationSoundType | undefined) || undefined;
-    const nextSoundVolume = userSettings?.notification_sound_volume;
-    const nextSoundEnabled = userSettings?.sound_effects_enabled;
-    const nextNotificationsEnabled = userSettings?.notifications_enabled;
-    const nextDesktopNotifications = userSettings?.desktop_notifications;
-    const nextNotifyNewPredictions = userSettings?.notify_new_predictions;
-    const nextNotifyGameResults = userSettings?.notify_game_results;
-    const nextNotifyMessages = userSettings?.notify_messages;
-    const nextNotifyPickStatus = userSettings?.notify_pick_status;
-    const nextNotifyPickTailed = userSettings?.notify_pick_tailed;
-    const nextNotifyInvites = userSettings?.notify_invites;
-    const nextNotifyFriendRequestAccepted = userSettings?.notify_friend_request_accepted;
-    const nextNotifyGroupUpdates = userSettings?.notify_group_updates;
+    const getValue = <T,>(value: T | null | undefined): T | undefined => {
+      return value === null ? undefined : value;
+    };
+
+    const nextSoundType = getValue(
+      userSettings?.notification_sound_type as NotificationSoundType | undefined
+    );
+    const nextSoundVolume = getValue(userSettings?.notification_sound_volume);
+    const nextSoundEnabled = getValue(userSettings?.sound_effects_enabled);
+    const nextNotificationsEnabled = getValue(userSettings?.notifications_enabled);
+    const nextDesktopNotifications = getValue(userSettings?.desktop_notifications);
+    const nextNotifyNewPredictions = getValue(userSettings?.notify_new_predictions);
+    const nextNotifyGameResults = getValue(userSettings?.notify_game_results);
+    const nextNotifyMessages = getValue(userSettings?.notify_messages);
+    const nextNotifyPickStatus = getValue(userSettings?.notify_pick_status);
+    const nextNotifyPickTailed = getValue(userSettings?.notify_pick_tailed);
+    const nextNotifyInvites = getValue(userSettings?.notify_invites);
+    const nextNotifyFriendRequestAccepted = getValue(userSettings?.notify_friend_request_accepted);
+    const nextNotifyGroupUpdates = getValue(userSettings?.notify_group_updates);
 
     setSettings((prev) => {
       const updated = {
         ...prev,
-        soundType: nextSoundType ?? prev.soundType,
+        soundType: nextSoundType !== undefined ? nextSoundType : prev.soundType,
         soundVolume: nextSoundVolume !== undefined ? nextSoundVolume : prev.soundVolume,
         sound: nextSoundEnabled !== undefined ? nextSoundEnabled : prev.sound,
         enabled: nextNotificationsEnabled !== undefined ? nextNotificationsEnabled : prev.enabled,
@@ -142,6 +147,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     });
   }, [
     user?.id,
+    userSettings,
     userSettings?.notification_sound_type,
     userSettings?.notification_sound_volume,
     userSettings?.sound_effects_enabled,

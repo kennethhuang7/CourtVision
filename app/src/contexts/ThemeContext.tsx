@@ -91,35 +91,26 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    if (!user || !settings || Object.keys(settings).length === 0) return;
-    
-    let hasChanges = false;
-    
-    if (settings.theme_mode && settings.theme_mode !== theme) {
-      setThemeState(settings.theme_mode as ThemeMode);
-      hasChanges = true;
-    }
-    if (settings.ui_density && settings.ui_density !== density) {
-      setDensityState(settings.ui_density as UIDensity);
-      hasChanges = true;
-    }
-    if (settings.font_scale !== undefined && settings.font_scale !== fontScale) {
-      setFontScaleState(settings.font_scale);
-      hasChanges = true;
-    }
-    if (settings.zoom_level !== undefined && settings.zoom_level !== zoomLevel) {
-      setZoomLevelState(settings.zoom_level);
-      hasChanges = true;
-    }
-    if (settings.date_format && settings.date_format !== dateFormat) {
-      setDateFormatState(settings.date_format as DateFormat);
-      hasChanges = true;
-    }
-    if (settings.time_format && settings.time_format !== timeFormat) {
-      setTimeFormatState(settings.time_format as TimeFormat);
-      hasChanges = true;
-    }
-  }, [user?.id, settings.theme_mode, settings.ui_density, settings.font_scale, settings.zoom_level, settings.date_format, settings.time_format]);
+    if (!user) return;
+
+    const getValue = <T,>(value: T | null | undefined): T | undefined => {
+      return value === null ? undefined : value;
+    };
+
+    const nextTheme = getValue(settings?.theme_mode as ThemeMode | undefined);
+    const nextDensity = getValue(settings?.ui_density as UIDensity | undefined);
+    const nextFontScale = getValue(settings?.font_scale);
+    const nextZoomLevel = getValue(settings?.zoom_level);
+    const nextDateFormat = getValue(settings?.date_format as DateFormat | undefined);
+    const nextTimeFormat = getValue(settings?.time_format as TimeFormat | undefined);
+
+    setThemeState((prev) => nextTheme !== undefined ? nextTheme : prev);
+    setDensityState((prev) => nextDensity !== undefined ? nextDensity : prev);
+    setFontScaleState((prev) => nextFontScale !== undefined ? nextFontScale : prev);
+    setZoomLevelState((prev) => nextZoomLevel !== undefined ? nextZoomLevel : prev);
+    setDateFormatState((prev) => nextDateFormat !== undefined ? nextDateFormat : prev);
+    setTimeFormatState((prev) => nextTimeFormat !== undefined ? nextTimeFormat : prev);
+  }, [user?.id, settings, settings?.theme_mode, settings?.ui_density, settings?.font_scale, settings?.zoom_level, settings?.date_format, settings?.time_format]);
 
   const setTheme = (newTheme: ThemeMode) => {
     setThemeState(newTheme);

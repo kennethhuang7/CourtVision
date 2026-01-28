@@ -100,7 +100,7 @@ export function useUserSettings() {
         if ('notify_group_updates' in data) extractedSettings.notify_group_updates = data.notify_group_updates;
       }
 
-      const merged = { ...extractedSettings, ...localSettings };
+      const merged = { ...localSettings, ...extractedSettings };
       setLocalSettings(merged);
       return merged;
     },
