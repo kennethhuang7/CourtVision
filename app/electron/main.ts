@@ -414,10 +414,6 @@ async function createWindow() {
 
   
   win.on('minimize', () => {
-    const minimizeToTray = store.get('minimizeToTray', false);
-    if (minimizeToTray) {
-      win.hide();
-    }
     if (win && !win.isDestroyed()) {
       win.webContents.send('window-restored');
     }
