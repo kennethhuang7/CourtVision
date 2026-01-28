@@ -1152,7 +1152,7 @@ export function ChatWindow() {
                           setMessageContent(text);
                         }
                       }}
-                      className="min-h-[44px] max-h-[120px] resize-none text-sm bg-background pr-10 py-2 px-3 rounded-md border border-input focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 overflow-y-auto whitespace-pre-wrap break-words"
+                      className="min-h-[44px] max-h-[120px] resize-none text-sm bg-background pr-10 py-2 px-3 rounded-md border border-input focus:outline-none focus:border-ring focus:ring-2 focus:ring-ring focus:ring-offset-0 overflow-y-auto whitespace-pre-wrap break-words"
                       style={{ 
                         outline: 'none',
                         wordWrap: 'break-word',
