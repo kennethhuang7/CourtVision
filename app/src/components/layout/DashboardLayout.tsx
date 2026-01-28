@@ -1,4 +1,4 @@
-import { Outlet, Navigate } from 'react-router-dom';
+import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Sidebar } from './Sidebar';
@@ -28,6 +28,7 @@ export function DashboardLayout() {
   const { isAuthenticated, isLoading, isSupabaseError, retryAuth, user } = useAuth();
   const { isVisible, close } = useChatWindow();
   const { data: userProfile, isLoading: isProfileLoading } = useUserProfile();
+  const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     return localStorage.getItem('sidebar-collapsed') === 'true';
   });
@@ -44,6 +45,32 @@ export function DashboardLayout() {
       window.removeEventListener('sidebar-collapse', handleSidebarCollapse as EventListener);
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const resetBodyInteraction = () => {
+      document.body.style.pointerEvents = '';
+      document.body.style.overflow = '';
+    };
+
+    // Run once on mount and again on every route change
+    resetBodyInteraction();
+
+    // Safety net: if Radix / overlays ever leave pointer events disabled,
+    // re‑enable them on any pointer interaction.
+    const handlePointerDown = () => {
+      if (document.body.style.pointerEvents === 'none') {
+        resetBodyInteraction();
+      }
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown, true);
+
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown, true);
+    };
+  }, [location.pathname]);
   useAutoRefreshInit(); 
   useErrorLoggingInit(); 
   useTrackCurrentSession(); 
