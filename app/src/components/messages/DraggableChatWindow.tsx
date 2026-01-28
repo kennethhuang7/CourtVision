@@ -34,10 +34,23 @@ export function DraggableChatWindow({ isVisible, onClose }: DraggableChatWindowP
 
   useEffect(() => {
     if (isElectron && window.electron?.chatWindowIsMaximized) {
-      window.electron.chatWindowIsMaximized().then(setIsMaximized);
+      const checkMaximized = async () => {
+        try {
+          const maximized = await window.electron!.chatWindowIsMaximized();
+          setIsMaximized(maximized);
+        } catch (error) {
+          console.error('Error checking chat window maximized state:', error);
+        }
+      };
+
+      checkMaximized();
+      const interval = setInterval(checkMaximized, 500);
+
       const cleanupMaximize = window.electron?.onChatWindowMaximize?.(() => setIsMaximized(true));
       const cleanupUnmaximize = window.electron?.onChatWindowUnmaximize?.(() => setIsMaximized(false));
+
       return () => {
+        clearInterval(interval);
         cleanupMaximize?.();
         cleanupUnmaximize?.();
       };
@@ -108,9 +121,17 @@ export function DraggableChatWindow({ isVisible, onClose }: DraggableChatWindowP
     }
   };
 
-  const handleMaximize = () => {
+  const handleMaximize = async () => {
     if (isElectron && window.electron?.chatWindowMaximize) {
-      window.electron.chatWindowMaximize();
+      await window.electron.chatWindowMaximize();
+      setTimeout(async () => {
+        try {
+          const maximized = await window.electron!.chatWindowIsMaximized();
+          setIsMaximized(maximized);
+        } catch (error) {
+          console.error('Error checking maximized state after toggle:', error);
+        }
+      }, 100);
     } else {
       setIsMinimized(false);
     }
