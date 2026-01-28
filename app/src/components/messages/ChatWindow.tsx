@@ -799,7 +799,7 @@ export function ChatWindow() {
                     );
                   })()}
                 </div>
-                {selectedConv && selectedConv.conversation_type === 'dm' && (
+                {selectedConv && (
                   <Button
                     variant="ghost"
                     size="sm"

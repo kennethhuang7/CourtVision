@@ -825,7 +825,7 @@ export default function Messages() {
                   );
                 })()}
               </div>
-              {selectedConv && selectedConv.conversation_type === 'dm' && (
+              {selectedConv && (
                 <Button
                   variant="ghost"
                   size="sm"
