@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Minus, Square } from 'lucide-react';
+import { X, Minus, Square, Pin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ChatWindow } from './ChatWindow';
 import { cn } from '@/lib/utils';
@@ -16,6 +16,7 @@ export function DraggableChatWindow({ isVisible, onClose }: DraggableChatWindowP
   const isElectron = typeof window !== 'undefined' && window.electron;
   const [isMinimized, setIsMinimized] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
+  const [alwaysOnTop, setAlwaysOnTop] = useState(false);
   const [position, setPosition] = useState(() => {
     if (typeof window !== 'undefined' && !isElectron) {
       const windowWidth = 800;
@@ -62,6 +63,25 @@ export function DraggableChatWindow({ isVisible, onClose }: DraggableChatWindowP
       setIsMinimized(false);
     }
   }, [isVisible]);
+
+  useEffect(() => {
+    if (isElectron && window.electron?.getAppSettings) {
+      const loadSettings = () => {
+        window.electron!.getAppSettings().then((settings) => {
+          setAlwaysOnTop(settings.chatWindowAlwaysOnTop || false);
+        }).catch((error) => {
+          console.error('Error loading app settings:', error);
+        });
+      };
+
+      loadSettings();
+      const interval = setInterval(loadSettings, 1000);
+
+      return () => {
+        clearInterval(interval);
+      };
+    }
+  }, [isElectron]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -131,7 +151,7 @@ export function DraggableChatWindow({ isVisible, onClose }: DraggableChatWindowP
         } catch (error) {
           console.error('Error checking maximized state after toggle:', error);
         }
-      }, 100);
+      }, 150);
     } else {
       setIsMinimized(false);
     }
@@ -146,6 +166,19 @@ export function DraggableChatWindow({ isVisible, onClose }: DraggableChatWindowP
     }
   };
 
+  const handleToggleAlwaysOnTop = async () => {
+    if (isElectron && window.electron?.setAppSettings) {
+      const newValue = !alwaysOnTop;
+      setAlwaysOnTop(newValue);
+      try {
+        await window.electron.setAppSettings({ chatWindowAlwaysOnTop: newValue });
+      } catch (error) {
+        console.error('Error setting always on top:', error);
+        setAlwaysOnTop(!newValue);
+      }
+    }
+  };
+
   if (isElectron) {
     return (
       <div className="h-screen w-screen overflow-hidden bg-background flex flex-col">
@@ -154,6 +187,20 @@ export function DraggableChatWindow({ isVisible, onClose }: DraggableChatWindowP
           className="flex items-center justify-between h-10 bg-background/90 backdrop-blur-md border-b border-border/20 select-none shrink-0 px-2"
           style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
         >
+          <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+            <button
+              onClick={handleToggleAlwaysOnTop}
+              className={cn(
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded transition-colors outline-none focus:outline-none focus-visible:outline-none",
+                alwaysOnTop 
+                  ? "text-primary hover:text-primary/80 hover:bg-primary/10" 
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+              )}
+              title={alwaysOnTop ? "Unpin from top" : "Pin to top"}
+            >
+              <Pin className={cn("h-4 w-4 shrink-0", alwaysOnTop && "fill-current")} />
+            </button>
+          </div>
           <div className="flex items-center gap-2 min-w-0 flex-1 pl-2 overflow-hidden">
             <span className="text-sm font-medium text-foreground/70 whitespace-nowrap truncate">Messages</span>
           </div>

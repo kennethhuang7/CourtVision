@@ -192,10 +192,15 @@ export default function Settings() {
     if (typeof window !== 'undefined' && window.electron?.getAppSettings) {
       setIsLoadingAppSettings(true);
       
-      setTimeout(() => {
-        window.electron.getAppSettings()
+      const loadSettings = () => {
+        window.electron!.getAppSettings()
           .then((settings) => {
-            setAppSettings(settings);
+            setAppSettings((prev) => {
+              if (!prev || JSON.stringify(prev) !== JSON.stringify(settings)) {
+                return settings;
+              }
+              return prev;
+            });
           })
           .catch((err) => {
             
@@ -210,7 +215,17 @@ export default function Settings() {
           .finally(() => {
             setIsLoadingAppSettings(false);
           });
-      }, 500); 
+      };
+
+      setTimeout(() => {
+        loadSettings();
+      }, 500);
+
+      const interval = setInterval(loadSettings, 1000);
+
+      return () => {
+        clearInterval(interval);
+      };
     } else {
       
       setIsLoadingAppSettings(false);

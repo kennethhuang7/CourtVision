@@ -418,6 +418,9 @@ async function createWindow() {
     if (minimizeToTray) {
       win.hide();
     }
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('window-restored');
+    }
   });
 
   
@@ -471,6 +474,18 @@ async function createWindow() {
     win?.webContents.send('window-restored');
   });
 
+  win.on('restore', () => {
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('window-restored');
+    }
+  });
+
+  win.on('show', () => {
+    if (win && !win.isDestroyed()) {
+      const isMaximized = win.isMaximized();
+      win.webContents.send(isMaximized ? 'window-maximized' : 'window-restored');
+    }
+  });
   
   win.on('focus', () => {
     if (win) {
@@ -830,17 +845,33 @@ async function createChatWindow() {
 
   Menu.setApplicationMenu(null);
 
-  chatWin.on('close', () => {
-    if (chatWin) {
-      const bounds = chatWin.getBounds();
-      store.set('chatWindowBounds', bounds);
-      if (win && !win.isDestroyed()) {
-        win.webContents.send('chat-window-closed');
+  chatWin.on('close', (event) => {
+    const minimizeToTray = store.get('minimizeToTray', false);
+    if (minimizeToTray && !app.isQuitting) {
+      event.preventDefault();
+      if (chatWin) {
+        chatWin.hide();
+        const bounds = chatWin.getBounds();
+        store.set('chatWindowBounds', bounds);
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('chat-window-visibility-changed', false);
+        }
       }
-    }
-    chatWin = null;
-    if (tray) {
-      updateTrayContextMenu();
+      if (tray) {
+        updateTrayContextMenu();
+      }
+    } else {
+      if (chatWin) {
+        const bounds = chatWin.getBounds();
+        store.set('chatWindowBounds', bounds);
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('chat-window-closed');
+        }
+      }
+      chatWin = null;
+      if (tray) {
+        updateTrayContextMenu();
+      }
     }
   });
 
@@ -850,6 +881,16 @@ async function createChatWindow() {
     }
     if (win && !win.isDestroyed()) {
       win.webContents.send('chat-window-visibility-changed', true);
+    }
+    if (chatWin && chatWin.webContents && !chatWin.webContents.isDestroyed()) {
+      const isMaximized = chatWin.isMaximized();
+      chatWin.webContents.send(isMaximized ? 'chat-window-maximized' : 'chat-window-unmaximized');
+    }
+  });
+
+  chatWin.on('restore', () => {
+    if (chatWin && chatWin.webContents && !chatWin.webContents.isDestroyed()) {
+      chatWin.webContents.send('chat-window-unmaximized');
     }
   });
 
@@ -888,10 +929,20 @@ async function createChatWindow() {
     }
   });
 
+  chatWin.on('restore', () => {
+    if (chatWin && chatWin.webContents && !chatWin.webContents.isDestroyed()) {
+      chatWin.webContents.send('chat-window-unmaximized');
+    }
+  });
+
   chatWin.on('resize', () => {
     if (chatWin && chatWin.webContents && !chatWin.webContents.isDestroyed()) {
-      const isMaximized = chatWin.isMaximized();
-      chatWin.webContents.send(isMaximized ? 'chat-window-maximized' : 'chat-window-unmaximized');
+      setTimeout(() => {
+        if (chatWin && chatWin.webContents && !chatWin.webContents.isDestroyed()) {
+          const isMaximized = chatWin.isMaximized();
+          chatWin.webContents.send(isMaximized ? 'chat-window-maximized' : 'chat-window-unmaximized');
+        }
+      }, 50);
     }
   });
 
@@ -962,15 +1013,31 @@ ipcMain.handle('chat-window-hide', () => {
 
 ipcMain.handle('chat-window-close', () => {
   if (chatWin) {
-    chatWin.close();
+    const minimizeToTray = store.get('minimizeToTray', false);
+    if (minimizeToTray && !app.isQuitting) {
+      chatWin.hide();
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('chat-window-visibility-changed', false);
+      }
+    } else {
+      chatWin.close();
+    }
+  }
+  if (tray) {
+    updateTrayContextMenu();
   }
   return { success: true };
 });
 
 ipcMain.handle('chat-window-toggle', async () => {
   try {
-    if (chatWin && chatWin.isVisible()) {
-      chatWin.hide();
+    if (chatWin) {
+      if (chatWin.isVisible()) {
+        chatWin.hide();
+      } else {
+        chatWin.show();
+        chatWin.focus();
+      }
     } else {
       await createChatWindow();
     }
@@ -989,7 +1056,7 @@ ipcMain.handle('chat-window-is-visible', () => {
 });
 
 ipcMain.handle('chat-window-minimize', () => {
-  if (chatWin) {
+  if (chatWin && !chatWin.isMinimized()) {
     chatWin.minimize();
   }
   return { success: true };
