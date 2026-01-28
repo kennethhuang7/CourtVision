@@ -53,16 +53,25 @@ export function TitleBar() {
   const profilePictureUrl = profile?.profile_picture_url;
 
   useEffect(() => {
-    
-    if (window.electron?.isMaximized) {
-      window.electron.isMaximized().then(setIsMaximized);
-    }
+    if (!window.electron) return;
 
-    
+    const checkMaximized = async () => {
+      try {
+        const maximized = await window.electron!.isMaximized();
+        setIsMaximized(maximized);
+      } catch (error) {
+        console.error('Error checking window maximized state:', error);
+      }
+    };
+
+    checkMaximized();
+    const interval = setInterval(checkMaximized, 500);
+
     const cleanupMaximize = window.electron?.onMaximize?.(() => setIsMaximized(true));
     const cleanupRestore = window.electron?.onRestore?.(() => setIsMaximized(false));
 
     return () => {
+      clearInterval(interval);
       cleanupMaximize?.();
       cleanupRestore?.();
     };
@@ -74,15 +83,17 @@ export function TitleBar() {
     }
   };
 
-  const handleMaximize = () => {
-    if (isMaximized) {
-      if (window.electron?.restore) {
-        window.electron.restore();
-      }
-    } else {
-      if (window.electron?.maximize) {
-        window.electron.maximize();
-      }
+  const handleMaximize = async () => {
+    if (window.electron?.maximize) {
+      await window.electron.maximize();
+      setTimeout(async () => {
+        try {
+          const maximized = await window.electron!.isMaximized();
+          setIsMaximized(maximized);
+        } catch (error) {
+          console.error('Error checking maximized state after toggle:', error);
+        }
+      }, 100);
     }
   };
 
