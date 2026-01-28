@@ -348,7 +348,7 @@ function handleOAuthCallback(url: string) {
 
 process.env.PUBLIC = app.isPackaged
   ? process.env.DIST
-  : join(process.env.DIST, '../public');
+  : join(process.env.DIST, 'public');
 
 let win = null;
 let chatWin = null;
@@ -608,13 +608,7 @@ function createTray() {
     const altPath = join(process.env.DIST, iconFile);
     if (fs.existsSync(altPath)) {
       iconPath = altPath;
-      console.log('Using alternative icon path:', iconPath);
     } else {
-      console.error('Tray icon file does not exist at:', iconPath);
-      console.error('Alternative path also not found:', altPath);
-      console.error('PUBLIC env:', process.env.PUBLIC);
-      console.error('DIST env:', process.env.DIST);
-      console.error('isPackaged:', app.isPackaged);
       return;
     }
   }
@@ -624,12 +618,9 @@ function createTray() {
     trayIcon = nativeImage.createFromPath(iconPath);
     
     if (trayIcon.isEmpty()) {
-      console.error('Tray icon is empty, icon path:', iconPath);
       return;
     }
   } catch (error) {
-    console.error('Error loading tray icon:', error);
-    console.error('Icon path:', iconPath);
     return;
   }
   
