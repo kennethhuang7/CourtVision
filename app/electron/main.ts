@@ -570,7 +570,7 @@ function updateTrayContextMenu() {
     },
     { type: 'separator' },
     {
-      label: 'Quit',
+      label: 'Close',
       click: () => {
         app.isQuitting = true;
         if (chatWin) {
@@ -629,9 +629,12 @@ function createTray() {
         },
         { type: 'separator' },
         {
-          label: 'Quit',
+          label: 'Close',
           click: () => {
             app.isQuitting = true;
+            if (chatWin) {
+              chatWin.close();
+            }
             app.quit();
           },
         },
