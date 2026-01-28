@@ -877,14 +877,21 @@ async function createChatWindow() {
   });
 
   chatWin.on('maximize', () => {
-    if (chatWin && chatWin.webContents) {
+    if (chatWin && chatWin.webContents && !chatWin.webContents.isDestroyed()) {
       chatWin.webContents.send('chat-window-maximized');
     }
   });
 
   chatWin.on('unmaximize', () => {
-    if (chatWin && chatWin.webContents) {
+    if (chatWin && chatWin.webContents && !chatWin.webContents.isDestroyed()) {
       chatWin.webContents.send('chat-window-unmaximized');
+    }
+  });
+
+  chatWin.on('resize', () => {
+    if (chatWin && chatWin.webContents && !chatWin.webContents.isDestroyed()) {
+      const isMaximized = chatWin.isMaximized();
+      chatWin.webContents.send(isMaximized ? 'chat-window-maximized' : 'chat-window-unmaximized');
     }
   });
 
@@ -990,7 +997,8 @@ ipcMain.handle('chat-window-minimize', () => {
 
 ipcMain.handle('chat-window-maximize', () => {
   if (chatWin) {
-    if (chatWin.isMaximized()) {
+    const wasMaximized = chatWin.isMaximized();
+    if (wasMaximized) {
       chatWin.unmaximize();
     } else {
       chatWin.maximize();
