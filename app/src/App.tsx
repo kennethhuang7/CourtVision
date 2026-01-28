@@ -33,6 +33,7 @@ import HowItWorks from "./pages/dashboard/HowItWorks";
 import Settings from "./pages/dashboard/Settings";
 import Notifications from "./pages/dashboard/Notifications";
 import NotFound from "./pages/NotFound";
+import { DraggableChatWindow } from "@/components/messages/DraggableChatWindow";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -49,114 +50,18 @@ const queryClient = new QueryClient({
   },
 });
 
-const AppContent = () => {
+const ChatWindowRoute = () => {
   return (
-    <>
-      <HashRouter>
-                <Routes>
-                  <Route path="/" element={<Index />} />
-                  <Route path="/login" element={
-                    <ErrorBoundary>
-                      <Login />
-                    </ErrorBoundary>
-                  } />
-                  <Route path="/register" element={
-                    <ErrorBoundary>
-                      <Register />
-                    </ErrorBoundary>
-                  } />
-                  <Route path="/verify-email" element={
-                    <ErrorBoundary>
-                      <VerifyEmail />
-                    </ErrorBoundary>
-                  } />
-                  <Route path="/complete-profile" element={
-                    <ErrorBoundary>
-                      <CompleteProfile />
-                    </ErrorBoundary>
-                  } />
-                  <Route path="/dashboard" element={
-                    <ErrorBoundary>
-                      <DashboardLayout />
-                    </ErrorBoundary>
-                  }>
-                    <Route index element={
-                      <ErrorBoundary>
-                        <Predictions />
-                      </ErrorBoundary>
-                    } />
-                    <Route path="player-analysis" element={
-                      <ErrorBoundary>
-                        <PlayerAnalysis />
-                      </ErrorBoundary>
-                    } />
-                    <Route path="pick-finder" element={
-                      <ErrorBoundary>
-                        <PickFinder />
-                      </ErrorBoundary>
-                    } />
-                    <Route path="trends" element={
-                      <ErrorBoundary>
-                        <Trends />
-                      </ErrorBoundary>
-                    } />
-                    <Route path="saved-picks" element={
-                      <ErrorBoundary>
-                        <SavedPicks />
-                      </ErrorBoundary>
-                    } />
-                    <Route path="community" element={
-                      <ErrorBoundary>
-                        <Community />
-                      </ErrorBoundary>
-                    } />
-                    <Route path="messages" element={
-                      <ErrorBoundary>
-                        <Messages />
-                      </ErrorBoundary>
-                    } />
-                    <Route path="friends" element={
-                      <ErrorBoundary>
-                        <Friends />
-                      </ErrorBoundary>
-                    } />
-                    <Route path="groups" element={
-                      <ErrorBoundary>
-                        <MyGroups />
-                      </ErrorBoundary>
-                    } />
-                    <Route path="model-performance" element={
-                      <ErrorBoundary>
-                        <ModelPerformance />
-                      </ErrorBoundary>
-                    } />
-                    <Route path="analytics" element={
-                      <ErrorBoundary>
-                        <Analytics />
-                      </ErrorBoundary>
-                    } />
-                    <Route path="how-it-works" element={
-                      <ErrorBoundary>
-                        <HowItWorks />
-                      </ErrorBoundary>
-                    } />
-                    <Route path="notifications" element={
-                      <ErrorBoundary>
-                        <Notifications />
-                      </ErrorBoundary>
-                    } />
-                    <Route path="settings" element={
-                      <ErrorBoundary>
-                        <Settings />
-                      </ErrorBoundary>
-                    } />
-                  </Route>
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-      </HashRouter>
-    </>
+    <div className="h-screen w-screen overflow-hidden bg-background">
+      <DraggableChatWindow isVisible={true} onClose={() => {
+        if (typeof window !== 'undefined' && window.electron?.chatWindowClose) {
+          window.electron.chatWindowClose();
+        }
+      }} />
+    </div>
   );
 };
+
 
 const App = () => (
   <ErrorBoundary>
@@ -171,7 +76,118 @@ const App = () => (
                     <TooltipProvider>
                       <Toaster />
                       <Sonner />
-                      <AppContent />
+                      <HashRouter
+                        future={{
+                          v7_startTransition: true,
+                          v7_relativeSplatPath: true,
+                        }}
+                      >
+                        <Routes>
+                          <Route path="/chat-window" element={
+                            <ErrorBoundary>
+                              <ChatWindowRoute />
+                            </ErrorBoundary>
+                          } />
+                          <Route path="/" element={<Index />} />
+                          <Route path="/login" element={
+                            <ErrorBoundary>
+                              <Login />
+                            </ErrorBoundary>
+                          } />
+                          <Route path="/register" element={
+                            <ErrorBoundary>
+                              <Register />
+                            </ErrorBoundary>
+                          } />
+                          <Route path="/verify-email" element={
+                            <ErrorBoundary>
+                              <VerifyEmail />
+                            </ErrorBoundary>
+                          } />
+                          <Route path="/complete-profile" element={
+                            <ErrorBoundary>
+                              <CompleteProfile />
+                            </ErrorBoundary>
+                          } />
+                          <Route path="/dashboard" element={
+                            <ErrorBoundary>
+                              <DashboardLayout />
+                            </ErrorBoundary>
+                          }>
+                            <Route index element={
+                              <ErrorBoundary>
+                                <Predictions />
+                              </ErrorBoundary>
+                            } />
+                            <Route path="player-analysis" element={
+                              <ErrorBoundary>
+                                <PlayerAnalysis />
+                              </ErrorBoundary>
+                            } />
+                            <Route path="pick-finder" element={
+                              <ErrorBoundary>
+                                <PickFinder />
+                              </ErrorBoundary>
+                            } />
+                            <Route path="trends" element={
+                              <ErrorBoundary>
+                                <Trends />
+                              </ErrorBoundary>
+                            } />
+                            <Route path="saved-picks" element={
+                              <ErrorBoundary>
+                                <SavedPicks />
+                              </ErrorBoundary>
+                            } />
+                            <Route path="community" element={
+                              <ErrorBoundary>
+                                <Community />
+                              </ErrorBoundary>
+                            } />
+                            <Route path="messages" element={
+                              <ErrorBoundary>
+                                <Messages />
+                              </ErrorBoundary>
+                            } />
+                            <Route path="friends" element={
+                              <ErrorBoundary>
+                                <Friends />
+                              </ErrorBoundary>
+                            } />
+                            <Route path="groups" element={
+                              <ErrorBoundary>
+                                <MyGroups />
+                              </ErrorBoundary>
+                            } />
+                            <Route path="model-performance" element={
+                              <ErrorBoundary>
+                                <ModelPerformance />
+                              </ErrorBoundary>
+                            } />
+                            <Route path="analytics" element={
+                              <ErrorBoundary>
+                                <Analytics />
+                              </ErrorBoundary>
+                            } />
+                            <Route path="how-it-works" element={
+                              <ErrorBoundary>
+                                <HowItWorks />
+                              </ErrorBoundary>
+                            } />
+                            <Route path="notifications" element={
+                              <ErrorBoundary>
+                                <Notifications />
+                              </ErrorBoundary>
+                            } />
+                            <Route path="settings" element={
+                              <ErrorBoundary>
+                                <Settings />
+                              </ErrorBoundary>
+                            } />
+                          </Route>
+                          <Route path="*" element={<NotFound />} />
+                        </Routes>
+                      </HashRouter>
                     </TooltipProvider>
                   </EnsembleProvider>
                 </ChatWindowProvider>

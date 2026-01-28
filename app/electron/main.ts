@@ -269,6 +269,7 @@ const store = new Store({
     startWithSystem: false,
     startMinimized: false,
     alwaysOnTop: false,
+    chatWindowAlwaysOnTop: false,
     discordRichPresence: false,
     checkForUpdatesOnStartup: true,
   },
@@ -350,6 +351,7 @@ process.env.PUBLIC = app.isPackaged
   : join(process.env.DIST, '../public');
 
 let win = null;
+let chatWin = null;
 let tray = null;
 
 
@@ -397,12 +399,15 @@ async function createWindow() {
       event.preventDefault();
       win.hide();
       
-      
       if (process.platform !== 'darwin' && tray) {
         tray.displayBalloon({
           title: 'CourtVision',
           content: 'The app is still running in the system tray. Click the icon to show the window.',
         });
+      }
+    } else if (!minimizeToTray && !app.isQuitting) {
+      if (chatWin) {
+        chatWin.close();
       }
     }
   });
@@ -520,6 +525,7 @@ function updateTrayContextMenu() {
   if (!tray || !win) return;
   
   const isVisible = win.isVisible();
+  const chatWindowVisible = chatWin ? chatWin.isVisible() : false;
   const contextMenu = Menu.buildFromTemplate([
     {
       label: 'Show CourtVision',
@@ -542,9 +548,34 @@ function updateTrayContextMenu() {
     },
     { type: 'separator' },
     {
+      label: chatWindowVisible ? 'Hide Chat Window' : 'Show Chat Window',
+      click: async () => {
+        if (chatWin) {
+          if (chatWindowVisible) {
+            chatWin.hide();
+          } else {
+            chatWin.show();
+            chatWin.focus();
+          }
+        } else {
+          await createChatWindow();
+        }
+        setTimeout(() => {
+          updateTrayContextMenu();
+          if (win && !win.isDestroyed()) {
+            win.webContents.send('chat-window-visibility-changed', chatWin ? chatWin.isVisible() : false);
+          }
+        }, 100);
+      },
+    },
+    { type: 'separator' },
+    {
       label: 'Quit',
       click: () => {
         app.isQuitting = true;
+        if (chatWin) {
+          chatWin.close();
+        }
         app.quit();
       },
     },
@@ -753,6 +784,222 @@ ipcMain.handle('window-is-maximized', () => {
   return win ? win.isMaximized() : false;
 });
 
+async function createChatWindow() {
+  if (chatWin) {
+    chatWin.show();
+    chatWin.focus();
+    if (tray) {
+      updateTrayContextMenu();
+    }
+    return;
+  }
+
+  const chatWindowAlwaysOnTop = store.get('chatWindowAlwaysOnTop', false);
+  const savedBounds = store.get('chatWindowBounds', null);
+
+  const iconFile = process.platform === 'win32' ? 'courtvision.ico' : 'courtvision.png';
+
+  const defaultBounds = {
+    width: 800,
+    height: 600,
+    x: savedBounds?.x ?? (win ? win.getBounds().x + 100 : 100),
+    y: savedBounds?.y ?? (win ? win.getBounds().y + 100 : 100),
+  };
+
+  chatWin = new BrowserWindow({
+    width: savedBounds?.width ?? defaultBounds.width,
+    height: savedBounds?.height ?? defaultBounds.height,
+    x: defaultBounds.x,
+    y: defaultBounds.y,
+    minWidth: 400,
+    minHeight: 300,
+    icon: join(process.env.PUBLIC, iconFile),
+    frame: false,
+    show: false,
+    alwaysOnTop: chatWindowAlwaysOnTop,
+    webPreferences: {
+      preload,
+      nodeIntegration: false,
+      contextIsolation: true,
+      webSecurity: true,
+    },
+  });
+
+  Menu.setApplicationMenu(null);
+
+  chatWin.on('close', () => {
+    if (chatWin) {
+      const bounds = chatWin.getBounds();
+      store.set('chatWindowBounds', bounds);
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('chat-window-closed');
+      }
+    }
+    chatWin = null;
+    if (tray) {
+      updateTrayContextMenu();
+    }
+  });
+
+  chatWin.on('show', () => {
+    if (tray) {
+      updateTrayContextMenu();
+    }
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('chat-window-visibility-changed', true);
+    }
+  });
+
+  chatWin.on('hide', () => {
+    if (tray) {
+      updateTrayContextMenu();
+    }
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('chat-window-visibility-changed', false);
+    }
+  });
+
+  chatWin.on('moved', () => {
+    if (chatWin) {
+      const bounds = chatWin.getBounds();
+      store.set('chatWindowBounds', bounds);
+    }
+  });
+
+  chatWin.on('resized', () => {
+    if (chatWin) {
+      const bounds = chatWin.getBounds();
+      store.set('chatWindowBounds', bounds);
+    }
+  });
+
+  chatWin.on('maximize', () => {
+    if (chatWin && chatWin.webContents) {
+      chatWin.webContents.send('chat-window-maximized');
+    }
+  });
+
+  chatWin.on('unmaximize', () => {
+    if (chatWin && chatWin.webContents) {
+      chatWin.webContents.send('chat-window-unmaximized');
+    }
+  });
+
+  const chatUrl = isDev && url ? `${url}#/chat-window` : `file://${indexHtml}#/chat-window`;
+
+  if (isDev && url) {
+    chatWin.loadURL(chatUrl);
+    chatWin.webContents.openDevTools();
+  } else {
+    chatWin.loadFile(indexHtml).then(() => {
+      if (chatWin) {
+        chatWin.webContents.executeJavaScript(`window.location.hash = '#/chat-window'`);
+      }
+    });
+  }
+
+  chatWin.once('ready-to-show', () => {
+    if (chatWin) {
+      chatWin.show();
+      chatWin.focus();
+    }
+  });
+
+  chatWin.webContents.on('did-finish-load', () => {
+    if (chatWin && !chatWin.isVisible()) {
+      chatWin.show();
+      chatWin.focus();
+    }
+  });
+
+  chatWin.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    console.error('Chat window failed to load:', { errorCode, errorDescription });
+    if (chatWin) {
+      chatWin.close();
+    }
+  });
+
+  setTimeout(() => {
+    if (chatWin && !chatWin.isVisible()) {
+      chatWin.show();
+      chatWin.focus();
+    }
+  }, 2000);
+}
+
+ipcMain.handle('chat-window-show', async () => {
+  try {
+    await createChatWindow();
+    if (tray) {
+      updateTrayContextMenu();
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('Error showing chat window:', error);
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('chat-window-hide', () => {
+  if (chatWin) {
+    chatWin.hide();
+  }
+  if (tray) {
+    updateTrayContextMenu();
+  }
+  return { success: true };
+});
+
+ipcMain.handle('chat-window-close', () => {
+  if (chatWin) {
+    chatWin.close();
+  }
+  return { success: true };
+});
+
+ipcMain.handle('chat-window-toggle', async () => {
+  try {
+    if (chatWin && chatWin.isVisible()) {
+      chatWin.hide();
+    } else {
+      await createChatWindow();
+    }
+    if (tray) {
+      updateTrayContextMenu();
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('Error toggling chat window:', error);
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('chat-window-is-visible', () => {
+  return chatWin ? chatWin.isVisible() : false;
+});
+
+ipcMain.handle('chat-window-minimize', () => {
+  if (chatWin) {
+    chatWin.minimize();
+  }
+  return { success: true };
+});
+
+ipcMain.handle('chat-window-maximize', () => {
+  if (chatWin) {
+    if (chatWin.isMaximized()) {
+      chatWin.unmaximize();
+    } else {
+      chatWin.maximize();
+    }
+  }
+  return { success: true };
+});
+
+ipcMain.handle('chat-window-is-maximized', () => {
+  return chatWin ? chatWin.isMaximized() : false;
+});
+
 
 ipcMain.on('flash-window', () => {
   if (win && !win.isFocused()) {
@@ -778,6 +1025,7 @@ ipcMain.handle('get-app-settings', () => {
     startWithSystem: store.get('startWithSystem', false),
     startMinimized: store.get('startMinimized', false),
     alwaysOnTop: store.get('alwaysOnTop', false),
+    chatWindowAlwaysOnTop: store.get('chatWindowAlwaysOnTop', false),
     discordRichPresence: store.get('discordRichPresence', false),
     checkForUpdatesOnStartup: store.get('checkForUpdatesOnStartup', true),
   };
@@ -828,6 +1076,13 @@ ipcMain.handle('set-app-settings', (event, settings) => {
     }
   }
 
+  if (Object.prototype.hasOwnProperty.call(settings, 'chatWindowAlwaysOnTop')) {
+    store.set('chatWindowAlwaysOnTop', settings.chatWindowAlwaysOnTop);
+    if (chatWin) {
+      chatWin.setAlwaysOnTop(settings.chatWindowAlwaysOnTop);
+    }
+  }
+
   if (Object.prototype.hasOwnProperty.call(settings, 'discordRichPresence')) {
     store.set('discordRichPresence', settings.discordRichPresence);
     if (settings.discordRichPresence) {
@@ -851,8 +1106,14 @@ app.on('window-all-closed', () => {
   const minimizeToTray = store.get('minimizeToTray', false);
   
   if (process.platform !== 'darwin' && !minimizeToTray) {
+    if (chatWin) {
+      chatWin.close();
+    }
     app.quit();
   } else if (!minimizeToTray) {
+    if (chatWin) {
+      chatWin.close();
+    }
     win = null;
   }
 });
