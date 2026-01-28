@@ -600,17 +600,42 @@ function updateTrayContextMenu() {
 }
 
 function createTray() {
-  
   const iconFile = process.platform === 'win32' ? 'courtvision.ico' : 'courtvision.png';
-  const iconPath = join(process.env.PUBLIC, iconFile);
-  let trayIcon = nativeImage.createFromPath(iconPath);
+  let iconPath = join(process.env.PUBLIC, iconFile);
   
+  const fs = require('fs');
+  if (!fs.existsSync(iconPath)) {
+    const altPath = join(process.env.DIST, iconFile);
+    if (fs.existsSync(altPath)) {
+      iconPath = altPath;
+      console.log('Using alternative icon path:', iconPath);
+    } else {
+      console.error('Tray icon file does not exist at:', iconPath);
+      console.error('Alternative path also not found:', altPath);
+      console.error('PUBLIC env:', process.env.PUBLIC);
+      console.error('DIST env:', process.env.DIST);
+      console.error('isPackaged:', app.isPackaged);
+      return;
+    }
+  }
+  
+  let trayIcon;
+  try {
+    trayIcon = nativeImage.createFromPath(iconPath);
+    
+    if (trayIcon.isEmpty()) {
+      console.error('Tray icon is empty, icon path:', iconPath);
+      return;
+    }
+  } catch (error) {
+    console.error('Error loading tray icon:', error);
+    console.error('Icon path:', iconPath);
+    return;
+  }
   
   if (process.platform === 'darwin') {
-    
     trayIcon.setTemplateImage(true);
   } else {
-    
     const sizes = trayIcon.getSize();
     const targetSize = process.platform === 'win32' ? 16 : 22;
     if (sizes.width !== targetSize || sizes.height !== targetSize) {
