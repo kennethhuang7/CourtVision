@@ -16,6 +16,16 @@ interface UserSettings {
   sound_effects_enabled?: boolean;
   skin_tone_preference?: string;
   discord_rich_presence_enabled?: boolean;
+  notifications_enabled?: boolean;
+  desktop_notifications?: boolean;
+  notify_new_predictions?: boolean;
+  notify_game_results?: boolean;
+  notify_messages?: boolean;
+  notify_pick_status?: boolean;
+  notify_pick_tailed?: boolean;
+  notify_invites?: boolean;
+  notify_friend_request_accepted?: boolean;
+  notify_group_updates?: boolean;
   [key: string]: any;
 }
 
@@ -78,6 +88,16 @@ export function useUserSettings() {
         if ('sound_effects_enabled' in data) extractedSettings.sound_effects_enabled = data.sound_effects_enabled;
         if ('skin_tone_preference' in data) extractedSettings.skin_tone_preference = data.skin_tone_preference;
         if ('discord_rich_presence_enabled' in data) extractedSettings.discord_rich_presence_enabled = data.discord_rich_presence_enabled;
+        if ('notifications_enabled' in data) extractedSettings.notifications_enabled = data.notifications_enabled;
+        if ('desktop_notifications' in data) extractedSettings.desktop_notifications = data.desktop_notifications;
+        if ('notify_new_predictions' in data) extractedSettings.notify_new_predictions = data.notify_new_predictions;
+        if ('notify_game_results' in data) extractedSettings.notify_game_results = data.notify_game_results;
+        if ('notify_messages' in data) extractedSettings.notify_messages = data.notify_messages;
+        if ('notify_pick_status' in data) extractedSettings.notify_pick_status = data.notify_pick_status;
+        if ('notify_pick_tailed' in data) extractedSettings.notify_pick_tailed = data.notify_pick_tailed;
+        if ('notify_invites' in data) extractedSettings.notify_invites = data.notify_invites;
+        if ('notify_friend_request_accepted' in data) extractedSettings.notify_friend_request_accepted = data.notify_friend_request_accepted;
+        if ('notify_group_updates' in data) extractedSettings.notify_group_updates = data.notify_group_updates;
       }
 
       const merged = { ...extractedSettings, ...localSettings };

@@ -121,7 +121,19 @@ export function ChatWindow() {
 
   
   const messageIds = messages.map(m => m.id);
-  const { data: reactionsMap = new Map() } = useBatchMessageReactions(messageIds, !!selectedConversation);
+  const { data: reactionsMap = new Map(), isLoading: reactionsLoading } = useBatchMessageReactions(messageIds, !!selectedConversation);
+  
+  useEffect(() => {
+    const pickShareMessages = messages.filter(m => m.message_type === 'pick_share');
+    if (pickShareMessages.length > 0 && selectedConversation?.type === 'group') {
+      logger.info('Pick share messages in group chat', {
+        messageIds: pickShareMessages.map(m => m.id),
+        allMessageIds: messageIds,
+        reactionsMapSize: reactionsMap.size,
+        reactionsLoading
+      });
+    }
+  }, [reactionsMap, messages, selectedConversation, messageIds, reactionsLoading]);
 
   const scrollToBottom = useCallback((smooth = false) => {
     if (!messagesContainerRef.current) return;
@@ -330,17 +342,24 @@ export function ChatWindow() {
   };
 
   const handleOpenGroupChat = async (groupId: string) => {
+    logger.debug('Opening group chat for group', { groupId });
     try {
       const conversationId = await ensureGroupConvMutation.mutateAsync(groupId);
+      logger.debug('Group conversation ensured', { conversationId });
+      
       setSelectedConversation({ type: 'group', id: conversationId });
       setCreateDMOpen(false);
     } catch (error: any) {
+      logger.error('Error opening group chat', error as Error);
+      
       const existingConv = conversations.find(
         c => c.conversation_type === 'group' && c.group_id === groupId
       );
       if (existingConv) {
+        logger.debug('Found existing conversation, opening', { conversationId: existingConv.conversation_id });
         setSelectedConversation({ type: 'group', id: existingConv.conversation_id });
       } else {
+        logger.debug('No existing conversation found, using group_id as fallback', { groupId });
         setSelectedConversation({ type: 'group', id: groupId });
       }
       setCreateDMOpen(false);
