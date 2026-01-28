@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Minus, Maximize2 } from 'lucide-react';
+import { X, Minus, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ChatWindow } from './ChatWindow';
 import { cn } from '@/lib/utils';
@@ -13,9 +13,11 @@ interface DraggableChatWindowProps {
 }
 
 export function DraggableChatWindow({ isVisible, onClose }: DraggableChatWindowProps) {
+  const isElectron = typeof window !== 'undefined' && window.electron;
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isMaximized, setIsMaximized] = useState(false);
   const [position, setPosition] = useState(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && !isElectron) {
       const windowWidth = 800;
       const windowHeight = 600;
       const margin = 20;
@@ -29,6 +31,18 @@ export function DraggableChatWindow({ isVisible, onClose }: DraggableChatWindowP
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const windowRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isElectron && window.electron?.chatWindowIsMaximized) {
+      window.electron.chatWindowIsMaximized().then(setIsMaximized);
+      const cleanupMaximize = window.electron?.onChatWindowMaximize?.(() => setIsMaximized(true));
+      const cleanupUnmaximize = window.electron?.onChatWindowUnmaximize?.(() => setIsMaximized(false));
+      return () => {
+        cleanupMaximize?.();
+        cleanupUnmaximize?.();
+      };
+    }
+  }, [isElectron]);
 
   useEffect(() => {
     if (!isVisible) {
@@ -87,17 +101,78 @@ export function DraggableChatWindow({ isVisible, onClose }: DraggableChatWindowP
   }, [isDragging, dragOffset]);
 
   const handleMinimize = () => {
-    setIsMinimized(true);
+    if (isElectron && window.electron?.chatWindowMinimize) {
+      window.electron.chatWindowMinimize();
+    } else {
+      setIsMinimized(true);
+    }
   };
 
   const handleMaximize = () => {
-    setIsMinimized(false);
+    if (isElectron && window.electron?.chatWindowMaximize) {
+      window.electron.chatWindowMaximize();
+    } else {
+      setIsMinimized(false);
+    }
   };
 
   const handleClose = () => {
-    setIsMinimized(false);
-    onClose();
+    if (isElectron && window.electron?.chatWindowClose) {
+      window.electron.chatWindowClose();
+    } else {
+      setIsMinimized(false);
+      onClose();
+    }
   };
+
+  if (isElectron) {
+    return (
+      <div className="h-screen w-screen overflow-hidden bg-background flex flex-col">
+        <div
+          data-title-bar
+          className="flex items-center justify-between h-10 bg-background/90 backdrop-blur-md border-b border-border/20 select-none shrink-0 px-2"
+          style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+        >
+          <div className="flex items-center gap-2 min-w-0 flex-1 pl-2 overflow-hidden">
+            <span className="text-sm font-medium text-foreground/70 whitespace-nowrap truncate">Messages</span>
+          </div>
+          <div className="flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+            <button
+              onClick={handleMinimize}
+              className="flex h-8 w-10 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors outline-none focus:outline-none focus-visible:outline-none"
+              title="Minimize"
+            >
+              <Minus className="h-4 w-4 shrink-0" />
+            </button>
+            <button
+              onClick={handleMaximize}
+              className="flex h-8 w-10 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors outline-none focus:outline-none focus-visible:outline-none"
+              title={isMaximized ? "Restore" : "Maximize"}
+            >
+              {isMaximized ? (
+                <div className="relative h-3.5 w-3.5 shrink-0">
+                  <div className="absolute bottom-0 left-0 h-2.5 w-2.5 border border-current" />
+                  <div className="absolute top-0 right-0 h-2.5 w-2.5 border border-current bg-background" />
+                </div>
+              ) : (
+                <Square className="h-3.5 w-3.5 shrink-0" />
+              )}
+            </button>
+            <button
+              onClick={handleClose}
+              className="flex h-8 w-10 shrink-0 items-center justify-center text-muted-foreground hover:text-white hover:bg-destructive transition-colors outline-none focus:outline-none focus-visible:outline-none"
+              title="Close"
+            >
+              <X className="h-4 w-4 shrink-0" />
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          <ChatWindow />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <AnimatePresence>
@@ -147,7 +222,7 @@ export function DraggableChatWindow({ isVisible, onClose }: DraggableChatWindowP
                   transition={{ duration: 0.2 }}
                 >
                   {isMinimized ? (
-                    <Maximize2 className="h-3.5 w-3.5" />
+                    <Square className="h-3.5 w-3.5" />
                   ) : (
                     <Minus className="h-3.5 w-3.5" />
                   )}

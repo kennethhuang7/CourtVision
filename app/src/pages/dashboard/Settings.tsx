@@ -407,6 +407,7 @@ export default function Settings() {
     startWithSystem: boolean;
     startMinimized: boolean;
     alwaysOnTop: boolean;
+    chatWindowAlwaysOnTop: boolean;
     discordRichPresence: boolean;
     checkForUpdatesOnStartup: boolean;
   } | null>(null);
@@ -3338,6 +3339,18 @@ export default function Settings() {
                       <Switch 
                         checked={appSettings.alwaysOnTop}
                         onCheckedChange={(enabled) => handleAppSettingChange('alwaysOnTop', enabled)}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>Chat Window Always on Top</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Keep the separate chat window above all other windows.
+                        </p>
+                      </div>
+                      <Switch 
+                        checked={appSettings.chatWindowAlwaysOnTop}
+                        onCheckedChange={(enabled) => handleAppSettingChange('chatWindowAlwaysOnTop', enabled)}
                       />
                     </div>
                   </div>

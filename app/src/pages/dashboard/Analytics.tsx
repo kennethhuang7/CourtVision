@@ -84,7 +84,8 @@ function WinRateRing({
       {/* Center content */}
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <motion.span
-          initial={{ opacity: 0, scale: 0.5 }}
+          key={hasData ? 'has-data' : 'no-data'}
+          initial={hasData ? { opacity: 0, scale: 0.5 } : false}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, delay: 0.8 }}
           className={cn(
@@ -96,7 +97,8 @@ function WinRateRing({
           {hasData ? `${value.toFixed(0)}%` : '--%'}
         </motion.span>
         <motion.span
-          initial={{ opacity: 0 }}
+          key={hasData ? 'has-data-label' : 'no-data-label'}
+          initial={hasData ? { opacity: 0 } : false}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 1 }}
           className="text-xs text-muted-foreground"

@@ -101,7 +101,7 @@ export function DashboardLayout() {
           <Outlet />
         </main>
       </div>
-      <DraggableChatWindow isVisible={isVisible} onClose={close} />
+      {!window.electron && <DraggableChatWindow isVisible={isVisible} onClose={close} />}
     </div>
   );
 }

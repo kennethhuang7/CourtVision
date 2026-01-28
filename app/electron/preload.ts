@@ -11,6 +11,7 @@ function validateSettings(settings: Record<string, any>): Record<string, boolean
     'startWithSystem',
     'startMinimized',
     'alwaysOnTop',
+    'chatWindowAlwaysOnTop',
     'discordRichPresence',
     'checkForUpdatesOnStartup'
   ];
@@ -99,4 +100,32 @@ contextBridge.exposeInMainWorld('electron', {
     return () => ipcRenderer.removeListener('update-status', handler);
   },
   openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
+  chatWindowShow: () => ipcRenderer.invoke('chat-window-show'),
+  chatWindowHide: () => ipcRenderer.invoke('chat-window-hide'),
+  chatWindowClose: () => ipcRenderer.invoke('chat-window-close'),
+  chatWindowToggle: () => ipcRenderer.invoke('chat-window-toggle'),
+  chatWindowIsVisible: () => ipcRenderer.invoke('chat-window-is-visible'),
+  chatWindowMinimize: () => ipcRenderer.invoke('chat-window-minimize'),
+  chatWindowMaximize: () => ipcRenderer.invoke('chat-window-maximize'),
+  chatWindowIsMaximized: () => ipcRenderer.invoke('chat-window-is-maximized'),
+  onChatWindowClosed: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('chat-window-closed', handler);
+    return () => ipcRenderer.removeListener('chat-window-closed', handler);
+  },
+  onChatWindowMaximize: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('chat-window-maximized', handler);
+    return () => ipcRenderer.removeListener('chat-window-maximized', handler);
+  },
+  onChatWindowUnmaximize: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('chat-window-unmaximized', handler);
+    return () => ipcRenderer.removeListener('chat-window-unmaximized', handler);
+  },
+  onChatWindowVisibilityChanged: (callback: (visible: boolean) => void) => {
+    const handler = (_event: any, visible: boolean) => callback(visible);
+    ipcRenderer.on('chat-window-visibility-changed', handler);
+    return () => ipcRenderer.removeListener('chat-window-visibility-changed', handler);
+  },
 });

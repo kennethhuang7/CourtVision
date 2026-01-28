@@ -4,6 +4,7 @@ export interface AppSettings {
   startWithSystem: boolean;
   startMinimized: boolean;
   alwaysOnTop: boolean;
+  chatWindowAlwaysOnTop: boolean;
   discordRichPresence: boolean;
   checkForUpdatesOnStartup: boolean;
 }
@@ -74,6 +75,18 @@ export interface ElectronAPI {
   getAppVersion: () => Promise<string>;
   onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void;
   openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
+  chatWindowShow: () => Promise<{ success: boolean; error?: string }>;
+  chatWindowHide: () => Promise<{ success: boolean; error?: string }>;
+  chatWindowClose: () => Promise<{ success: boolean; error?: string }>;
+  chatWindowToggle: () => Promise<{ success: boolean; error?: string }>;
+  chatWindowIsVisible: () => Promise<boolean>;
+  chatWindowMinimize: () => Promise<{ success: boolean; error?: string }>;
+  chatWindowMaximize: () => Promise<{ success: boolean; error?: string }>;
+  chatWindowIsMaximized: () => Promise<boolean>;
+  onChatWindowClosed: (callback: () => void) => () => void;
+  onChatWindowMaximize: (callback: () => void) => () => void;
+  onChatWindowUnmaximize: (callback: () => void) => () => void;
+  onChatWindowVisibilityChanged: (callback: (visible: boolean) => void) => () => void;
 }
 
 declare global {
