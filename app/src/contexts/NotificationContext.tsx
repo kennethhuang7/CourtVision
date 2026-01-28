@@ -96,6 +96,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       (userSettings?.notification_sound_type as NotificationSoundType | undefined) || undefined;
     const nextSoundVolume = userSettings?.notification_sound_volume;
     const nextSoundEnabled = userSettings?.sound_effects_enabled;
+    const nextNotificationsEnabled = userSettings?.notifications_enabled;
+    const nextDesktopNotifications = userSettings?.desktop_notifications;
+    const nextNotifyNewPredictions = userSettings?.notify_new_predictions;
+    const nextNotifyGameResults = userSettings?.notify_game_results;
+    const nextNotifyMessages = userSettings?.notify_messages;
+    const nextNotifyPickStatus = userSettings?.notify_pick_status;
+    const nextNotifyPickTailed = userSettings?.notify_pick_tailed;
+    const nextNotifyInvites = userSettings?.notify_invites;
+    const nextNotifyFriendRequestAccepted = userSettings?.notify_friend_request_accepted;
+    const nextNotifyGroupUpdates = userSettings?.notify_group_updates;
 
     setSettings((prev) => {
       const updated = {
@@ -103,12 +113,28 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         soundType: nextSoundType ?? prev.soundType,
         soundVolume: nextSoundVolume !== undefined ? nextSoundVolume : prev.soundVolume,
         sound: nextSoundEnabled !== undefined ? nextSoundEnabled : prev.sound,
+        enabled: nextNotificationsEnabled !== undefined ? nextNotificationsEnabled : prev.enabled,
+        desktop: nextDesktopNotifications !== undefined ? nextDesktopNotifications : prev.desktop,
+        types: {
+          ...prev.types,
+          ...(nextNotifyNewPredictions !== undefined && { newPredictions: nextNotifyNewPredictions }),
+          ...(nextNotifyGameResults !== undefined && { gameResults: nextNotifyGameResults }),
+          ...(nextNotifyMessages !== undefined && { messages: nextNotifyMessages }),
+          ...(nextNotifyPickStatus !== undefined && { pickStatus: nextNotifyPickStatus }),
+          ...(nextNotifyPickTailed !== undefined && { pickTailed: nextNotifyPickTailed }),
+          ...(nextNotifyInvites !== undefined && { invites: nextNotifyInvites }),
+          ...(nextNotifyFriendRequestAccepted !== undefined && { friendRequestAccepted: nextNotifyFriendRequestAccepted }),
+          ...(nextNotifyGroupUpdates !== undefined && { groupUpdates: nextNotifyGroupUpdates }),
+        },
       };
 
       if (
         updated.soundType === prev.soundType &&
         updated.soundVolume === prev.soundVolume &&
-        updated.sound === prev.sound
+        updated.sound === prev.sound &&
+        updated.enabled === prev.enabled &&
+        updated.desktop === prev.desktop &&
+        JSON.stringify(updated.types) === JSON.stringify(prev.types)
       ) {
         return prev;
       }
@@ -119,6 +145,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     userSettings?.notification_sound_type,
     userSettings?.notification_sound_volume,
     userSettings?.sound_effects_enabled,
+    userSettings?.notifications_enabled,
+    userSettings?.desktop_notifications,
+    userSettings?.notify_new_predictions,
+    userSettings?.notify_game_results,
+    userSettings?.notify_messages,
+    userSettings?.notify_pick_status,
+    userSettings?.notify_pick_tailed,
+    userSettings?.notify_invites,
+    userSettings?.notify_friend_request_accepted,
+    userSettings?.notify_group_updates,
   ]);
 
   const [hasDesktopPermission, setHasDesktopPermission] = useState<boolean | null>(() => {
@@ -183,6 +219,38 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       }
       if (newSettings.sound !== undefined) {
         updateSetting('sound_effects_enabled', newSettings.sound);
+      }
+      if (newSettings.enabled !== undefined) {
+        updateSetting('notifications_enabled', newSettings.enabled);
+      }
+      if (newSettings.desktop !== undefined) {
+        updateSetting('desktop_notifications', newSettings.desktop);
+      }
+      if (newSettings.types) {
+        if (newSettings.types.newPredictions !== undefined) {
+          updateSetting('notify_new_predictions', newSettings.types.newPredictions);
+        }
+        if (newSettings.types.gameResults !== undefined) {
+          updateSetting('notify_game_results', newSettings.types.gameResults);
+        }
+        if (newSettings.types.messages !== undefined) {
+          updateSetting('notify_messages', newSettings.types.messages);
+        }
+        if (newSettings.types.pickStatus !== undefined) {
+          updateSetting('notify_pick_status', newSettings.types.pickStatus);
+        }
+        if (newSettings.types.pickTailed !== undefined) {
+          updateSetting('notify_pick_tailed', newSettings.types.pickTailed);
+        }
+        if (newSettings.types.invites !== undefined) {
+          updateSetting('notify_invites', newSettings.types.invites);
+        }
+        if (newSettings.types.friendRequestAccepted !== undefined) {
+          updateSetting('notify_friend_request_accepted', newSettings.types.friendRequestAccepted);
+        }
+        if (newSettings.types.groupUpdates !== undefined) {
+          updateSetting('notify_group_updates', newSettings.types.groupUpdates);
+        }
       }
     }
   }, [user, updateSetting]);
