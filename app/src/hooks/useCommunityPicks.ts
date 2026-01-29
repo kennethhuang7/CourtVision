@@ -314,6 +314,45 @@ export function useCommunityPicks(filter: CommunityFilter) {
       );
 
       
+      const picksNeedingStats = picksData.filter(p => {
+        const key = `${Number(p.player_id)}-${String(p.game_id)}`;
+        return !statsMap.has(key);
+      });
+
+      if (picksNeedingStats.length > 0) {
+        
+        const predictionPlayerIds = Array.from(new Set(picksNeedingStats.map(p => p.player_id)));
+        const predictionGameIds = Array.from(new Set(picksNeedingStats.map(p => p.game_id)));
+
+        const { data: predictionsData } = await supabase
+          .from('predictions')
+          .select('player_id, game_id, actual_points, actual_rebounds, actual_assists, actual_steals, actual_blocks, actual_turnovers, actual_three_pointers_made')
+          .in('player_id', predictionPlayerIds)
+          .in('game_id', predictionGameIds)
+          .not('actual_points', 'is', null);
+
+        if (predictionsData && predictionsData.length > 0) {
+          predictionsData.forEach(pred => {
+            const key = `${Number(pred.player_id)}-${String(pred.game_id)}`;
+            if (!statsMap.has(key)) {
+              
+              statsMap.set(key, {
+                player_id: pred.player_id,
+                game_id: pred.game_id,
+                points: pred.actual_points,
+                rebounds_total: pred.actual_rebounds,
+                assists: pred.actual_assists,
+                steals: pred.actual_steals,
+                blocks: pred.actual_blocks,
+                turnovers: pred.actual_turnovers,
+                three_pointers_made: pred.actual_three_pointers_made,
+              });
+            }
+          });
+        }
+      }
+
+      
       const statColumnMap: Record<string, string> = {
         points: 'points',
         rebounds: 'rebounds_total',
@@ -328,7 +367,8 @@ export function useCommunityPicks(filter: CommunityFilter) {
       const picks: CommunityPick[] = picksData.map((pick: any) => {
         const player = playersMap.get(pick.player_id);
         const game = gamesMap.get(pick.game_id);
-        const stats = statsMap.get(`${pick.player_id}-${pick.game_id}`);
+        const statsKey = `${Number(pick.player_id)}-${String(pick.game_id)}`;
+        const stats = statsMap.get(statsKey);
         const ownerProfile = profilesMap.get(pick.owner_id);
         const sharedGroup = pick.shared_group_id ? groupsMap.get(pick.shared_group_id) : undefined;
 
