@@ -32,8 +32,8 @@ export function useDeleteMessage() {
       return data;
     },
     onSuccess: () => {
-      
       queryClient.invalidateQueries({ queryKey: ['messages'] });
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
     },
     onError: (error: any) => {
       toast.error(error?.message || 'Failed to delete message');

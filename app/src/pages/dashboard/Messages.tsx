@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, Plus, Search, Send, Trash2, Users, Archive, ArchiveRestore, Smile, SmilePlus, ChevronDown, ChevronsDown } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -22,6 +23,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 import { format, formatDistanceToNow, isToday, isYesterday, isSameDay } from 'date-fns';
 import { formatUserTime } from '@/lib/dateUtils';
 import { Textarea } from '@/components/ui/textarea';
@@ -36,7 +38,7 @@ import { useBatchMessageReactions } from '@/hooks/useMessageReactions';
 import { useAddReaction } from '@/hooks/useAddReaction';
 import { useRemoveReaction } from '@/hooks/useRemoveReaction';
 import { useReactionSubscription } from '@/hooks/useReactionSubscription';
-import { shouldDisplayAsLargeEmoji, getCustomEmojisMap, renderMessageWithCustomEmojis } from '@/lib/emojiUtils';
+import { shouldDisplayAsLargeEmoji, getCustomEmojisMap, renderMessageWithCustomEmojis, stripUnknownCustomEmojis } from '@/lib/emojiUtils';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -66,6 +68,7 @@ export default function Messages() {
   const { timeFormat } = useTheme();
   const { data: currentUserProfile } = useUserProfile();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const [selectedConversation, setSelectedConversation] = useState<{
     type: 'dm' | 'group';
     id: string;
@@ -597,6 +600,26 @@ export default function Messages() {
   const handleDeleteMessage = async (messageId: string) => {
     try {
       await deleteMessageMutation.mutateAsync(messageId);
+      if (selectedConversation && messages.length > 0 && messages[messages.length - 1]?.id === messageId && user?.id) {
+        const convKey = `${selectedConversation.type}:${selectedConversation.id}`;
+        await supabase
+          .from('user_conversations')
+          .update({ last_message_preview: 'Message deleted' })
+          .eq('user_id', user.id)
+          .eq('conversation_type', selectedConversation.type)
+          .eq('conversation_id', selectedConversation.id);
+        queryClient.setQueryData(['conversations', user.id], (old: any) => {
+          if (!Array.isArray(old)) return old;
+          return old.map((conv: any) => {
+            const key = `${conv.conversation_type}:${conv.conversation_id}`;
+            if (key !== convKey) return conv;
+            return {
+              ...conv,
+              last_message_preview: 'Message deleted',
+            };
+          });
+        });
+      }
     } catch (error) {
       
     }
@@ -707,6 +730,10 @@ export default function Messages() {
               const isSelected =
                 selectedConversation?.type === conv.conversation_type &&
                 selectedConversation?.id === conv.conversation_id;
+              const selectedLastMessage = isSelected && messages.length > 0 ? messages[messages.length - 1] : null;
+              const previewText = selectedLastMessage
+                ? (selectedLastMessage.is_deleted ? 'Message deleted' : selectedLastMessage.content)
+                : conv.last_message_preview;
 
               return (
                 <motion.div
@@ -746,9 +773,9 @@ export default function Messages() {
                             </span>
                           )}
                         </div>
-                        {conv.last_message_preview && (
+                        {previewText && (
                           <p className="text-xs text-muted-foreground truncate mb-1 flex items-center gap-1">
-                            {renderMessageWithCustomEmojis(conv.last_message_preview, customEmojisMap)}
+                            {renderMessageWithCustomEmojis(stripUnknownCustomEmojis(previewText, customEmojisMap), customEmojisMap)}
                           </p>
                         )}
                         {conv.unread_count > 0 && (
