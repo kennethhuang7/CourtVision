@@ -20,6 +20,14 @@
     "filename": "devastated.png"
   },
   {
+    "name": "diane1",
+    "filename": "diane1.png"
+  },
+  {
+    "name": "dianehappy",
+    "filename": "dianehappy.png"
+  },
+  {
     "name": "flightnoo",
     "filename": "flightnoo.png"
   },
@@ -70,6 +78,10 @@
   {
     "name": "steamhappy",
     "filename": "steamhappy.png"
+  },
+  {
+    "name": "steamsad",
+    "filename": "steamsad.png"
   },
   {
     "name": "timeisticking",
