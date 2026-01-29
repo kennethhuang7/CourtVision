@@ -7,8 +7,8 @@ import { Prediction, FeatureExplanation } from '@/types/nba';
 import { ConfidenceBadge } from './ConfidenceBadge';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useConfidenceComponents } from '@/hooks/useConfidenceComponents';
 import { useEnsemble } from '@/contexts/EnsembleContext';
 import { toDateOnlyString, parseStoredDate } from '@/lib/dateUtils';
@@ -473,47 +473,139 @@ function formatFeatureValue(featureName: string, statKey: string, rawValue: any)
 }
 
 
-const getFeatureTooltip = (featureName: string, impactTier: string): string | undefined => {
-  const tooltips: Record<string, string | ((impact: string) => string)> = {
-    'star_teammate_out': () => 'When a star teammate is injured, this player typically sees increased shot opportunities and usage rate',
-    'star_teammate_ppg': () => 'The scoring output of the missing star teammate affects how many additional opportunities this player receives',
-    'usage_rate_l5': () => 'Percentage of team possessions used by this player while on the court - higher usage means more involved in offense',
-    'usage_rate_l10': () => 'Percentage of team possessions used by this player while on the court - higher usage means more involved in offense',
-    'usage_rate_l20': () => 'Percentage of team possessions used by this player while on the court - higher usage means more involved in offense',
-    'usage_rate_l5_weighted': () => 'Percentage of team possessions used by this player (recent games weighted more heavily)',
-    'usage_rate_l10_weighted': () => 'Percentage of team possessions used by this player (recent games weighted more heavily)',
-    'usage_rate_l20_weighted': () => 'Percentage of team possessions used by this player (recent games weighted more heavily)',
-    'offensive_rating_team': () => 'Points scored per 100 possessions by player\'s team - measures team offensive efficiency',
-    'defensive_rating_team': () => 'Points allowed per 100 possessions by player\'s team - measures team defensive efficiency',
-    'offensive_rating_opp': (impact) => impact.includes('positive')
-      ? 'Opponent has weak offense - creates more transition opportunities and faster pace'
-      : 'Opponent has strong offense - may lead to higher scoring game',
-    'defensive_rating_opp': (impact) => impact.includes('positive')
-      ? 'Opponent has weak defense - easier scoring opportunities for this player'
-      : 'Opponent has strong defense - tougher to score against',
-    'pace_team': () => 'Number of possessions per 48 minutes for player\'s team - faster pace means more opportunities',
-    'pace_opp': () => 'Number of possessions per 48 minutes for opponent - faster pace means more opportunities',
-    'true_shooting_pct_l5': () => 'Shooting efficiency accounting for 2-pointers, 3-pointers, and free throws',
-    'true_shooting_pct_l10': () => 'Shooting efficiency accounting for 2-pointers, 3-pointers, and free throws',
-    'true_shooting_pct_l20': () => 'Shooting efficiency accounting for 2-pointers, 3-pointers, and free throws',
-    'offensive_rating_l5': () => 'Points produced per 100 possessions - measures individual offensive impact',
-    'offensive_rating_l10': () => 'Points produced per 100 possessions - measures individual offensive impact',
-    'offensive_rating_l20': () => 'Points produced per 100 possessions - measures individual offensive impact',
-    'defensive_rating_l5': () => 'Points allowed per 100 possessions when player is on court',
-    'defensive_rating_l10': () => 'Points allowed per 100 possessions when player is on court',
-    'defensive_rating_l20': () => 'Points allowed per 100 possessions when player is on court',
-    'reb_rate_l5': () => 'Percentage of available rebounds grabbed while on court',
-    'reb_rate_l10': () => 'Percentage of available rebounds grabbed while on court',
-    'reb_rate_l20': () => 'Percentage of available rebounds grabbed while on court',
-    'ast_to_ratio_l5': () => 'Assists divided by turnovers - measures playmaking efficiency',
-    'ast_to_ratio_l10': () => 'Assists divided by turnovers - measures playmaking efficiency',
-    'ast_to_ratio_l20': () => 'Assists divided by turnovers - measures playmaking efficiency',
+const getFeatureTooltip = (featureName: string, impactTier: string, impactSymbol?: string): string | undefined => {
+  const lowerName = featureName.toLowerCase();
+  const isNegative = impactSymbol === '--' || impactSymbol === '---' || impactSymbol === '-';
+  
+  const tooltips: Record<string, string | ((impact: string, isNeg: boolean) => string)> = {
+    'star_teammate_out': (impact, isNeg) => isNeg 
+      ? 'Our models have determined that when a star teammate is injured, this player\'s performance typically decreases. While it may seem counterintuitive (more opportunities should mean more production), the loss of a key player disrupts team chemistry and offensive flow, often resulting in lower efficiency and production despite increased touches.'
+      : 'Our models have determined that when a star teammate is injured, this player may see increased opportunities, though the overall team performance typically suffers.',
+    'star_teammate_ppg': () => 'The scoring output of the missing star teammate. Our models use this to assess the magnitude of the loss to the team\'s offensive capabilities.',
+    'games_without_star': () => 'Number of games played without the star teammate. Our models consider this when determining how well the team has adjusted to playing without them.',
+    'usage_rate_l5': () => 'Percentage of team possessions used by this player while on the court over the last 5 games. Higher usage means more involvement in the offense.',
+    'usage_rate_l10': () => 'Percentage of team possessions used by this player while on the court over the last 10 games. Higher usage means more involvement in the offense.',
+    'usage_rate_l20': () => 'Percentage of team possessions used by this player while on the court over the last 20 games. Higher usage means more involvement in the offense.',
+    'usage_rate_l5_weighted': () => 'Percentage of team possessions used by this player, with recent games weighted more heavily. Reflects current offensive role.',
+    'usage_rate_l10_weighted': () => 'Percentage of team possessions used by this player, with recent games weighted more heavily. Reflects current offensive role.',
+    'usage_rate_l20_weighted': () => 'Percentage of team possessions used by this player, with recent games weighted more heavily. Reflects current offensive role.',
+    'offensive_rating_team': () => 'Points scored per 100 possessions by the player\'s team. Measures overall team offensive efficiency.',
+    'defensive_rating_team': () => 'Points allowed per 100 possessions by the player\'s team. Measures overall team defensive efficiency.',
+    'offensive_rating_opp': (impact, isNeg) => isNeg
+      ? 'Our models have determined that opponents with strong offense may lead to faster-paced, higher-scoring games with more opportunities for all players.'
+      : 'Our models have determined that opponents with weak offense create more transition opportunities and potentially faster pace.',
+    'defensive_rating_opp': (impact, isNeg) => isNeg
+      ? 'Opponent has strong defense, making it more difficult for this player to score efficiently. Our models factor this into the prediction.'
+      : 'Opponent has weak defense, providing easier scoring opportunities for this player. Our models factor this into the prediction.',
+    'pace_team': () => 'Number of possessions per 48 minutes for the player\'s team. Faster pace means more opportunities for stats.',
+    'pace_opp': () => 'Number of possessions per 48 minutes for the opponent. Faster pace means more opportunities for stats.',
+    'true_shooting_pct_l5': () => 'Shooting efficiency accounting for 2-pointers, 3-pointers, and free throws over the last 5 games. Higher percentage indicates better scoring efficiency.',
+    'true_shooting_pct_l10': () => 'Shooting efficiency accounting for 2-pointers, 3-pointers, and free throws over the last 10 games. Higher percentage indicates better scoring efficiency.',
+    'true_shooting_pct_l20': () => 'Shooting efficiency accounting for 2-pointers, 3-pointers, and free throws over the last 20 games. Higher percentage indicates better scoring efficiency.',
+    'offensive_rating_l5': () => 'Points produced per 100 possessions over the last 5 games. Measures individual offensive impact and efficiency.',
+    'offensive_rating_l10': () => 'Points produced per 100 possessions over the last 10 games. Measures individual offensive impact and efficiency.',
+    'offensive_rating_l20': () => 'Points produced per 100 possessions over the last 20 games. Measures individual offensive impact and efficiency.',
+    'defensive_rating_l5': () => 'Points allowed per 100 possessions when this player is on the court over the last 5 games. Lower is better.',
+    'defensive_rating_l10': () => 'Points allowed per 100 possessions when this player is on the court over the last 10 games. Lower is better.',
+    'defensive_rating_l20': () => 'Points allowed per 100 possessions when this player is on the court over the last 20 games. Lower is better.',
+    'net_rating_l5': () => 'Offensive rating minus defensive rating over the last 5 games. Positive values indicate the team performs better with this player on the court.',
+    'net_rating_l10': () => 'Offensive rating minus defensive rating over the last 10 games. Positive values indicate the team performs better with this player on the court.',
+    'net_rating_l20': () => 'Offensive rating minus defensive rating over the last 20 games. Positive values indicate the team performs better with this player on the court.',
+    'reb_rate_l5': () => 'Percentage of available rebounds grabbed while on the court over the last 5 games.',
+    'reb_rate_l10': () => 'Percentage of available rebounds grabbed while on the court over the last 10 games.',
+    'reb_rate_l20': () => 'Percentage of available rebounds grabbed while on the court over the last 20 games.',
+    'ast_to_ratio_l5': () => 'Assists divided by turnovers over the last 5 games. Higher ratio indicates better playmaking efficiency.',
+    'ast_to_ratio_l10': () => 'Assists divided by turnovers over the last 10 games. Higher ratio indicates better playmaking efficiency.',
+    'ast_to_ratio_l20': () => 'Assists divided by turnovers over the last 20 games. Higher ratio indicates better playmaking efficiency.',
+    'pts_per_fga_l5': () => 'Points per field goal attempt over the last 5 games. Measures scoring efficiency per shot.',
+    'pts_per_fga_l10': () => 'Points per field goal attempt over the last 10 games. Measures scoring efficiency per shot.',
+    'pts_per_fga_l20': () => 'Points per field goal attempt over the last 20 games. Measures scoring efficiency per shot.',
+    'is_home': () => 'Playing at home typically provides a slight advantage due to familiar surroundings, crowd support, and no travel fatigue.',
+    'days_rest': () => 'Number of days of rest since the last game. More rest generally leads to better performance, while back-to-back games can cause fatigue.',
+    'is_back_to_back': () => 'Playing on consecutive days without rest. Our models have determined this typically leads to decreased performance due to fatigue and limited recovery time.',
+    'is_well_rested': () => 'Player has 3 or more days of rest. Our models have determined that well-rested players typically perform better with more energy and recovery time.',
+    'games_in_last_3_days': () => 'Number of games played in the last 3 days. Our models use this to assess schedule density and its impact on performance.',
+    'games_in_last_7_days': () => 'Number of games played in the last 7 days. Our models use this to assess schedule density and its impact on performance.',
+    'is_heavy_schedule': () => 'Player has played multiple games in a short period. Our models have determined that heavy schedules can lead to fatigue and decreased performance.',
+    'consecutive_games': () => 'Number of consecutive games played without rest. Longer streaks may indicate fatigue.',
+    'games_played_season': () => 'Total games played this season. More games provide more data for predictions but may also indicate fatigue.',
+    'season_progress': () => 'How far through the season the game occurs. Early season may have more variance, while late season has more established patterns.',
+    'is_early_season': () => 'Game occurs early in the season. Early season games may have more variance as teams and players are still finding their rhythm.',
+    'is_mid_season': () => 'Game occurs in the middle of the season. Mid-season typically has more established patterns and consistency.',
+    'is_late_season': () => 'Game occurs late in the season. Late season may have different motivations and rotation patterns.',
+    'games_remaining': () => 'Number of games remaining in the season. Fewer games may affect player motivation and team strategy.',
+    'opp_field_goal_pct': () => 'Opponent\'s field goal percentage allowed. Lower percentage indicates stronger defense against field goals.',
+    'opp_three_point_pct': () => 'Opponent\'s three-point percentage allowed. Lower percentage indicates stronger defense against three-pointers.',
+    'opp_team_turnovers_per_game': () => 'Average number of turnovers the opponent forces per game. Higher values indicate more aggressive defense.',
+    'opp_team_steals_per_game': () => 'Average number of steals the opponent records per game. Higher values indicate more active defense.',
+    'opp_points_allowed_to_position': () => 'Average points the opponent allows to players in this position. Our models use this to assess matchup-specific defensive weaknesses.',
+    'opp_rebounds_allowed_to_position': () => 'Average rebounds the opponent allows to players in this position. Our models use this to assess matchup-specific rebounding opportunities.',
+    'opp_assists_allowed_to_position': () => 'Average assists the opponent allows to players in this position. Our models use this to assess matchup-specific playmaking opportunities.',
+    'opp_blocks_allowed_to_position': () => 'Average blocks the opponent allows to players in this position. Our models use this to assess matchup-specific shot-blocking opportunities.',
+    'opp_three_pointers_allowed_to_position': () => 'Average three-pointers made the opponent allows to players in this position. Our models use this to assess matchup-specific perimeter defense weaknesses.',
+    'is_starter_l5': () => 'Whether the player has been starting over the last 5 games. Starters typically play more minutes and have more opportunities.',
+    'is_starter_l10': () => 'Whether the player has been starting over the last 10 games. Starters typically play more minutes and have more opportunities.',
+    'minutes_played_l5': () => 'Average minutes played per game over the last 5 games. More minutes typically lead to more opportunities for stats.',
+    'minutes_played_l10': () => 'Average minutes played per game over the last 10 games. More minutes typically lead to more opportunities for stats.',
+    'minutes_played_l20': () => 'Average minutes played per game over the last 20 games. More minutes typically lead to more opportunities for stats.',
+    'minutes_played_l5_weighted': () => 'Average minutes played per game, with recent games weighted more heavily. Reflects current role and playing time.',
+    'minutes_played_l10_weighted': () => 'Average minutes played per game, with recent games weighted more heavily. Reflects current role and playing time.',
+    'minutes_played_l20_weighted': () => 'Average minutes played per game, with recent games weighted more heavily. Reflects current role and playing time.',
+    'minutes_trend': () => 'Trend in minutes played. Increasing trend suggests growing role, while decreasing suggests reduced role.',
+    'fg_pct_l5': () => 'Field goal percentage over the last 5 games. Higher percentage indicates better shooting efficiency.',
+    'fg_pct_l10': () => 'Field goal percentage over the last 10 games. Higher percentage indicates better shooting efficiency.',
+    'fg_pct_l20': () => 'Field goal percentage over the last 20 games. Higher percentage indicates better shooting efficiency.',
+    'three_pct_l5': () => 'Three-point percentage over the last 5 games. Higher percentage indicates better long-range shooting.',
+    'three_pct_l10': () => 'Three-point percentage over the last 10 games. Higher percentage indicates better long-range shooting.',
+    'three_pct_l20': () => 'Three-point percentage over the last 20 games. Higher percentage indicates better long-range shooting.',
+    'ft_pct_l5': () => 'Free throw percentage over the last 5 games. Higher percentage indicates better free throw shooting.',
+    'ft_pct_l10': () => 'Free throw percentage over the last 10 games. Higher percentage indicates better free throw shooting.',
+    'ft_pct_l20': () => 'Free throw percentage over the last 20 games. Higher percentage indicates better free throw shooting.',
+    'tz_difference': () => 'Time zone difference from player\'s home time zone. Our models have determined that larger differences may cause jet lag and affect performance.',
+    'west_to_east': () => 'Traveling from west to east coast. Our models have determined that west-to-east travel is typically more difficult due to losing hours and disrupting circadian rhythm.',
+    'east_to_west': () => 'Traveling from east to west coast. Our models have determined that east-to-west travel is generally easier as players gain hours.',
+    'arena_altitude': () => 'Altitude of the arena in feet. Our models have determined that higher altitude (like Denver) can affect player stamina and performance.',
+    'altitude_away': () => 'Playing at a high-altitude arena as the away team. Our models have determined that high altitude can cause fatigue and affect performance, especially for visiting teams.',
+    'is_playoff': () => 'Playoff game. Playoff games have increased intensity, different rotations, and higher variance in performance.',
+    'playoff_games_career': () => 'Total career playoff games played. More playoff experience may help players perform better in high-pressure situations.',
+    'playoff_performance_boost': () => 'Historical boost in performance during playoffs. Positive values indicate the player typically performs better in playoffs.',
+    'days_since_asb': () => 'Days since the All-Star break. Players may experience a "bounce" in performance after the break due to rest and renewed focus.',
+    'post_asb_bounce': () => 'Historical performance boost after the All-Star break. Positive values indicate improved performance post-break.',
   };
 
-  const tooltip = tooltips[featureName];
-  if (!tooltip) return undefined;
+  for (const [key, value] of Object.entries(tooltips)) {
+    if (lowerName.includes(key.toLowerCase())) {
+      return typeof value === 'function' ? value(impactTier, isNegative) : value;
+    }
+  }
 
-  return typeof tooltip === 'function' ? tooltip(impactTier) : tooltip;
+  if (lowerName.includes('points') || lowerName.includes('rebounds') || lowerName.includes('assists') || 
+      lowerName.includes('steals') || lowerName.includes('blocks') || lowerName.includes('turnovers') || 
+      lowerName.includes('three_pointers')) {
+    if (lowerName.includes('l5') && !lowerName.includes('weighted') && !lowerName.includes('per_36')) {
+      return 'Average performance over the last 5 games. Recent form is a strong indicator of current ability.';
+    }
+    if (lowerName.includes('l10') && !lowerName.includes('weighted') && !lowerName.includes('per_36')) {
+      return 'Average performance over the last 10 games. Provides a balance between recent form and sample size.';
+    }
+    if (lowerName.includes('l20') && !lowerName.includes('weighted') && !lowerName.includes('per_36')) {
+      return 'Average performance over the last 20 games. Larger sample size provides more stability but may be less reflective of current form.';
+    }
+    if (lowerName.includes('l5') && lowerName.includes('weighted')) {
+      return 'Recent form over the last 5 games, with more recent games weighted more heavily. Emphasizes current performance trends.';
+    }
+    if (lowerName.includes('l10') && lowerName.includes('weighted')) {
+      return 'Recent form over the last 10 games, with more recent games weighted more heavily. Balances recency with sample size.';
+    }
+    if (lowerName.includes('l20') && lowerName.includes('weighted')) {
+      return 'Recent form over the last 20 games, with more recent games weighted more heavily. Provides stability while emphasizing trends.';
+    }
+    if (lowerName.includes('per_36')) {
+      return 'Performance rate per 36 minutes. Normalizes for playing time to compare players regardless of minutes played.';
+    }
+  }
+
+  return undefined;
 };
 
 
@@ -535,7 +627,7 @@ const convertFeatureExplanations = (explanations: FeatureExplanation[] | undefin
     impactSymbol: exp.impact_symbol,
     value: `${exp.value.toFixed(2)}${exp.context}`, 
     weight: exp.importance_rank, 
-    tooltip: getFeatureTooltip(exp.feature_name, exp.impact_tier),
+    tooltip: getFeatureTooltip(exp.feature_name, exp.impact_tier, exp.impact_symbol),
   }));
 };
 
@@ -927,7 +1019,7 @@ export function PlayerDetailModal({ prediction, open, onOpenChange }: PlayerDeta
               <Collapsible key={key} open={isExpanded} onOpenChange={() => toggleStat(key)}>
                 <CollapsibleTrigger className="w-full">
                   <div className={cn(
-                    'flex items-center justify-between p-2 rounded-lg border transition-all duration-200',
+                    'group flex items-center justify-between p-2 rounded-lg border transition-all duration-200',
                     isExpanded
                       ? 'bg-gradient-to-r from-primary/10 to-accent/10 border-primary/30'
                       : 'bg-gradient-to-r from-secondary/50 to-muted/30 border-border/30 hover:border-primary/30 hover:bg-gradient-to-r hover:from-primary/5 hover:to-accent/5'
@@ -937,7 +1029,7 @@ export function PlayerDetailModal({ prediction, open, onOpenChange }: PlayerDeta
                       <span className="font-semibold text-foreground">{label}</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-lg font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                      <span className="text-lg font-bold text-primary transition-all duration-300 group-hover:[text-shadow:0_0_10px_hsl(var(--primary)/0.7)]">
                         {value}
                       </span>
                       {isExpanded ? (
@@ -955,51 +1047,69 @@ export function PlayerDetailModal({ prediction, open, onOpenChange }: PlayerDeta
                       <p className="text-xs text-muted-foreground font-medium">
                         Prediction Factors ({factors.length})
                       </p>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button className="text-muted-foreground hover:text-foreground transition-colors" type="button">
-                            <HelpCircle className="h-3.5 w-3.5" />
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-64 p-3" align="start">
-                          <div className="space-y-2">
-                            <p className="text-xs font-semibold text-foreground mb-2">Impact Symbols:</p>
-                            <div className="space-y-1.5 text-xs">
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono font-bold text-green-400">+++</span>
-                                <span className="text-muted-foreground">Very positive impact</span>
+                      <TooltipProvider>
+                        <Tooltip delayDuration={200}>
+                          <TooltipTrigger asChild>
+                            <button 
+                              className="text-muted-foreground hover:text-foreground transition-colors pointer-events-auto" 
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
+                              onPointerDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
+                            >
+                              <HelpCircle className="h-3.5 w-3.5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent 
+                            className="w-64 p-3 z-[130]" 
+                            side="top" 
+                            align="start"
+                            onPointerDown={(e) => e.stopPropagation()}
+                          >
+                            <div className="space-y-2">
+                              <p className="text-xs font-semibold text-foreground mb-2">Impact Symbols:</p>
+                              <div className="space-y-1.5 text-xs">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-bold text-green-400">+++</span>
+                                  <span className="text-muted-foreground">Very positive impact</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-bold text-green-400">++</span>
+                                  <span className="text-muted-foreground">Positive impact</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-bold text-green-400">+</span>
+                                  <span className="text-muted-foreground">Slightly positive</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-bold text-muted-foreground">=</span>
+                                  <span className="text-muted-foreground">Neutral (near average)</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-bold text-red-400">-</span>
+                                  <span className="text-muted-foreground">Slightly negative</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-bold text-red-400">--</span>
+                                  <span className="text-muted-foreground">Negative impact</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-bold text-red-400">---</span>
+                                  <span className="text-muted-foreground">Very negative impact</span>
+                                </div>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono font-bold text-green-400">++</span>
-                                <span className="text-muted-foreground">Positive impact</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono font-bold text-green-400">+</span>
-                                <span className="text-muted-foreground">Slightly positive</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono font-bold text-muted-foreground">=</span>
-                                <span className="text-muted-foreground">Neutral (near average)</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono font-bold text-red-400">-</span>
-                                <span className="text-muted-foreground">Slightly negative</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono font-bold text-red-400">--</span>
-                                <span className="text-muted-foreground">Negative impact</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono font-bold text-red-400">---</span>
-                                <span className="text-muted-foreground">Very negative impact</span>
-                              </div>
+                              <p className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border/50">
+                                Symbols indicate how each feature compares to league average and its importance to the prediction.
+                              </p>
                             </div>
-                            <p className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border/50">
-                              Symbols indicate how each feature compares to league average and its importance to the prediction.
-                            </p>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
                     <div className="grid gap-2">
                       {factors.map((factor, idx) => (
@@ -1013,22 +1123,36 @@ export function PlayerDetailModal({ prediction, open, onOpenChange }: PlayerDeta
                               <div className="flex items-center gap-1.5">
                                 <span className="text-sm font-medium text-foreground truncate">{factor.name}</span>
                                 {factor.tooltip && (
-                                  <Popover>
-                                    <PopoverTrigger asChild>
-                                      <button
-                                        className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
-                                        type="button"
-                                        onClick={(e) => e.stopPropagation()}
+                                  <TooltipProvider>
+                                    <Tooltip delayDuration={200}>
+                                      <TooltipTrigger asChild>
+                                        <button
+                                          className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0 pointer-events-auto"
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                          }}
+                                          onPointerDown={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                          }}
+                                        >
+                                          <HelpCircle className="h-3.5 w-3.5" />
+                                        </button>
+                                      </TooltipTrigger>
+                                      <TooltipContent 
+                                        className="w-72 p-3 z-[130]" 
+                                        side="top" 
+                                        align="start"
+                                        onPointerDown={(e) => e.stopPropagation()}
                                       >
-                                        <HelpCircle className="h-3.5 w-3.5" />
-                                      </button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-72 p-3" align="start">
-                                      <p className="text-xs text-muted-foreground leading-relaxed">
-                                        {factor.tooltip}
-                                      </p>
-                                    </PopoverContent>
-                                  </Popover>
+                                        <p className="text-xs text-muted-foreground leading-relaxed">
+                                          {factor.tooltip}
+                                        </p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
                                 )}
                               </div>
                               {factor.value && (
@@ -1114,7 +1238,7 @@ export function PlayerDetailModal({ prediction, open, onOpenChange }: PlayerDeta
                     <Collapsible key={key} open={isExpanded} onOpenChange={() => toggleStat(key)}>
                       <CollapsibleTrigger className="w-full">
                         <div className={cn(
-                          'flex items-center justify-between p-2 rounded-lg border transition-all duration-200',
+                          'group flex items-center justify-between p-2 rounded-lg border transition-all duration-200',
                           isExpanded
                             ? 'bg-gradient-to-r from-primary/10 to-accent/10 border-primary/30'
                             : 'bg-gradient-to-r from-secondary/50 to-muted/30 border-border/30 hover:border-primary/30 hover:bg-gradient-to-r hover:from-primary/5 hover:to-accent/5'
@@ -1124,7 +1248,7 @@ export function PlayerDetailModal({ prediction, open, onOpenChange }: PlayerDeta
                             <span className="font-semibold text-foreground">{label}</span>
                           </div>
                           <div className="flex items-center gap-3">
-                            <span className="text-sm font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                            <span className="text-sm font-bold text-primary transition-all duration-300 group-hover:[text-shadow:0_0_10px_hsl(var(--primary)/0.7)]">
                               {component.calibrated_score.toFixed(0)}% confidence
                             </span>
                             {isExpanded ? (
@@ -1145,34 +1269,48 @@ export function PlayerDetailModal({ prediction, open, onOpenChange }: PlayerDeta
                           </div>
                           <div className="grid gap-2">
                             {explanations.map((explanation, idx) => (
-                              <Popover key={idx}>
-                                <PopoverTrigger asChild>
-                                  <div
-                                    className="flex items-center justify-between p-3 rounded-md bg-gradient-to-r from-muted/20 to-transparent hover:from-muted/30 transition-colors border border-border/10 cursor-help"
-                                  >
-                                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                                      {getImpactIcon(explanation.impact)}
-                                      <div className="flex flex-col min-w-0 flex-1">
-                                        <div className="flex items-center gap-1.5">
-                                          <span className="text-sm font-medium text-foreground">{explanation.label}</span>
-                                          <HelpCircle className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                              <TooltipProvider key={idx}>
+                                <Tooltip delayDuration={200}>
+                                  <TooltipTrigger asChild>
+                                    <div
+                                      className="flex items-center justify-between p-3 rounded-md bg-gradient-to-r from-muted/20 to-transparent hover:from-muted/30 transition-colors border border-border/10 cursor-help pointer-events-auto"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                      }}
+                                      onPointerDown={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                      }}
+                                    >
+                                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                                        {getImpactIcon(explanation.impact)}
+                                        <div className="flex flex-col min-w-0 flex-1">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="text-sm font-medium text-foreground">{explanation.label}</span>
+                                            {explanation.description && (
+                                              <HelpCircle className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                            )}
+                                          </div>
+                                          <span className="text-xs text-muted-foreground mt-0.5">{explanation.value}</span>
                                         </div>
-                                        <span className="text-xs text-muted-foreground mt-0.5">{explanation.value}</span>
                                       </div>
                                     </div>
-                                  </div>
-                                </PopoverTrigger>
-                                {explanation.description && (
-                                  <PopoverContent className="w-72 p-3" align="start">
-                                    <div className="space-y-2">
-                                      <p className="text-xs font-semibold text-foreground">{explanation.label}</p>
-                                      <p className="text-xs text-muted-foreground leading-relaxed">
-                                        {explanation.description}
-                                      </p>
-                                    </div>
-                                  </PopoverContent>
-                                )}
-                              </Popover>
+                                  </TooltipTrigger>
+                                    {explanation.description && (
+                                      <TooltipContent 
+                                        className="w-72 p-3 z-[130]" 
+                                        side="top" 
+                                        align="start"
+                                        onPointerDown={(e) => e.stopPropagation()}
+                                      >
+                                        <p className="text-xs text-muted-foreground leading-relaxed">
+                                          {explanation.description}
+                                        </p>
+                                      </TooltipContent>
+                                    )}
+                                </Tooltip>
+                              </TooltipProvider>
                             ))}
                             <div className="mt-2 pt-2 border-t border-border/20">
                               <div className="flex items-center justify-between text-xs">
