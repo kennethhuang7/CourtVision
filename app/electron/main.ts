@@ -354,6 +354,7 @@ let win = null;
 let chatWin = null;
 let splashWin = null;
 let tray = null;
+let splashStartTime = 0;
 
 
 const preload = join(__dirname, 'preload.cjs');
@@ -390,6 +391,7 @@ function createSplashWindow() {
     alwaysOnTop: true,
     resizable: false,
     skipTaskbar: true,
+    show: false,
     icon: join(process.env.PUBLIC, iconFile),
     webPreferences: {
       preload,
@@ -402,6 +404,22 @@ function createSplashWindow() {
   Menu.setApplicationMenu(null);
 
   splashWin.loadFile(splashHtml);
+
+  splashWin.once('ready-to-show', () => {
+    if (splashWin && !splashWin.isDestroyed()) {
+      splashWin.show();
+      splashStartTime = Date.now();
+    }
+  });
+
+  splashWin.webContents.once('did-finish-load', () => {
+    if (splashWin && !splashWin.isDestroyed() && !splashWin.isVisible()) {
+      splashWin.show();
+      if (splashStartTime === 0) {
+        splashStartTime = Date.now();
+      }
+    }
+  });
 
   splashWin.on('closed', () => {
     splashWin = null;
@@ -475,24 +493,20 @@ async function createWindow() {
   });
 
   
-  // Track if main window is ready
   let mainWindowReady = false;
   let splashAnimationComplete = false;
+  const minSplashDisplayTime = 2000;
 
   const showSplashScreen = store.get('showSplashScreen', true);
   
   const closeSplashAndShowMain = () => {
-    if (mainWindowReady && (splashAnimationComplete || !showSplashScreen || !splashWin)) {
-      if (splashWin && !splashWin.isDestroyed()) {
-        splashWin.close();
-      }
-      
-    if (startMinimized) {
-      if (minimizeToTray) {
+    if (!showSplashScreen || !splashWin) {
+      if (startMinimized) {
+        if (minimizeToTray) {
+        } else {
+          win.minimize();
+        }
       } else {
-        win.minimize();
-      }
-    } else {
         if (win && !win.isDestroyed()) {
           const { screen } = require('electron');
           const primaryDisplay = screen.getPrimaryDisplay();
@@ -503,9 +517,41 @@ async function createWindow() {
             width: screenWidth,
             height: screenHeight
           });
-      win.show();
-    }
+          win.show();
+        }
       }
+      return;
+    }
+
+    const elapsed = Date.now() - splashStartTime;
+    const remainingTime = Math.max(0, minSplashDisplayTime - elapsed);
+
+    if (mainWindowReady && (splashAnimationComplete || !splashWin)) {
+      setTimeout(() => {
+        if (splashWin && !splashWin.isDestroyed()) {
+          splashWin.close();
+        }
+        
+        if (startMinimized) {
+          if (minimizeToTray) {
+          } else {
+            win.minimize();
+          }
+        } else {
+          if (win && !win.isDestroyed()) {
+            const { screen } = require('electron');
+            const primaryDisplay = screen.getPrimaryDisplay();
+            const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+            win.setBounds({
+              x: 0,
+              y: 0,
+              width: screenWidth,
+              height: screenHeight
+            });
+            win.show();
+          }
+        }
+      }, remainingTime);
     }
   };
 
