@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Bell, BellOff, HelpCircle, Minus, Square, X, Settings, LogOut, Check, ChevronRight, Inbox, Trash2 } from 'lucide-react';
+import { Bell, BellOff, HelpCircle, Minus, Square, X, Settings, LogOut, Check, ChevronRight, Inbox, Trash2, Copy } from 'lucide-react';
 import { SettingsModal } from '@/components/settings/SettingsModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
@@ -152,6 +152,24 @@ export function TitleBar() {
     }
   };
 
+  const handleCopyFriendCode = async () => {
+    if (!profile) {
+      toast.error('Profile not available');
+      return;
+    }
+    const friendCode = (profile as any).friend_code;
+    if (!friendCode) {
+      toast.error('Friend code not available');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(friendCode);
+      toast.success('Friend code copied to clipboard');
+    } catch (error) {
+      toast.error('Failed to copy friend code');
+    }
+  };
+
   const handleClearAll = async () => {
     try {
       await deleteAllNotifications.mutateAsync();
@@ -267,7 +285,7 @@ export function TitleBar() {
                 <motion.span
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
-                  className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground px-1"
+                  className="absolute top-0 right-0 flex h-3 min-w-3 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground px-0.5"
                 >
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </motion.span>
@@ -394,6 +412,10 @@ export function TitleBar() {
             className="w-48 bg-card/95 backdrop-blur-md border-border/40 shadow-xl shadow-black/20 text-sm"
             sideOffset={8}
           >
+            <DropdownMenuItem className="gap-2 cursor-pointer text-sm" onClick={handleCopyFriendCode}>
+              <Copy className="h-4 w-4 shrink-0" />
+              <span className="text-sm min-w-0 truncate">Copy Friend Code</span>
+            </DropdownMenuItem>
             <DropdownMenuItem
               className="gap-2 cursor-pointer text-sm"
               onClick={() => setSettingsOpen(true)}
