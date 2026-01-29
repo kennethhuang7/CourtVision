@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, Send, Trash2, Archive, ArchiveRestore, Plus, Smile, SmilePlus, ChevronDown, ChevronsDown } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials, cn } from '@/lib/utils';
@@ -25,6 +26,7 @@ import { useGroups } from '@/hooks/useGroups';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { supabase } from '@/lib/supabase';
 import { useBatchMessageReactions } from '@/hooks/useMessageReactions';
 import { useAddReaction } from '@/hooks/useAddReaction';
 import { useRemoveReaction } from '@/hooks/useRemoveReaction';
@@ -33,7 +35,7 @@ import { format, formatDistanceToNow, isToday, isYesterday, isSameDay } from 'da
 import { formatUserTime } from '@/lib/dateUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { logger } from '@/lib/logger';
-import { shouldDisplayAsLargeEmoji, getCustomEmojisMap, renderMessageWithCustomEmojis } from '@/lib/emojiUtils';
+import { shouldDisplayAsLargeEmoji, getCustomEmojisMap, renderMessageWithCustomEmojis, stripUnknownCustomEmojis } from '@/lib/emojiUtils';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -62,6 +64,7 @@ export function ChatWindow() {
   const { user } = useAuth();
   const { timeFormat } = useTheme();
   const { data: currentUserProfile } = useUserProfile();
+  const queryClient = useQueryClient();
   const [selectedConversation, setSelectedConversation] = useState<{
     type: 'dm' | 'group';
     id: string;
@@ -369,6 +372,26 @@ export function ChatWindow() {
   const handleDeleteMessage = async (messageId: string) => {
     try {
       await deleteMessageMutation.mutateAsync(messageId);
+      if (selectedConversation && messages.length > 0 && messages[messages.length - 1]?.id === messageId && user?.id) {
+        const convKey = `${selectedConversation.type}:${selectedConversation.id}`;
+        await supabase
+          .from('user_conversations')
+          .update({ last_message_preview: 'Message deleted' })
+          .eq('user_id', user.id)
+          .eq('conversation_type', selectedConversation.type)
+          .eq('conversation_id', selectedConversation.id);
+        queryClient.setQueryData(['conversations', user.id], (old: any) => {
+          if (!Array.isArray(old)) return old;
+          return old.map((conv: any) => {
+            const key = `${conv.conversation_type}:${conv.conversation_id}`;
+            if (key !== convKey) return conv;
+            return {
+              ...conv,
+              last_message_preview: 'Message deleted',
+            };
+          });
+        });
+      }
     } catch (error) {
       
     }
@@ -788,6 +811,10 @@ export function ChatWindow() {
                 const isSelected =
                   selectedConversation?.type === conv.conversation_type &&
                   selectedConversation?.id === conv.conversation_id;
+                const selectedLastMessage = isSelected && messages.length > 0 ? messages[messages.length - 1] : null;
+                const previewText = selectedLastMessage
+                  ? (selectedLastMessage.is_deleted ? 'Message deleted' : selectedLastMessage.content)
+                  : conv.last_message_preview;
 
                 return (
                   <motion.div
@@ -827,9 +854,9 @@ export function ChatWindow() {
                               </span>
                             )}
                           </div>
-                          {conv.last_message_preview && (
+                          {previewText && (
                             <p className="text-xs text-muted-foreground truncate mb-1 flex items-center gap-1">
-                              {renderMessageWithCustomEmojis(conv.last_message_preview, customEmojisMap)}
+                              {renderMessageWithCustomEmojis(stripUnknownCustomEmojis(previewText, customEmojisMap), customEmojisMap)}
                             </p>
                           )}
                           {conv.unread_count > 0 && (

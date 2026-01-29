@@ -237,19 +237,18 @@ export function renderMessageWithCustomEmojis(content: string, customEmojisMap: 
     if (match.index === undefined) break;
     
     let emojiName: string | null = null;
-    let emojiUrl: string;
+    let emojiUrl: string | undefined;
     
     if (match[1]) {
       emojiName = match[1].toLowerCase();
       emojiUrl = customEmojisMap.get(emojiName);
-      if (!emojiUrl) {
-        emojiUrl = `/custom-emojis/${emojiName}.png`;
-      }
+      if (!emojiUrl) continue;
     } else if (match[2]) {
       const filename = match[2];
       const nameWithoutExt = filename.replace(/\.(png|gif|jpg|jpeg|webp)$/i, '');
       emojiName = nameWithoutExt.toLowerCase();
-      emojiUrl = customEmojisMap.get(emojiName) || `/custom-emojis/${filename}`;
+      emojiUrl = customEmojisMap.get(emojiName);
+      if (!emojiUrl) continue;
     } else {
       continue;
     }
@@ -293,4 +292,25 @@ export function renderMessageWithCustomEmojis(content: string, customEmojisMap: 
   }
 
   return parts.length > 0 ? parts : [content];
+}
+
+export function stripUnknownCustomEmojis(content: string, customEmojisMap: Map<string, string>): string {
+  if (!content) return content;
+
+  const pattern = /:([a-z0-9_+-]+):|\/custom-emojis\/([a-z0-9_+-]+\.(png|gif|jpg|jpeg|webp))/gi;
+
+  const stripped = content.replace(pattern, (full, shortcodeName, filename) => {
+    let name: string | null = null;
+    if (shortcodeName) {
+      name = String(shortcodeName).toLowerCase();
+    } else if (filename) {
+      name = String(filename).replace(/\.(png|gif|jpg|jpeg|webp)$/i, '').toLowerCase();
+    }
+
+    if (!name) return full;
+    if (customEmojisMap.has(name)) return full;
+    return '';
+  });
+
+  return stripped.replace(/\s+/g, ' ').trim();
 }
