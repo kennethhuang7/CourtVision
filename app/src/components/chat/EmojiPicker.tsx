@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { X, Search, Smile, Users, TreePine, Coffee, Dumbbell, Plane, Lightbulb, Hash, Clock, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { EMOJI_CATEGORIES, DEFAULT_REACTION_EMOJIS, ALL_EMOJIS, getSkinToneVariants, type SkinTone, SKIN_TONE_LABELS } from '@/lib/emojiData';
-import { searchEmojis, getRecentlyUsedEmojis, addToRecentlyUsed, applyDefaultSkinTone, setSkinTonePreference, loadCustomEmojis, getCustomEmojisMap } from '@/lib/emojiUtils';
+import { searchEmojis, getRecentlyUsedEmojis, pruneRecentlyUsedEmojis, addToRecentlyUsed, applyDefaultSkinTone, setSkinTonePreference, loadCustomEmojis, getCustomEmojisMap } from '@/lib/emojiUtils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 interface EmojiPickerProps {
@@ -37,10 +37,8 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
 
   
   useEffect(() => {
-    setRecentEmojis(getRecentlyUsedEmojis());
-    loadCustomEmojis().then(emojis => {
-      setCustomEmojis(emojis);
-    });
+    pruneRecentlyUsedEmojis().then(setRecentEmojis);
+    loadCustomEmojis().then(setCustomEmojis);
   }, []);
 
   

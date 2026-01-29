@@ -403,7 +403,8 @@ export function ChatWindow() {
     let node;
     while (node = walker.nextNode()) {
       if (node.nodeType === Node.TEXT_NODE) {
-        text += node.textContent;
+        const textContent = node.textContent || '';
+        text += textContent.replace(/\u200B/g, '');
       } else if (node.nodeType === Node.ELEMENT_NODE) {
         const el = node as HTMLElement;
         if (el.tagName === 'IMG' && el.getAttribute('data-emoji-name')) {
@@ -419,38 +420,76 @@ export function ChatWindow() {
   const getCursorPosition = (element: HTMLElement): number => {
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) return 0;
-    
+
     const range = selection.getRangeAt(0);
-    const preCaretRange = range.cloneRange();
-    preCaretRange.selectNodeContents(element);
-    preCaretRange.setEnd(range.endContainer, range.endOffset);
-    
-    let position = 0;
-    const walker = document.createTreeWalker(
-      element,
-      NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
-      null
-    );
-    
-    let node;
-    while (node = walker.nextNode()) {
-      if (node === range.endContainer) {
-        if (node.nodeType === Node.TEXT_NODE) {
-          position += range.endOffset;
-        }
-        break;
-      }
+    const endContainer = range.endContainer;
+    const endOffset = range.endOffset;
+
+    const nodeLogicalLength = (node: Node): number => {
       if (node.nodeType === Node.TEXT_NODE) {
-        position += node.textContent?.length || 0;
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        return (node.textContent || '').replace(/\u200B/g, '').length;
+      }
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        if (el.tagName === 'IMG' && el.getAttribute('data-emoji-name')) {
+          return `:${el.getAttribute('data-emoji-name')}:`.length;
+        }
+        if (el.tagName === 'BR') return 1;
+        let len = 0;
+        for (let i = 0; i < node.childNodes.length; i++) {
+          len += nodeLogicalLength(node.childNodes[i]);
+        }
+        return len;
+      }
+      return 0;
+    };
+
+    const childNodesLogicalLength = (parent: Node, upToIndex: number): number => {
+      let len = 0;
+      for (let i = 0; i < Math.min(upToIndex, parent.childNodes.length); i++) {
+        len += nodeLogicalLength(parent.childNodes[i]);
+      }
+      return len;
+    };
+
+    let position = 0;
+    const accumulate = (node: Node): boolean => {
+      if (node === endContainer) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const textContent = node.textContent || '';
+          const textBeforeCursor = textContent.substring(0, endOffset);
+          position += textBeforeCursor.replace(/\u200B/g, '').length;
+        } else {
+          position += childNodesLogicalLength(node, endOffset);
+        }
+        return true;
+      }
+
+      if (node.nodeType === Node.TEXT_NODE) {
+        position += (node.textContent || '').replace(/\u200B/g, '').length;
+        return false;
+      }
+
+      if (node.nodeType === Node.ELEMENT_NODE) {
         const el = node as HTMLElement;
         if (el.tagName === 'IMG' && el.getAttribute('data-emoji-name')) {
           position += `:${el.getAttribute('data-emoji-name')}:`.length;
-        } else if (el.tagName === 'BR') {
-          position += 1;
+          return false;
         }
+        if (el.tagName === 'BR') {
+          position += 1;
+          return false;
+        }
+        for (let i = 0; i < node.childNodes.length; i++) {
+          if (accumulate(node.childNodes[i])) return true;
+        }
+        return false;
       }
-    }
+
+      return false;
+    };
+
+    accumulate(element);
     return position;
   };
 
@@ -467,29 +506,77 @@ export function ChatWindow() {
     );
     
     let node;
+    let lastTextNode: Text | null = null;
+    
     while (node = walker.nextNode()) {
       if (node.nodeType === Node.TEXT_NODE) {
         const textNode = node as Text;
-        const textLength = textNode.textContent?.length || 0;
+        const textContent = textNode.textContent || '';
+        const textLength = textContent.replace(/\u200B/g, '').length;
         if (currentPos + textLength >= position) {
-          range.setStart(textNode, position - currentPos);
-          range.setEnd(textNode, position - currentPos);
+          let offset = position - currentPos;
+          let actualOffset = 0;
+          let visibleChars = 0;
+          for (let i = 0; i < textContent.length; i++) {
+            if (textContent[i] !== '\u200B') {
+              visibleChars++;
+              if (visibleChars === offset) {
+                actualOffset = i + 1;
+                break;
+              }
+            } else {
+              actualOffset = i + 1;
+            }
+          }
+          if (visibleChars < offset) {
+            actualOffset = textContent.length;
+          }
+          range.setStart(textNode, actualOffset);
+          range.setEnd(textNode, actualOffset);
           selection.removeAllRanges();
           selection.addRange(range);
           return;
         }
         currentPos += textLength;
+        lastTextNode = textNode;
       } else if (node.nodeType === Node.ELEMENT_NODE) {
         const el = node as HTMLElement;
         if (el.tagName === 'IMG' && el.getAttribute('data-emoji-name')) {
           const emojiLength = `:${el.getAttribute('data-emoji-name')}:`.length;
           if (currentPos + emojiLength >= position) {
             if (position === currentPos + emojiLength) {
-              range.setStartAfter(el);
-              range.setEndAfter(el);
+              let nextTextNode: Text | null = null;
+              let nextNode = el.nextSibling;
+              while (nextNode) {
+                if (nextNode.nodeType === Node.TEXT_NODE) {
+                  nextTextNode = nextNode as Text;
+                  break;
+                } else if (nextNode.nodeType === Node.ELEMENT_NODE && (nextNode as HTMLElement).tagName === 'IMG') {
+                  break;
+                }
+                nextNode = nextNode.nextSibling;
+              }
+              
+              if (nextTextNode) {
+                range.setStart(nextTextNode, 0);
+                range.setEnd(nextTextNode, 0);
+              } else {
+                const zeroWidthSpace = document.createTextNode('\u200B');
+                el.parentNode?.insertBefore(zeroWidthSpace, el.nextSibling);
+                range.setStart(zeroWidthSpace, 0);
+                range.setEnd(zeroWidthSpace, 0);
+              }
             } else {
-              range.setStartBefore(el);
-              range.setEndBefore(el);
+              if (lastTextNode) {
+                const textContent = lastTextNode.textContent || '';
+                range.setStart(lastTextNode, textContent.length);
+                range.setEnd(lastTextNode, textContent.length);
+              } else {
+                const zeroWidthSpace = document.createTextNode('\u200B');
+                el.parentNode?.insertBefore(zeroWidthSpace, el);
+                range.setStart(zeroWidthSpace, 0);
+                range.setEnd(zeroWidthSpace, 0);
+              }
             }
             selection.removeAllRanges();
             selection.addRange(range);
@@ -509,8 +596,14 @@ export function ChatWindow() {
       }
     }
     
-    range.selectNodeContents(element);
-    range.collapse(false);
+    if (lastTextNode) {
+      const textContent = lastTextNode.textContent || '';
+      range.setStart(lastTextNode, textContent.length);
+      range.setEnd(lastTextNode, textContent.length);
+    } else {
+      range.selectNodeContents(element);
+      range.collapse(false);
+    }
     selection.removeAllRanges();
     selection.addRange(range);
   };
@@ -534,11 +627,62 @@ export function ChatWindow() {
         const newPosition = startPos + emoji.length;
         setTimeout(() => {
           if (editableRef.current) {
-            setCursorPositionInEditable(editableRef.current, newPosition);
+            const walker = document.createTreeWalker(
+              editableRef.current,
+              NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+              null
+            );
+            
+            let currentPos = 0;
+            let node;
+            let targetImg: HTMLElement | null = null;
+            
+            while (node = walker.nextNode()) {
+              if (node.nodeType === Node.ELEMENT_NODE) {
+                const el = node as HTMLElement;
+                if (el.tagName === 'IMG' && el.getAttribute('data-emoji-name')) {
+                  const emojiLength = `:${el.getAttribute('data-emoji-name')}:`.length;
+                  if (currentPos + emojiLength >= newPosition) {
+                    targetImg = el;
+                    break;
+                  }
+                  currentPos += emojiLength;
+                }
+              } else if (node.nodeType === Node.TEXT_NODE) {
+                const textContent = (node as Text).textContent || '';
+                currentPos += textContent.replace(/\u200B/g, '').length;
+              }
+            }
+            
+            if (targetImg) {
+              let nextTextNode = targetImg.nextSibling;
+              while (nextTextNode && nextTextNode.nodeType !== Node.TEXT_NODE) {
+                nextTextNode = nextTextNode.nextSibling;
+              }
+              
+              if (nextTextNode && nextTextNode.nodeType === Node.TEXT_NODE) {
+                const textRange = document.createRange();
+                textRange.setStart(nextTextNode, 0);
+                textRange.setEnd(nextTextNode, 0);
+                selection.removeAllRanges();
+                selection.addRange(textRange);
+              } else {
+                const textNode = document.createTextNode('\u200B');
+                targetImg.parentNode?.insertBefore(textNode, targetImg.nextSibling);
+                const textRange = document.createRange();
+                textRange.setStart(textNode, 0);
+                textRange.setEnd(textNode, 0);
+                selection.removeAllRanges();
+                selection.addRange(textRange);
+              }
+            } else {
+              setCursorPositionInEditable(editableRef.current, newPosition);
+            }
+            
             editableRef.current.focus();
             setCursorPosition(newPosition);
           }
-        }, 0);
+        }, 10);
       }
     }, 0);
   };
@@ -550,7 +694,7 @@ export function ChatWindow() {
     
     const rendered = renderMessageWithCustomEmojis(text, customEmojisMap);
     element.innerHTML = '';
-    rendered.forEach((node) => {
+    rendered.forEach((node, index) => {
       if (typeof node === 'string') {
         const textNode = document.createTextNode(node);
         element.appendChild(textNode);
@@ -572,6 +716,9 @@ export function ChatWindow() {
         img.setAttribute('data-emoji-name', emojiName);
         
         element.appendChild(img);
+        
+        const zeroWidthSpace = document.createTextNode('\u200B');
+        element.appendChild(zeroWidthSpace);
       }
     });
     
@@ -1163,6 +1310,38 @@ export function ChatWindow() {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
                           handleSendMessage();
+                        }
+                        if (e.key === 'Backspace' && editableRef.current) {
+                          const selection = window.getSelection();
+                          if (!selection || selection.rangeCount === 0) return;
+                          const range = selection.getRangeAt(0);
+                          if (!range.collapsed) return;
+
+                          const text = extractTextFromEditable(editableRef.current);
+                          const cursorPos = getCursorPosition(editableRef.current);
+                          const beforeCursor = text.substring(0, cursorPos);
+                          const match = beforeCursor.match(/:([a-z0-9_+-]+):$/i);
+                          if (!match) return;
+
+                          e.preventDefault();
+                          const tokenLength = match[0].length;
+                          const startPos = cursorPos - tokenLength;
+                          const newContent = text.substring(0, startPos) + text.substring(cursorPos);
+
+                          setMessageContent(newContent);
+                          setTimeout(() => {
+                            if (!editableRef.current) return;
+                            updateEditableContent(editableRef.current, newContent);
+                            setCursorPositionInEditable(editableRef.current, startPos);
+                            editableRef.current.focus();
+                            setCursorPosition(startPos);
+                            requestAnimationFrame(() => {
+                              if (editableRef.current) {
+                                setCursorPositionInEditable(editableRef.current, startPos);
+                              }
+                            });
+                          }, 0);
+                          return;
                         }
                       }}
                       onBlur={() => {
