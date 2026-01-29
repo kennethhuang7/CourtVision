@@ -820,49 +820,39 @@ if (!gotTheLock) {
 function setupDockMenu() {
   if (process.platform !== 'darwin') return;
 
-  const iconFile = join(process.env.PUBLIC, 'courtvision.png');
-  let appIcon = null;
-  try {
-    if (require('fs').existsSync(iconFile)) {
-      appIcon = nativeImage.createFromPath(iconFile);
-    }
-  } catch (e) {
-  }
-
   const updateDockMenu = () => {
     const chatWindowVisible = chatWin ? chatWin.isVisible() : false;
     const dockMenu = Menu.buildFromTemplate([
       {
         label: 'Main',
         submenu: [
-          { label: 'Predictions', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard'); } } },
-          { label: 'Player Analysis', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/player-analysis'); } } },
-          { label: 'Pick Finder', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/pick-finder'); } } },
-          { label: 'Trends', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/trends'); } } },
-          { label: 'My Picks', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/saved-picks'); } } },
+          { label: 'Predictions', click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard'); } } },
+          { label: 'Player Analysis', click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/player-analysis'); } } },
+          { label: 'Pick Finder', click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/pick-finder'); } } },
+          { label: 'Trends', click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/trends'); } } },
+          { label: 'My Picks', click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/saved-picks'); } } },
         ],
       },
       {
         label: 'Social',
         submenu: [
-          { label: 'Community', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/community'); } } },
-          { label: 'Messages', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/messages'); } } },
-          { label: 'My Friends', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/friends'); } } },
-          { label: 'My Groups', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/groups'); } } },
+          { label: 'Community', click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/community'); } } },
+          { label: 'Messages', click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/messages'); } } },
+          { label: 'My Friends', click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/friends'); } } },
+          { label: 'My Groups', click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/groups'); } } },
         ],
       },
       {
         label: 'Insights',
         submenu: [
-          { label: 'Analytics', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/analytics'); } } },
-          { label: 'Model Performance', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/model-performance'); } } },
-          { label: 'How It Works', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/how-it-works'); } } },
+          { label: 'Analytics', click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/analytics'); } } },
+          { label: 'Model Performance', click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/model-performance'); } } },
+          { label: 'How It Works', click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/how-it-works'); } } },
         ],
       },
       { type: 'separator' },
       {
         label: chatWindowVisible ? 'Hide Chat Window' : 'Show Chat Window',
-        icon: appIcon,
         click: async () => {
           if (chatWin) {
             if (chatWin.isVisible()) {
@@ -897,39 +887,7 @@ function setupDockMenu() {
 
 function setupJumpList() {
   if (process.platform !== 'win32') return;
-
-  app.setJumpList([
-    {
-      type: 'custom',
-      name: 'Main',
-      items: [
-        { type: 'task', title: 'Predictions', description: 'View predictions', program: process.execPath, args: '--route=/dashboard' },
-        { type: 'task', title: 'Player Analysis', description: 'Analyze players', program: process.execPath, args: '--route=/dashboard/player-analysis' },
-        { type: 'task', title: 'Pick Finder', description: 'Find picks', program: process.execPath, args: '--route=/dashboard/pick-finder' },
-        { type: 'task', title: 'Trends', description: 'View trends', program: process.execPath, args: '--route=/dashboard/trends' },
-        { type: 'task', title: 'My Picks', description: 'View saved picks', program: process.execPath, args: '--route=/dashboard/saved-picks' },
-      ],
-    },
-    {
-      type: 'custom',
-      name: 'Social',
-      items: [
-        { type: 'task', title: 'Community', description: 'View community', program: process.execPath, args: '--route=/dashboard/community' },
-        { type: 'task', title: 'Messages', description: 'View messages', program: process.execPath, args: '--route=/dashboard/messages' },
-        { type: 'task', title: 'My Friends', description: 'View friends', program: process.execPath, args: '--route=/dashboard/friends' },
-        { type: 'task', title: 'My Groups', description: 'View groups', program: process.execPath, args: '--route=/dashboard/groups' },
-      ],
-    },
-    {
-      type: 'custom',
-      name: 'Insights',
-      items: [
-        { type: 'task', title: 'Analytics', description: 'View analytics', program: process.execPath, args: '--route=/dashboard/analytics' },
-        { type: 'task', title: 'Model Performance', description: 'View model performance', program: process.execPath, args: '--route=/dashboard/model-performance' },
-        { type: 'task', title: 'How It Works', description: 'Learn how it works', program: process.execPath, args: '--route=/dashboard/how-it-works' },
-      ],
-    },
-  ]);
+  app.setJumpList(null);
 }
 
 app.whenReady().then(() => {
@@ -953,6 +911,7 @@ app.whenReady().then(() => {
     if (process.platform === 'win32' || process.platform === 'linux') {
       const oauthUrl = process.argv.find(arg => arg.startsWith(`${OAUTH_PROTOCOL}://`));
       const routeArg = process.argv.find(arg => arg.startsWith('--route='));
+      const toggleChatArg = process.argv.find(arg => arg === '--toggle-chat-window');
       if (oauthUrl) {
         setTimeout(() => {
           handleOAuthCallback(oauthUrl);
@@ -962,6 +921,22 @@ app.whenReady().then(() => {
         setTimeout(() => {
           if (win && win.webContents) {
             win.webContents.send('navigate-to-route', route);
+          }
+        }, 1000);
+      } else if (toggleChatArg) {
+        setTimeout(async () => {
+          if (chatWin) {
+            if (chatWin.isVisible()) {
+              chatWin.hide();
+            } else {
+              chatWin.show();
+              chatWin.focus();
+            }
+          } else {
+            await createChatWindow();
+          }
+          if (process.platform === 'win32') {
+            setupJumpList();
           }
         }, 1000);
       }
@@ -1088,6 +1063,11 @@ async function createChatWindow() {
       if (tray) {
         updateTrayContextMenu();
       }
+      if (process.platform === 'darwin') {
+        setupDockMenu();
+      } else if (process.platform === 'win32') {
+        setupJumpList();
+      }
     } else {
       if (chatWin) {
         const bounds = chatWin.getBounds();
@@ -1100,6 +1080,11 @@ async function createChatWindow() {
       if (tray) {
         updateTrayContextMenu();
       }
+      if (process.platform === 'darwin') {
+        setupDockMenu();
+      } else if (process.platform === 'win32') {
+        setupJumpList();
+      }
     }
   });
 
@@ -1109,6 +1094,8 @@ async function createChatWindow() {
     }
     if (process.platform === 'darwin') {
       setupDockMenu();
+    } else if (process.platform === 'win32') {
+      setupJumpList();
     }
     if (win && !win.isDestroyed()) {
       win.webContents.send('chat-window-visibility-changed', true);
@@ -1131,6 +1118,8 @@ async function createChatWindow() {
     }
     if (process.platform === 'darwin') {
       setupDockMenu();
+    } else if (process.platform === 'win32') {
+      setupJumpList();
     }
     if (win && !win.isDestroyed()) {
       win.webContents.send('chat-window-visibility-changed', false);
@@ -1220,6 +1209,12 @@ async function createChatWindow() {
       chatWin.focus();
     }
   }, 2000);
+
+  if (process.platform === 'darwin') {
+    setupDockMenu();
+  } else if (process.platform === 'win32') {
+    setupJumpList();
+  }
 }
 
 ipcMain.handle('chat-window-show', async () => {
