@@ -58,16 +58,67 @@ export function getRecentlyUsedEmojis(): string[] {
   }
 }
 
+function getCustomEmojiNameFromToken(token: string): string | null {
+  const shortcodeMatch = token.match(/^:([a-z0-9_+-]+):$/i);
+  if (shortcodeMatch?.[1]) return shortcodeMatch[1].toLowerCase();
+
+  const urlMatch = token.match(/\/custom-emojis\/([a-z0-9_+-]+)\.(png|gif|jpg|jpeg|webp)$/i);
+  if (urlMatch?.[1]) return urlMatch[1].toLowerCase();
+
+  return null;
+}
+
+function normalizeRecentEmojiToken(token: string): string {
+  const name = getCustomEmojiNameFromToken(token);
+  if (name) return `:${name}:`;
+  return token;
+}
+
+export async function pruneRecentlyUsedEmojis(): Promise<string[]> {
+  try {
+    const stored = localStorage.getItem(RECENTLY_USED_KEY);
+    if (!stored) return [];
+
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return [];
+
+    const custom = await loadCustomEmojis();
+    const validCustomNames = new Set(custom.map(e => e.name.toLowerCase()));
+
+    const seen = new Set<string>();
+    const cleaned: string[] = [];
+
+    for (const raw of parsed) {
+      if (typeof raw !== 'string') continue;
+      const token = normalizeRecentEmojiToken(raw);
+      const customName = getCustomEmojiNameFromToken(token);
+
+      if (customName && !validCustomNames.has(customName)) continue;
+      if (seen.has(token)) continue;
+      seen.add(token);
+      cleaned.push(token);
+      if (cleaned.length >= MAX_RECENT_EMOJIS) break;
+    }
+
+    localStorage.setItem(RECENTLY_USED_KEY, JSON.stringify(cleaned));
+    return cleaned;
+  } catch (error) {
+    logger.error('Failed to prune recently used emojis', error as Error);
+    return getRecentlyUsedEmojis();
+  }
+}
+
 
 export function addToRecentlyUsed(emoji: string): void {
   try {
-    const recent = getRecentlyUsedEmojis();
+    const normalized = normalizeRecentEmojiToken(emoji);
+    const recent = getRecentlyUsedEmojis().map(normalizeRecentEmojiToken);
 
     
-    const filtered = recent.filter(e => e !== emoji);
+    const filtered = recent.filter(e => e !== normalized);
 
     
-    const updated = [emoji, ...filtered].slice(0, MAX_RECENT_EMOJIS);
+    const updated = [normalized, ...filtered].slice(0, MAX_RECENT_EMOJIS);
 
     localStorage.setItem(RECENTLY_USED_KEY, JSON.stringify(updated));
   } catch (error) {

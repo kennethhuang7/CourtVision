@@ -103,7 +103,8 @@ export default function Messages() {
     let node;
     while (node = walker.nextNode()) {
       if (node.nodeType === Node.TEXT_NODE) {
-        text += node.textContent;
+        const textContent = node.textContent || '';
+        text += textContent.replace(/\u200B/g, '');
       } else if (node.nodeType === Node.ELEMENT_NODE) {
         const el = node as HTMLElement;
         if (el.tagName === 'IMG' && el.getAttribute('data-emoji-name')) {
@@ -121,36 +122,74 @@ export default function Messages() {
     if (!selection || selection.rangeCount === 0) return 0;
     
     const range = selection.getRangeAt(0);
-    const preCaretRange = range.cloneRange();
-    preCaretRange.selectNodeContents(element);
-    preCaretRange.setEnd(range.endContainer, range.endOffset);
-    
-    let position = 0;
-    const walker = document.createTreeWalker(
-      element,
-      NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
-      null
-    );
-    
-    let node;
-    while (node = walker.nextNode()) {
-      if (node === range.endContainer) {
-        if (node.nodeType === Node.TEXT_NODE) {
-          position += range.endOffset;
-        }
-        break;
-      }
+    const endContainer = range.endContainer;
+    const endOffset = range.endOffset;
+
+    const nodeLogicalLength = (node: Node): number => {
       if (node.nodeType === Node.TEXT_NODE) {
-        position += node.textContent?.length || 0;
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        return (node.textContent || '').replace(/\u200B/g, '').length;
+      }
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        if (el.tagName === 'IMG' && el.getAttribute('data-emoji-name')) {
+          return `:${el.getAttribute('data-emoji-name')}:`.length;
+        }
+        if (el.tagName === 'BR') return 1;
+        let len = 0;
+        for (let i = 0; i < node.childNodes.length; i++) {
+          len += nodeLogicalLength(node.childNodes[i]);
+        }
+        return len;
+      }
+      return 0;
+    };
+
+    const childNodesLogicalLength = (parent: Node, upToIndex: number): number => {
+      let len = 0;
+      for (let i = 0; i < Math.min(upToIndex, parent.childNodes.length); i++) {
+        len += nodeLogicalLength(parent.childNodes[i]);
+      }
+      return len;
+    };
+
+    let position = 0;
+    const accumulate = (node: Node): boolean => {
+      if (node === endContainer) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const textContent = node.textContent || '';
+          const textBeforeCursor = textContent.substring(0, endOffset);
+          position += textBeforeCursor.replace(/\u200B/g, '').length;
+        } else {
+          position += childNodesLogicalLength(node, endOffset);
+        }
+        return true;
+      }
+
+      if (node.nodeType === Node.TEXT_NODE) {
+        position += (node.textContent || '').replace(/\u200B/g, '').length;
+        return false;
+      }
+
+      if (node.nodeType === Node.ELEMENT_NODE) {
         const el = node as HTMLElement;
         if (el.tagName === 'IMG' && el.getAttribute('data-emoji-name')) {
           position += `:${el.getAttribute('data-emoji-name')}:`.length;
-        } else if (el.tagName === 'BR') {
-          position += 1;
+          return false;
         }
+        if (el.tagName === 'BR') {
+          position += 1;
+          return false;
+        }
+        for (let i = 0; i < node.childNodes.length; i++) {
+          if (accumulate(node.childNodes[i])) return true;
+        }
+        return false;
       }
-    }
+
+      return false;
+    };
+
+    accumulate(element);
     return position;
   };
 
@@ -244,6 +283,7 @@ export default function Messages() {
         img.setAttribute('data-emoji-name', emojiName);
         
         element.appendChild(img);
+        element.appendChild(document.createTextNode('\u200B'));
       }
     });
     
@@ -1194,6 +1234,38 @@ export default function Messages() {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
                         handleSendMessage();
+                      }
+                      if (e.key === 'Backspace' && editableRef.current) {
+                        const selection = window.getSelection();
+                        if (!selection || selection.rangeCount === 0) return;
+                        const range = selection.getRangeAt(0);
+                        if (!range.collapsed) return;
+
+                        const text = extractTextFromEditable(editableRef.current);
+                        const cursorPos = getCursorPosition(editableRef.current);
+                        const beforeCursor = text.substring(0, cursorPos);
+                        const match = beforeCursor.match(/:([a-z0-9_+-]+):$/i);
+                        if (!match) return;
+
+                        e.preventDefault();
+                        const tokenLength = match[0].length;
+                        const startPos = cursorPos - tokenLength;
+                        const newContent = text.substring(0, startPos) + text.substring(cursorPos);
+
+                        setMessageContent(newContent);
+                        setTimeout(() => {
+                          if (!editableRef.current) return;
+                          updateEditableContent(editableRef.current, newContent);
+                          setCursorPositionInEditable(editableRef.current, startPos);
+                          editableRef.current.focus();
+                          setCursorPosition(startPos);
+                          requestAnimationFrame(() => {
+                            if (editableRef.current) {
+                              setCursorPositionInEditable(editableRef.current, startPos);
+                            }
+                          });
+                        }, 0);
+                        return;
                       }
                     }}
                     onBlur={() => {
