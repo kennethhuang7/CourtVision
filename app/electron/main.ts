@@ -420,7 +420,7 @@ async function createWindow() {
   const startMinimized = store.get('startMinimized', false);
   const minimizeToTray = store.get('minimizeToTray', false);
   const alwaysOnTop = store.get('alwaysOnTop', false);
-
+  
   const iconFile = process.platform === 'win32' ? 'courtvision.ico' : 'courtvision.png';
 
   const { screen } = require('electron');
@@ -445,7 +445,7 @@ async function createWindow() {
       webSecurity: true, 
     },
   });
-
+  
   Menu.setApplicationMenu(null);
 
   win.on('close', (event) => {
@@ -487,12 +487,12 @@ async function createWindow() {
         splashWin.close();
       }
       
-      if (startMinimized) {
-        if (minimizeToTray) {
-        } else {
-          win.minimize();
-        }
+    if (startMinimized) {
+      if (minimizeToTray) {
       } else {
+        win.minimize();
+      }
+    } else {
         if (win && !win.isDestroyed()) {
           const { screen } = require('electron');
           const primaryDisplay = screen.getPrimaryDisplay();
@@ -503,8 +503,8 @@ async function createWindow() {
             width: screenWidth,
             height: screenHeight
           });
-          win.show();
-        }
+      win.show();
+    }
       }
     }
   };
@@ -522,7 +522,7 @@ async function createWindow() {
     mainWindowReady = true;
     closeSplashAndShowMain();
   });
-
+  
   win.webContents.on('did-finish-load', () => {
     win?.webContents.send('main-process-message', new Date().toLocaleString());
   });
@@ -533,7 +533,7 @@ async function createWindow() {
   } else {
     win.loadFile(indexHtml);
   }
-
+  
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://') || url.startsWith('http://')) {
       try {
