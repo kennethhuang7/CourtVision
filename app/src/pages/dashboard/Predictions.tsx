@@ -59,6 +59,18 @@ export default function Predictions() {
       sessionStorage.setItem('shared-selected-date', toDateOnlyString(selectedDate));
     }
   }, [selectedDate, isInitializing]);
+
+  const selectedDateKey = useMemo(() => toDateOnlyString(selectedDate), [selectedDate]);
+  const prevSelectedDateKeyRef = useRef<string>(selectedDateKey);
+
+  useEffect(() => {
+    if (isInitializing) return;
+    if (prevSelectedDateKeyRef.current !== selectedDateKey) {
+      prevSelectedDateKeyRef.current = selectedDateKey;
+      setSelectedGameId(null);
+      setShowAllGames(false);
+    }
+  }, [selectedDateKey, isInitializing]);
   const [confidenceFilter, setConfidenceFilter] = useState<string>('all');
   const [playerSearch, setPlayerSearch] = useState('');
   const [playerSearchInput, setPlayerSearchInput] = useState('');
@@ -98,6 +110,12 @@ export default function Predictions() {
     error,
     refetch,
   } = useSupabasePredictions(selectedDate, selectedModels, { enabled: !isInitializing });
+
+  useEffect(() => {
+    if (selectedGameId && games.length > 0 && !games.some(g => g.id === selectedGameId)) {
+      setSelectedGameId(null);
+    }
+  }, [games, selectedGameId]);
 
   
   const [retryCountdown, setRetryCountdown] = useState<number | null>(null);
