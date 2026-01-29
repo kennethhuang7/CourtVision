@@ -482,16 +482,27 @@ The Friends page allows you to manage your social connections within the applica
 
 - **Friend Requests**: Send and receive friend requests
 - **Friend List**: View all your friends and their activity
-- **User Search**: Search for users by username
+- **User Search**: Search for users by username or friend code
+- **Friend Code**: Each user has a unique friend code for easy sharing and discovery
+- **Copy Friend Code**: Copy your friend code to clipboard from the title bar menu
 - **Profile Viewing**: View friend profiles and their shared picks
 - **Activity Tracking**: See when friends share new picks
 
 **To add a friend:**
 
 1. Navigate to the Friends page
-2. Use the search function to find a user by username
-3. Click "Send Friend Request"
-4. Once accepted, you'll see their picks in the Community section under "Friends"
+2. Use the search function to find a user by username or friend code
+3. Toggle between "By Username" and "By Friend Code" search modes
+4. Click "Send Friend Request"
+5. Once accepted, you'll see their picks in the Community section under "Friends"
+
+**Friend Codes:**
+
+Friend codes are unique 6-character identifiers that make it easy to find and connect with other users. You can:
+- Share your friend code with others for quick connection
+- Copy your friend code from the title bar menu (click your profile picture)
+- Search for users by entering their friend code
+- View friend codes in your friends list
 
 ![Friends Page](docs/screenshots/friends-page.png)
 
@@ -535,6 +546,21 @@ The Messages page provides a direct messaging interface for communication with f
 - **Real-Time Updates**: Receive notifications for new messages
 - **Message History**: Access full conversation history
 - **User Profiles**: Quick access to user profiles from conversations
+- **Custom Emoji Support**: Use custom emojis in messages with autocomplete functionality
+- **Emoji Autocomplete**: Type `:` followed by emoji name to quickly insert emojis
+- **Emoji Selector**: Browse and select from a collection of custom emojis
+- **Reaction Bar**: React to messages with custom emojis
+- **Separate Chat Window**: Chat window opens as a separate window (not an overlay)
+- **Stay on Top**: Pin the chat window to stay above other applications
+- **Show/Hide Toggle**: Quickly show or hide the chat window from the system tray menu
+
+**Chat Window Features:**
+
+The chat window operates as an independent window that can be positioned anywhere on your screen. You can:
+- Pin the window to keep it above other applications
+- Minimize it independently from the main application
+- Toggle visibility from the system tray menu
+- Use all messaging features including custom emojis and reactions
 
 ![Messages](docs/screenshots/messages.png)
 
@@ -585,6 +611,8 @@ The Settings page allows you to customize your application experience across mul
 
 - **Start with System**: Launch CourtVision automatically on system startup
 - **Minimize to Tray**: Keep the application running in the system tray when closed
+- **Show Splash Screen**: Display an animated startup screen during application launch (recommended)
+- **Chat Window Stay on Top**: Keep the chat window above other applications when enabled
 - **File Locations**: Configure where exported files and error logs are stored
 - **Update Settings**: Configure automatic update preferences and check for updates manually
 
@@ -728,7 +756,7 @@ When reporting bugs, please include as much of the following as possible:
 
 **Enjoying CourtVision?** Give us a star ⭐ on [GitHub](https://github.com/kennethhuang7/CourtVision)
 
-**Version**: 1.0.0  
+**Version**: 1.1.0  
 **Last Updated**: January 2025
 </div>
 
