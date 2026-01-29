@@ -425,6 +425,7 @@ export default function Settings() {
     chatWindowAlwaysOnTop: boolean;
     discordRichPresence: boolean;
     checkForUpdatesOnStartup: boolean;
+    showSplashScreen: boolean;
   } | null>(null);
   const [isLoadingAppSettings, setIsLoadingAppSettings] = useState(false);
 
@@ -3327,6 +3328,18 @@ export default function Settings() {
                         onCheckedChange={(enabled) => handleAppSettingChange('hardwareAcceleration', enabled)}
                       />
                     </div>
+                    <div className="flex items-center justify-between gap-6">
+                      <div className="flex-1 max-w-[calc(100%-80px)]">
+                        <Label>Show Splash Screen <span className="text-muted-foreground font-normal text-sm">(Recommended)</span></Label>
+                        <p className="text-sm text-muted-foreground">
+                          Display an animated startup screen during application launch. The splash screen provides visual feedback during initialization and helps mask loading operations, creating a more polished user experience.
+                        </p>
+                      </div>
+                      <Switch 
+                        checked={appSettings.showSplashScreen}
+                        onCheckedChange={(enabled) => handleAppSettingChange('showSplashScreen', enabled)}
+                      />
+                    </div>
                   </div>
                 </SettingsSection>
 
@@ -3403,11 +3416,11 @@ export default function Settings() {
 
                 <SettingsSection title="Integrations" description="Connect with external services and platforms.">
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
+                    <div className="flex items-center justify-between gap-6">
+                      <div className="flex-1 max-w-[calc(100%-80px)]">
                         <Label>Discord Rich Presence</Label>
                         <p className="text-sm text-muted-foreground">
-                          Show your current activity in CourtVision on your Discord profile. Requires Discord desktop app to be running.
+                          Show your current activity in CourtVision on your Discord profile. Requires Discord desktop app to be running. Enabling this feature may require an application restart to establish the connection, while disabling takes effect immediately.
                         </p>
                       </div>
                       <Switch

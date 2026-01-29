@@ -352,6 +352,7 @@ process.env.PUBLIC = app.isPackaged
 
 let win = null;
 let chatWin = null;
+let splashWin = null;
 let tray = null;
 
 
@@ -359,9 +360,59 @@ const preload = join(__dirname, 'preload.cjs');
 
 const url = process.env.VITE_DEV_SERVER_URL;
 const indexHtml = join(process.env.DIST, 'index.html');
+const splashHtml = join(process.env.PUBLIC, 'splash.html');
+
+function createSplashWindow() {
+  if (splashWin) {
+    splashWin.show();
+    splashWin.focus();
+    return;
+  }
+
+  const iconFile = process.platform === 'win32' ? 'courtvision.ico' : 'courtvision.png';
+  
+  const { screen } = require('electron');
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width, height } = primaryDisplay.workAreaSize;
+  
+  const splashWidth = 600;
+  const splashHeight = 400;
+  const x = Math.floor((width - splashWidth) / 2);
+  const y = Math.floor((height - splashHeight) / 2);
+
+  splashWin = new BrowserWindow({
+    width: splashWidth,
+    height: splashHeight,
+    x: x,
+    y: y,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    resizable: false,
+    skipTaskbar: true,
+    icon: join(process.env.PUBLIC, iconFile),
+    webPreferences: {
+      preload,
+      nodeIntegration: false,
+      contextIsolation: true,
+      webSecurity: true,
+    },
+  });
+
+  Menu.setApplicationMenu(null);
+
+  splashWin.loadFile(splashHtml);
+
+  splashWin.on('closed', () => {
+    splashWin = null;
+  });
+
+  if (process.platform !== 'darwin') {
+    splashWin.setSkipTaskbar(true);
+  }
+}
 
 async function createWindow() {
-  
   session.defaultSession.setUserAgent(
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
   );
@@ -370,12 +421,17 @@ async function createWindow() {
   const minimizeToTray = store.get('minimizeToTray', false);
   const alwaysOnTop = store.get('alwaysOnTop', false);
 
-  
   const iconFile = process.platform === 'win32' ? 'courtvision.ico' : 'courtvision.png';
 
+  const { screen } = require('electron');
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
   win = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    width: screenWidth,
+    height: screenHeight,
+    x: 0,
+    y: 0,
     minWidth: 1200,
     minHeight: 700,
     icon: join(process.env.PUBLIC, iconFile),
@@ -390,7 +446,6 @@ async function createWindow() {
     },
   });
 
-  
   Menu.setApplicationMenu(null);
 
   win.on('close', (event) => {
@@ -420,33 +475,65 @@ async function createWindow() {
   });
 
   
-  win.webContents.once('did-finish-load', () => {
-    if (startMinimized) {
-      if (minimizeToTray) {
-        
-      } else {
-        win.minimize();
+  // Track if main window is ready
+  let mainWindowReady = false;
+  let splashAnimationComplete = false;
+
+  const showSplashScreen = store.get('showSplashScreen', true);
+  
+  const closeSplashAndShowMain = () => {
+    if (mainWindowReady && (splashAnimationComplete || !showSplashScreen || !splashWin)) {
+      if (splashWin && !splashWin.isDestroyed()) {
+        splashWin.close();
       }
-    } else {
-      win.maximize();
-      win.show();
+      
+      if (startMinimized) {
+        if (minimizeToTray) {
+        } else {
+          win.minimize();
+        }
+      } else {
+        if (win && !win.isDestroyed()) {
+          const { screen } = require('electron');
+          const primaryDisplay = screen.getPrimaryDisplay();
+          const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+          win.setBounds({
+            x: 0,
+            y: 0,
+            width: screenWidth,
+            height: screenHeight
+          });
+          win.show();
+        }
+      }
     }
+  };
+
+  if (showSplashScreen) {
+    setTimeout(() => {
+      splashAnimationComplete = true;
+      closeSplashAndShowMain();
+    }, 4750);
+  } else {
+    splashAnimationComplete = true;
+  }
+
+  win.webContents.once('did-finish-load', () => {
+    mainWindowReady = true;
+    closeSplashAndShowMain();
   });
 
-  
   win.webContents.on('did-finish-load', () => {
     win?.webContents.send('main-process-message', new Date().toLocaleString());
   });
 
   if (isDev && url) {
     win.loadURL(url);
-    
     win.webContents.openDevTools();
   } else {
     win.loadFile(indexHtml);
   }
 
-  
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://') || url.startsWith('http://')) {
       try {
@@ -730,6 +817,121 @@ if (!gotTheLock) {
     }
   });
 
+function setupDockMenu() {
+  if (process.platform !== 'darwin') return;
+
+  const iconFile = join(process.env.PUBLIC, 'courtvision.png');
+  let appIcon = null;
+  try {
+    if (require('fs').existsSync(iconFile)) {
+      appIcon = nativeImage.createFromPath(iconFile);
+    }
+  } catch (e) {
+  }
+
+  const updateDockMenu = () => {
+    const chatWindowVisible = chatWin ? chatWin.isVisible() : false;
+    const dockMenu = Menu.buildFromTemplate([
+      {
+        label: 'Main',
+        submenu: [
+          { label: 'Predictions', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard'); } } },
+          { label: 'Player Analysis', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/player-analysis'); } } },
+          { label: 'Pick Finder', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/pick-finder'); } } },
+          { label: 'Trends', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/trends'); } } },
+          { label: 'My Picks', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/saved-picks'); } } },
+        ],
+      },
+      {
+        label: 'Social',
+        submenu: [
+          { label: 'Community', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/community'); } } },
+          { label: 'Messages', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/messages'); } } },
+          { label: 'My Friends', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/friends'); } } },
+          { label: 'My Groups', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/groups'); } } },
+        ],
+      },
+      {
+        label: 'Insights',
+        submenu: [
+          { label: 'Analytics', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/analytics'); } } },
+          { label: 'Model Performance', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/model-performance'); } } },
+          { label: 'How It Works', icon: appIcon, click: () => { if (win) { win.show(); win.focus(); win.webContents.send('navigate-to-route', '/dashboard/how-it-works'); } } },
+        ],
+      },
+      { type: 'separator' },
+      {
+        label: chatWindowVisible ? 'Hide Chat Window' : 'Show Chat Window',
+        icon: appIcon,
+        click: async () => {
+          if (chatWin) {
+            if (chatWin.isVisible()) {
+              chatWin.hide();
+            } else {
+              chatWin.show();
+              chatWin.focus();
+            }
+          } else {
+            await createChatWindow();
+          }
+          if (tray) {
+            updateTrayContextMenu();
+          }
+          if (win && !win.isDestroyed()) {
+            win.webContents.send('chat-window-visibility-changed', chatWin ? chatWin.isVisible() : false);
+          }
+          setTimeout(updateDockMenu, 100);
+        },
+      },
+    ]);
+    app.dock.setMenu(dockMenu);
+  };
+
+  updateDockMenu();
+
+  if (chatWin) {
+    chatWin.on('show', updateDockMenu);
+    chatWin.on('hide', updateDockMenu);
+  }
+}
+
+function setupJumpList() {
+  if (process.platform !== 'win32') return;
+
+  app.setJumpList([
+    {
+      type: 'custom',
+      name: 'Main',
+      items: [
+        { type: 'task', title: 'Predictions', description: 'View predictions', program: process.execPath, args: '--route=/dashboard' },
+        { type: 'task', title: 'Player Analysis', description: 'Analyze players', program: process.execPath, args: '--route=/dashboard/player-analysis' },
+        { type: 'task', title: 'Pick Finder', description: 'Find picks', program: process.execPath, args: '--route=/dashboard/pick-finder' },
+        { type: 'task', title: 'Trends', description: 'View trends', program: process.execPath, args: '--route=/dashboard/trends' },
+        { type: 'task', title: 'My Picks', description: 'View saved picks', program: process.execPath, args: '--route=/dashboard/saved-picks' },
+      ],
+    },
+    {
+      type: 'custom',
+      name: 'Social',
+      items: [
+        { type: 'task', title: 'Community', description: 'View community', program: process.execPath, args: '--route=/dashboard/community' },
+        { type: 'task', title: 'Messages', description: 'View messages', program: process.execPath, args: '--route=/dashboard/messages' },
+        { type: 'task', title: 'My Friends', description: 'View friends', program: process.execPath, args: '--route=/dashboard/friends' },
+        { type: 'task', title: 'My Groups', description: 'View groups', program: process.execPath, args: '--route=/dashboard/groups' },
+      ],
+    },
+    {
+      type: 'custom',
+      name: 'Insights',
+      items: [
+        { type: 'task', title: 'Analytics', description: 'View analytics', program: process.execPath, args: '--route=/dashboard/analytics' },
+        { type: 'task', title: 'Model Performance', description: 'View model performance', program: process.execPath, args: '--route=/dashboard/model-performance' },
+        { type: 'task', title: 'How It Works', description: 'Learn how it works', program: process.execPath, args: '--route=/dashboard/how-it-works' },
+      ],
+    },
+  ]);
+}
+
 app.whenReady().then(() => {
   if (process.platform === 'win32') {
     app.setAppUserModelId('com.courtvision.app');
@@ -750,15 +952,29 @@ app.whenReady().then(() => {
     
     if (process.platform === 'win32' || process.platform === 'linux') {
       const oauthUrl = process.argv.find(arg => arg.startsWith(`${OAUTH_PROTOCOL}://`));
+      const routeArg = process.argv.find(arg => arg.startsWith('--route='));
       if (oauthUrl) {
         setTimeout(() => {
           handleOAuthCallback(oauthUrl);
         }, 1000);
+      } else if (routeArg && win) {
+        const route = routeArg.split('=')[1];
+        setTimeout(() => {
+          if (win && win.webContents) {
+            win.webContents.send('navigate-to-route', route);
+          }
+        }, 1000);
       }
     }
     
+    const showSplashScreen = store.get('showSplashScreen', true);
+    if (showSplashScreen) {
+      createSplashWindow();
+    }
     createWindow();
 
+    setupDockMenu();
+    setupJumpList();
 
     if (store.get('minimizeToTray', false)) {
       createTray();
@@ -891,6 +1107,9 @@ async function createChatWindow() {
     if (tray) {
       updateTrayContextMenu();
     }
+    if (process.platform === 'darwin') {
+      setupDockMenu();
+    }
     if (win && !win.isDestroyed()) {
       win.webContents.send('chat-window-visibility-changed', true);
     }
@@ -909,6 +1128,9 @@ async function createChatWindow() {
   chatWin.on('hide', () => {
     if (tray) {
       updateTrayContextMenu();
+    }
+    if (process.platform === 'darwin') {
+      setupDockMenu();
     }
     if (win && !win.isDestroyed()) {
       win.webContents.send('chat-window-visibility-changed', false);
@@ -1090,6 +1312,18 @@ ipcMain.handle('chat-window-is-maximized', () => {
   return chatWin ? chatWin.isMaximized() : false;
 });
 
+ipcMain.handle('splash-ready', () => {
+  return { success: true };
+});
+
+ipcMain.handle('get-user-info', async () => {
+  try {
+    return null;
+  } catch (error) {
+    return null;
+  }
+});
+
 
 ipcMain.on('flash-window', () => {
   if (win && !win.isFocused()) {
@@ -1118,6 +1352,7 @@ ipcMain.handle('get-app-settings', () => {
     chatWindowAlwaysOnTop: store.get('chatWindowAlwaysOnTop', false),
     discordRichPresence: store.get('discordRichPresence', false),
     checkForUpdatesOnStartup: store.get('checkForUpdatesOnStartup', true),
+    showSplashScreen: store.get('showSplashScreen', true),
   };
 });
 
@@ -1184,6 +1419,10 @@ ipcMain.handle('set-app-settings', (event, settings) => {
 
   if (Object.prototype.hasOwnProperty.call(settings, 'checkForUpdatesOnStartup')) {
     store.set('checkForUpdatesOnStartup', settings.checkForUpdatesOnStartup);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(settings, 'showSplashScreen')) {
+    store.set('showSplashScreen', settings.showSplashScreen);
   }
 
   return { success: true };
@@ -1542,5 +1781,30 @@ ipcMain.handle('open-external', async (event, url) => {
   } catch (error) {
     logMainError('Failed to open external URL', error);
     return { success: false, error: error.message };
+  }
+});
+
+ipcMain.on('navigate-to-route', (event, route: string) => {
+  if (win && win.webContents) {
+    win.webContents.send('navigate-to-route', route);
+  }
+});
+
+ipcMain.on('toggle-chat-window-from-menu', async () => {
+  if (chatWin) {
+    if (chatWin.isVisible()) {
+      chatWin.hide();
+    } else {
+      chatWin.show();
+      chatWin.focus();
+    }
+  } else {
+    await createChatWindow();
+  }
+  if (tray) {
+    updateTrayContextMenu();
+  }
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('chat-window-visibility-changed', chatWin ? chatWin.isVisible() : false);
   }
 });

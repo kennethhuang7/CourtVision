@@ -13,7 +13,8 @@ function validateSettings(settings: Record<string, any>): Record<string, boolean
     'alwaysOnTop',
     'chatWindowAlwaysOnTop',
     'discordRichPresence',
-    'checkForUpdatesOnStartup'
+    'checkForUpdatesOnStartup',
+    'showSplashScreen'
   ];
 
   for (const key of allowedSettings) {
@@ -128,4 +129,12 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.on('chat-window-visibility-changed', handler);
     return () => ipcRenderer.removeListener('chat-window-visibility-changed', handler);
   },
+  onNavigateToRoute: (callback: (route: string) => void) => {
+    const handler = (_event: any, route: string) => callback(route);
+    ipcRenderer.on('navigate-to-route', handler);
+    return () => ipcRenderer.removeListener('navigate-to-route', handler);
+  },
+  
+  splashReady: () => ipcRenderer.invoke('splash-ready'),
+  getUserInfo: () => ipcRenderer.invoke('get-user-info'),
 });

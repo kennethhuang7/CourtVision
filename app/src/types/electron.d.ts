@@ -87,6 +87,7 @@ export interface ElectronAPI {
   onChatWindowMaximize: (callback: () => void) => () => void;
   onChatWindowUnmaximize: (callback: () => void) => () => void;
   onChatWindowVisibilityChanged: (callback: (visible: boolean) => void) => () => void;
+  onNavigateToRoute: (callback: (route: string) => void) => () => void;
 }
 
 declare global {

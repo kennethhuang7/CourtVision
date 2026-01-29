@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { CacheProvider } from "@/contexts/CacheContext";
@@ -13,6 +13,7 @@ import { DoNotDisturbProvider } from "@/contexts/DoNotDisturbContext";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEffect } from "react";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -62,6 +63,24 @@ const ChatWindowRoute = () => {
   );
 };
 
+function NavigationListener() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (!window.electron?.onNavigateToRoute) return;
+
+    const unsubscribe = window.electron.onNavigateToRoute((route: string) => {
+      if (location.pathname !== route) {
+        navigate(route);
+      }
+    });
+
+    return unsubscribe;
+  }, [navigate, location.pathname]);
+
+  return null;
+}
 
 const App = () => (
   <ErrorBoundary>
@@ -77,6 +96,7 @@ const App = () => (
                       <Toaster />
                       <Sonner />
                       <HashRouter>
+                        <NavigationListener />
                         <Routes>
                           <Route path="/chat-window" element={
                             <ErrorBoundary>
