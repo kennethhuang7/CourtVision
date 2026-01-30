@@ -77,17 +77,19 @@ export function ReactionBar({ messageId, reactions, className }: ReactionBarProp
   };
 
   const isCustomReactionEmoji = (emoji: string): boolean => {
-    return /^:([a-z0-9_+-]+):$/i.test(emoji) || /\/custom-emojis\//i.test(emoji);
+    return /^:([a-z0-9_+-]+):$/i.test(emoji) || /\.?\/custom-emojis\//i.test(emoji);
   };
 
   const renderReactionEmoji = (emoji: string, size: 'chip' | 'tooltip' = 'chip') => {
     const shortcodeMatch = emoji.match(/^:([a-z0-9_+-]+):$/i);
     let url: string | undefined;
 
+    const basePath = import.meta.env.BASE_URL || '/';
+
     if (shortcodeMatch) {
       const name = shortcodeMatch[1].toLowerCase();
-      url = customEmojisMap.get(name) || `/custom-emojis/${name}.png`;
-    } else if (/\/custom-emojis\//i.test(emoji)) {
+      url = customEmojisMap.get(name) || `${basePath}custom-emojis/${name}.png`;
+    } else if (/\.?\/custom-emojis\//i.test(emoji)) {
       url = emoji;
     }
 

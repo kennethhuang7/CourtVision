@@ -282,7 +282,7 @@ export default function Messages() {
         img.setAttribute('contenteditable', 'false');
         img.setAttribute('draggable', 'false');
         
-        const emojiName = src.replace('/custom-emojis/', '').replace(/\.(png|gif|jpg|jpeg|webp)$/i, '');
+        const emojiName = src.replace(/\.?\/custom-emojis\//, '').replace(/\.(png|gif|jpg|jpeg|webp)$/i, '');
         img.setAttribute('data-emoji-name', emojiName);
         
         element.appendChild(img);

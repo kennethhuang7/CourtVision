@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import type { UserPick } from '@/hooks/useUserPicks';
+import { PlayerAvatar } from '@/components/ui/player-avatar';
 
 const statLabels: Record<string, string> = {
   points: 'Points',
@@ -242,21 +243,16 @@ export function PicksModal({
 
                         {/* Player photo */}
                         <div className="relative flex-shrink-0">
-                          <div className={cn(
-                            "w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden ring-2 transition-all duration-300",
-                            pick.result === 'win' && "ring-green-500/40 group-hover:ring-green-500/60",
-                            pick.result === 'loss' && "ring-red-500/40 group-hover:ring-red-500/60",
-                            pick.result === 'pending' && "ring-yellow-500/40 group-hover:ring-yellow-500/60"
-                          )}>
-                            <img
-                              src={getPlayerPhotoUrl(pick.player_id)}
-                              alt={pick.player?.full_name || 'Player'}
-                              className="w-full h-full object-cover object-top bg-muted"
-                              onError={(e) => {
-                                e.currentTarget.src = '/player-placeholder.png';
-                              }}
-                            />
-                          </div>
+                          <PlayerAvatar
+                            src={getPlayerPhotoUrl(pick.player_id)}
+                            name={pick.player?.full_name || 'Player'}
+                            className={cn(
+                              "w-10 h-10 sm:w-12 sm:h-12 ring-2 transition-all duration-300 text-base sm:text-lg",
+                              pick.result === 'win' && "ring-green-500/40 group-hover:ring-green-500/60",
+                              pick.result === 'loss' && "ring-red-500/40 group-hover:ring-red-500/60",
+                              pick.result === 'pending' && "ring-yellow-500/40 group-hover:ring-yellow-500/60"
+                            )}
+                          />
                         </div>
 
                         {/* Pick info */}

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { TrendingUp, TrendingDown, Eye, Plus, Check, AlertCircle, ChevronDown, Shield, Target, CheckCircle2, Flame } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { PlayerAvatar } from '@/components/ui/player-avatar';
 import { cn } from '@/lib/utils';
 import { getTeamLogoUrl } from '@/utils/teamLogos';
 import type { PickResult } from '@/types/pickFinder';
@@ -181,13 +182,10 @@ export function PickResultCard({ result }: PickResultCardProps) {
       <div className="relative flex flex-col gap-4 px-4 pt-4 pb-3 sm:flex-row sm:items-center sm:px-6 sm:pt-6 sm:pb-3">
         <div className="flex flex-1 gap-3 min-w-0">
           <div className="relative shrink-0">
-            <img
-              src={result.playerPhotoUrl || '/player-placeholder.png'}
-              alt={result.playerName}
-              className="h-14 w-14 rounded-xl object-cover bg-secondary ring-1 ring-border sm:h-16 sm:w-16"
-              onError={(e) => {
-                e.currentTarget.src = '/player-placeholder.png';
-              }}
+            <PlayerAvatar
+              src={result.playerPhotoUrl}
+              name={result.playerName}
+              className="h-14 w-14 !rounded-xl ring-1 ring-border sm:h-16 sm:w-16 text-xl sm:text-2xl"
             />
             <div className="absolute -bottom-1 -right-1">
               <img

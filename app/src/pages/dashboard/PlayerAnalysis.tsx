@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Combobox } from '@/components/ui/combobox';
 import { DatePicker } from '@/components/ui/date-picker';
+import { PlayerAvatar } from '@/components/ui/player-avatar';
 import { useSupabasePredictions } from '@/hooks/useSupabasePredictions';
 import { usePlayerHistoricalGames } from '@/hooks/usePlayerHistoricalGames';
 import { useSavePick } from '@/hooks/useSavePick';
@@ -1419,7 +1420,7 @@ export default function PlayerAnalysis() {
                   alt={player.name}
                   className="absolute right-0 bottom-0 h-36 w-auto object-cover"
                   onError={(e) => {
-                    e.currentTarget.src = '/player-placeholder.png';
+                    e.currentTarget.style.display = 'none';
                   }}
                 />
               </div>

@@ -278,11 +278,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       try {
         
         
+        const basePath = import.meta.env.BASE_URL || '/';
+        const defaultIcon = `${basePath}courtvision.ico`;
         const notification = new Notification(title, {
           body: message,
-          icon: options?.icon || '/favicon.ico',
-          tag: options?.tag, 
-          badge: '/favicon.ico',
+          icon: options?.icon || defaultIcon,
+          tag: options?.tag,
+          badge: defaultIcon,
           requireInteraction: false,
           silent: false, 
         });

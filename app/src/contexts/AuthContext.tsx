@@ -18,7 +18,7 @@ interface AuthContextType {
   isSupabaseError: boolean;
   retryAuth: () => void;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
-  register: (email: string, username: string, password: string) => Promise<void>;
+  register: (email: string, username: string, displayName: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -164,7 +164,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [initAuth]);
 
   const retryAuth = useCallback(() => {
-    initAuth();
+    const isMountedRef = { current: true };
+    initAuth(isMountedRef);
   }, [initAuth]);
 
   const login = useCallback(async (email: string, password: string, rememberMe = true) => {

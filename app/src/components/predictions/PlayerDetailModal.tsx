@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Prediction, FeatureExplanation } from '@/types/nba';
 import { ConfidenceBadge } from './ConfidenceBadge';
+import { PlayerAvatar } from '@/components/ui/player-avatar';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -912,16 +913,11 @@ export function PlayerDetailModal({ prediction, open, onOpenChange }: PlayerDeta
         <DialogHeader className="pb-3 border-b border-border/30">
           <div className="flex items-center gap-3">
             <div className="relative shrink-0">
-              <div className="w-16 h-16 shrink-0 rounded-full overflow-hidden ring-2 ring-primary/50 bg-gradient-to-br from-secondary via-muted to-secondary">
-                <img
-                  src={player.photoUrl}
-                  alt={player.name}
-                  className="w-full h-full object-cover object-top"
-                  onError={(e) => {
-                    e.currentTarget.src = '/player-placeholder.png';
-                  }}
-                />
-              </div>
+              <PlayerAvatar
+                src={player.photoUrl}
+                name={player.name}
+                className="w-16 h-16 shrink-0 ring-2 ring-primary/50 text-2xl"
+              />
               <div className="absolute inset-0 rounded-full bg-primary/20 blur-xl -z-10" />
             </div>
 

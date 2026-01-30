@@ -77,7 +77,7 @@ export function EmojiPicker({ onEmojiSelect, onClose, mode = 'insert', className
 
 
   const isCustomEmoji = (emoji: string): boolean => {
-    return emoji.startsWith(':') && emoji.endsWith(':') || emoji.startsWith('/custom-emojis/');
+    return emoji.startsWith(':') && emoji.endsWith(':') || /\.?\/custom-emojis\//.test(emoji);
   };
 
   const displayEmojis = useMemo(() => {

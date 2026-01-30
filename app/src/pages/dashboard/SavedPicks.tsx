@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RateLimitError } from '@/components/ui/RateLimitError';
+import { PlayerAvatar } from '@/components/ui/player-avatar';
 import { useUserPicks } from '@/hooks/useUserPicks';
 import { useDeletePick } from '@/hooks/useDeletePick';
 import { SharePickModal } from '@/components/picks/SharePickModal';
@@ -528,22 +529,11 @@ export default function SavedPicks() {
                 </div>
                 <div className="relative flex items-center gap-4">
                   <div className="relative flex-shrink-0">
-                    <div className="w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden ring-2 ring-primary/30 bg-gradient-to-br from-secondary via-muted to-secondary">
-                      {playerPhotoUrl ? (
-                        <img
-                          src={playerPhotoUrl}
-                          alt={pick.player?.full_name || 'Player'}
-                          className="w-full h-full object-cover object-top"
-                          onError={(e) => {
-                            e.currentTarget.src = '/player-placeholder.png';
-                          }}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground">
-                          <Brain className="h-8 w-8" />
-                        </div>
-                      )}
-                    </div>
+                    <PlayerAvatar
+                      src={playerPhotoUrl}
+                      name={pick.player?.full_name || 'Player'}
+                      className="w-16 h-16 md:w-20 md:h-20 ring-2 ring-primary/30 text-2xl md:text-3xl"
+                    />
                     {teamAbbr && (
                       <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-background border-2 border-primary/30 overflow-hidden">
                         {teamId ? (

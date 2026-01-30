@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Trophy, Eye, Copy, Brain, CheckCircle2, XCircle, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PlayerAvatar } from '@/components/ui/player-avatar';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { useSavePick } from '@/hooks/useSavePick';
 import { useUserPicks } from '@/hooks/useUserPicks';
@@ -463,22 +464,11 @@ export function PickShareMessageCard({ metadata, isOwn, conversationType, groupI
 
       <div className="flex items-start gap-3">
         <div className="relative flex-shrink-0">
-          <div className="w-14 h-14 rounded-full overflow-hidden ring-2 ring-primary/30 bg-gradient-to-br from-secondary via-muted to-secondary">
-            {playerPhotoUrl ? (
-              <img
-                src={playerPhotoUrl}
-                alt={pickData.player?.full_name || 'Player'}
-                className="w-full h-full object-cover object-top"
-                onError={(e) => {
-                  e.currentTarget.src = '/player-placeholder.png';
-                }}
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground">
-                <Brain className="h-7 w-7" />
-              </div>
-            )}
-          </div>
+          <PlayerAvatar
+            src={playerPhotoUrl}
+            name={pickData.player?.full_name || 'Player'}
+            className="w-14 h-14 ring-2 ring-primary/30 text-xl"
+          />
           {teamId && pickData.player?.team_abbr && (
             <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-background border-2 border-primary/30 overflow-hidden">
               <img

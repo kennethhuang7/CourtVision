@@ -4,6 +4,7 @@ import { Prediction } from '@/types/nba';
 import { ConfidenceBadge } from './ConfidenceBadge';
 import { PlayerDetailModal } from './PlayerDetailModal';
 import { Button } from '@/components/ui/button';
+import { PlayerAvatar } from '@/components/ui/player-avatar';
 import { cn } from '@/lib/utils';
 
 function formatPosition(position: string): string {
@@ -77,16 +78,11 @@ export function PlayerCard({ prediction, showCompare = false, gameContext }: Pla
         <div className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/5 to-primary/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
         
         <div className="relative flex-shrink-0 z-10 pointer-events-none">
-          <div className="w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden ring-2 ring-primary/30 group-hover:ring-primary/60 transition-all duration-300 bg-gradient-to-br from-secondary via-muted to-secondary shadow-lg group-hover:shadow-xl group-hover:shadow-primary/20">
-            <img
-              src={player.photoUrl}
-              alt={player.name}
-              className="w-full h-full object-cover object-top"
-              onError={(e) => {
-                e.currentTarget.src = '/player-placeholder.png';
-              }}
-            />
-          </div>
+          <PlayerAvatar
+            src={player.photoUrl}
+            name={player.name}
+            className="w-16 h-16 md:w-20 md:h-20 ring-2 ring-primary/30 group-hover:ring-primary/60 transition-all duration-300 shadow-lg group-hover:shadow-xl group-hover:shadow-primary/20 text-2xl md:text-3xl"
+          />
           <div className="absolute inset-0 rounded-full bg-primary/30 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 -z-10" />
         </div>
 
