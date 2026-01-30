@@ -21,6 +21,7 @@ nsis:
   perMachine: false
   allowToChangeInstallationDirectory: true
   include: build/installer.nsh
+  artifactName: "${productName}.Setup.${version}.${ext}"
 win:
   target:
     - nsis
