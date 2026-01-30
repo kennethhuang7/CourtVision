@@ -13,7 +13,7 @@ const EMOJI_REGEX = /(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)/gu;
 export function isEmojiOnly(text: string): boolean {
   if (!text || text.trim().length === 0) return false;
 
-  const customEmojiPattern = /:([a-z0-9_+-]+):|\/custom-emojis\/[^\s]+/gi;
+  const customEmojiPattern = /:([a-z0-9_+-]+):|\.?\/custom-emojis\/[^\s]+/gi;
   const withoutEmojis = text
     .replace(EMOJI_REGEX, '')
     .replace(customEmojiPattern, '')
@@ -25,7 +25,7 @@ export function isEmojiOnly(text: string): boolean {
 
 export function countEmojis(text: string): number {
   const unicodeMatches = text.match(EMOJI_REGEX) || [];
-  const customEmojiPattern = /:([a-z0-9_+-]+):|\/custom-emojis\/[^\s]+/gi;
+  const customEmojiPattern = /:([a-z0-9_+-]+):|\.?\/custom-emojis\/[^\s]+/gi;
   const customMatches = text.match(customEmojiPattern) || [];
   return unicodeMatches.length + (customMatches ? customMatches.length : 0);
 }
@@ -62,7 +62,7 @@ function getCustomEmojiNameFromToken(token: string): string | null {
   const shortcodeMatch = token.match(/^:([a-z0-9_+-]+):$/i);
   if (shortcodeMatch?.[1]) return shortcodeMatch[1].toLowerCase();
 
-  const urlMatch = token.match(/\/custom-emojis\/([a-z0-9_+-]+)\.(png|gif|jpg|jpeg|webp)$/i);
+  const urlMatch = token.match(/\.?\/custom-emojis\/([a-z0-9_+-]+)\.(png|gif|jpg|jpeg|webp)$/i);
   if (urlMatch?.[1]) return urlMatch[1].toLowerCase();
 
   return null;
@@ -145,7 +145,10 @@ export function searchEmojis(query: string): string[] {
 
 export async function loadCustomEmojis(): Promise<Array<{ name: string; url: string; emoji: string }>> {
   try {
-    const response = await fetch('/custom-emojis/manifest.json');
+    const basePath = import.meta.env.BASE_URL || '/';
+    const manifestUrl = `${basePath}custom-emojis/manifest.json`;
+
+    const response = await fetch(manifestUrl);
 
     if (!response.ok) {
       return [];
@@ -161,8 +164,8 @@ export async function loadCustomEmojis(): Promise<Array<{ name: string; url: str
       .filter(item => item.name && item.filename)
       .map(item => ({
         name: item.name,
-        url: `/custom-emojis/${item.filename}`,
-        emoji: `/custom-emojis/${item.filename}`,
+        url: `${basePath}custom-emojis/${item.filename}`,
+        emoji: `${basePath}custom-emojis/${item.filename}`,
       }));
 
     return customEmojis;
@@ -224,9 +227,9 @@ export async function getCustomEmojisMap(forceReload = false): Promise<Map<strin
 
 export function renderMessageWithCustomEmojis(content: string, customEmojisMap: Map<string, string>): React.ReactNode[] {
   if (!content) return [content];
-  
+
   const parts: React.ReactNode[] = [];
-  const customEmojiPattern = /:([a-z0-9_+-]+):|\/custom-emojis\/([a-z0-9_+-]+\.(png|gif|jpg|jpeg|webp))/gi;
+  const customEmojiPattern = /:([a-z0-9_+-]+):|\.?\/custom-emojis\/([a-z0-9_+-]+\.(png|gif|jpg|jpeg|webp))/gi;
   let lastIndex = 0;
   let key = 0;
   const matches: Array<{ index: number; length: number; name: string | null; url: string }> = [];
@@ -297,7 +300,7 @@ export function renderMessageWithCustomEmojis(content: string, customEmojisMap: 
 export function stripUnknownCustomEmojis(content: string, customEmojisMap: Map<string, string>): string {
   if (!content) return content;
 
-  const pattern = /:([a-z0-9_+-]+):|\/custom-emojis\/([a-z0-9_+-]+\.(png|gif|jpg|jpeg|webp))/gi;
+  const pattern = /:([a-z0-9_+-]+):|\.?\/custom-emojis\/([a-z0-9_+-]+\.(png|gif|jpg|jpeg|webp))/gi;
 
   const stripped = content.replace(pattern, (full, shortcodeName, filename) => {
     let name: string | null = null;

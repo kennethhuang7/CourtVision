@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { TrendingUp, Target, Home, History, Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PlayerAvatar } from '@/components/ui/player-avatar';
 import type { Trend } from '@/types/trends';
 import { usePlayerHistoricalGames } from '@/hooks/usePlayerHistoricalGames';
 
@@ -99,13 +100,10 @@ export function TrendDetail({ trend }: TrendDetailProps) {
   return (
     <div className="p-6 space-y-6 animate-in fade-in slide-in-from-right-2 duration-300">
       <div className="flex items-start gap-4">
-        <img
+        <PlayerAvatar
           src={trend.playerPhotoUrl}
-          alt={trend.playerName}
-          className="w-24 h-24 rounded-full bg-secondary object-cover"
-          onError={(e) => {
-            e.currentTarget.src = '/player-placeholder.png';
-          }}
+          name={trend.playerName}
+          className="w-24 h-24 text-3xl"
         />
         <div className="flex-1">
           <h2 className="text-3xl font-bold text-foreground mb-2">

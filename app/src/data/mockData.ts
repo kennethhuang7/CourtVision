@@ -1,14 +1,17 @@
 import { Game, Prediction, Player, HistoricalGame, ModelPerformance, ContextInfo } from '@/types/nba';
 
+const getPlayerPhotoUrl = (playerId: string) =>
+  `https://ak-static.cms.nba.com/wp-content/uploads/headshots/nba/latest/260x190/${playerId}.png`;
+
 const players: Player[] = [
-  { id: '201142', name: 'Kevin Durant', team: 'Phoenix Suns', teamAbbr: 'PHX', position: 'Forward', photoUrl: '/player-placeholder.png',
-  { id: '203507', name: 'Giannis Antetokounmpo', team: 'Milwaukee Bucks', teamAbbr: 'MIL', position: 'Forward', photoUrl: '/player-placeholder.png',
-  { id: '201566', name: 'Russell Westbrook', team: 'Denver Nuggets', teamAbbr: 'DEN', position: 'Guard', photoUrl: '/player-placeholder.png',
-  { id: '203954', name: 'Joel Embiid', team: 'Philadelphia 76ers', teamAbbr: 'PHI', position: 'Center', photoUrl: '/player-placeholder.png',
-  { id: '1628369', name: 'Jayson Tatum', team: 'Boston Celtics', teamAbbr: 'BOS', position: 'Forward', photoUrl: '/player-placeholder.png',
-  { id: '203081', name: 'Damian Lillard', team: 'Milwaukee Bucks', teamAbbr: 'MIL', position: 'Guard', photoUrl: '/player-placeholder.png',
-  { id: '1629029', name: 'Luka Doncic', team: 'Dallas Mavericks', teamAbbr: 'DAL', position: 'Guard', photoUrl: '/player-placeholder.png',
-  { id: '203999', name: 'Nikola Jokic', team: 'Denver Nuggets', teamAbbr: 'DEN', position: 'Center', photoUrl: '/player-placeholder.png',
+  { id: '201142', name: 'Kevin Durant', team: 'Phoenix Suns', teamAbbr: 'PHX', position: 'Forward', photoUrl: getPlayerPhotoUrl('201142') },
+  { id: '203507', name: 'Giannis Antetokounmpo', team: 'Milwaukee Bucks', teamAbbr: 'MIL', position: 'Forward', photoUrl: getPlayerPhotoUrl('203507') },
+  { id: '201566', name: 'Russell Westbrook', team: 'Denver Nuggets', teamAbbr: 'DEN', position: 'Guard', photoUrl: getPlayerPhotoUrl('201566') },
+  { id: '203954', name: 'Joel Embiid', team: 'Philadelphia 76ers', teamAbbr: 'PHI', position: 'Center', photoUrl: getPlayerPhotoUrl('203954') },
+  { id: '1628369', name: 'Jayson Tatum', team: 'Boston Celtics', teamAbbr: 'BOS', position: 'Forward', photoUrl: getPlayerPhotoUrl('1628369') },
+  { id: '203081', name: 'Damian Lillard', team: 'Milwaukee Bucks', teamAbbr: 'MIL', position: 'Guard', photoUrl: getPlayerPhotoUrl('203081') },
+  { id: '1629029', name: 'Luka Doncic', team: 'Dallas Mavericks', teamAbbr: 'DAL', position: 'Guard', photoUrl: getPlayerPhotoUrl('1629029') },
+  { id: '203999', name: 'Nikola Jokic', team: 'Denver Nuggets', teamAbbr: 'DEN', position: 'Center', photoUrl: getPlayerPhotoUrl('203999') },
 ];
 
 const generateStats = () => ({

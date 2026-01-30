@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { PicksModal } from '@/components/analytics/PicksModal';
+import { PlayerAvatar } from '@/components/ui/player-avatar';
 
 function WinRateRing({
   value,
@@ -821,22 +822,17 @@ export default function Analytics() {
 
                     {/* Player Photo with Rank */}
                     <div className="relative flex-shrink-0">
-                      <div className={cn(
-                        "w-10 h-10 rounded-full overflow-hidden ring-2 transition-all duration-300",
-                        index === 0 ? "ring-yellow-500/50 group-hover:ring-yellow-500/70" :
-                        index === 1 ? "ring-gray-400/50 group-hover:ring-gray-400/70" :
-                        index === 2 ? "ring-orange-500/50 group-hover:ring-orange-500/70" :
-                        "ring-border/50 group-hover:ring-border"
-                      )}>
-                        <img
-                          src={`https://ak-static.cms.nba.com/wp-content/uploads/headshots/nba/latest/260x190/${player.playerId}.png`}
-                          alt={player.name}
-                          className="w-full h-full object-cover object-top bg-muted"
-                          onError={(e) => {
-                            e.currentTarget.src = '/player-placeholder.png';
-                          }}
-                        />
-                      </div>
+                      <PlayerAvatar
+                        src={`https://ak-static.cms.nba.com/wp-content/uploads/headshots/nba/latest/260x190/${player.playerId}.png`}
+                        name={player.name}
+                        className={cn(
+                          "w-10 h-10 ring-2 transition-all duration-300 text-sm",
+                          index === 0 ? "ring-yellow-500/50 group-hover:ring-yellow-500/70" :
+                          index === 1 ? "ring-gray-400/50 group-hover:ring-gray-400/70" :
+                          index === 2 ? "ring-orange-500/50 group-hover:ring-orange-500/70" :
+                          "ring-border/50 group-hover:ring-border"
+                        )}
+                      />
                       {/* Rank badge */}
                       <div className={cn(
                         "absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold border-2 border-card",

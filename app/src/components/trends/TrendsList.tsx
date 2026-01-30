@@ -1,5 +1,6 @@
 import { TrendingUp, Flame } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PlayerAvatar } from '@/components/ui/player-avatar';
 import type { Trend } from '@/types/trends';
 
 interface TrendsListProps {
@@ -61,13 +62,10 @@ export function TrendsList({ trends, selectedTrend, onSelectTrend }: TrendsListP
             </div>
             <div className="relative">
               <div className="flex items-start gap-3 mb-2">
-                <img
+                <PlayerAvatar
                   src={trend.playerPhotoUrl}
-                  alt={trend.playerName}
-                  className="w-10 h-10 rounded-full bg-secondary object-cover"
-                  onError={(e) => {
-                    e.currentTarget.src = '/player-placeholder.png';
-                  }}
+                  name={trend.playerName}
+                  className="w-10 h-10 text-sm"
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
