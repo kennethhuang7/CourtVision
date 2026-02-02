@@ -1,5 +1,16 @@
 import sys
 import os
+
+if sys.platform == 'win32':
+    import io
+    try:
+        if hasattr(sys.stdout, 'buffer'):
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        if hasattr(sys.stderr, 'buffer'):
+            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from data_collection.utils import get_db_connection, ensure_connection
 from feature_engineering.team_stats_calculator import (
@@ -1008,7 +1019,7 @@ def predict_upcoming_games(target_date=None, model_type='xgboost'):
     project_root = os.path.dirname(os.path.dirname(script_dir))
     output_path = os.path.join(project_root, 'data', 'predictions', f'predictions_{target_date}.csv')
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    pred_df_csv.to_csv(output_path, index=False)
+    pred_df_csv.to_csv(output_path, index=False, encoding='utf-8')
     
     print("\n" + "="*50)
     print("PREDICTIONS COMPLETE!")
