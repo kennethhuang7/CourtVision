@@ -471,6 +471,18 @@ def predict_upcoming_games(target_date=None, model_type='xgboost'):
     games_df = pd.read_sql(games_query, conn)
     
     if len(games_df) == 0:
+        debug_query = f"""
+            SELECT game_id, game_date, game_status, game_type
+            FROM games
+            WHERE game_date = '{target_date}'
+        """
+        debug_df = pd.read_sql(debug_query, conn)
+        if len(debug_df) > 0:
+            print(f"DEBUG: Found {len(debug_df)} games for {target_date} but none match filters:")
+            print(f"DEBUG: game_status='scheduled' AND game_type IN ('regular_season', 'playoff')")
+            print(debug_df.to_string())
+        else:
+            print(f"DEBUG: No games at all exist for date {target_date}")
         print(f"No scheduled games found for {target_date}")
         cur.close()
         conn.close()

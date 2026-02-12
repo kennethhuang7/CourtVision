@@ -87,19 +87,17 @@ def construct_nba_game_id(target_date, home_team_id, away_team_id, cur, used_ids
     date_prefix = f"002{year_str}"
     
     cur.execute("""
-        SELECT game_id FROM games 
+        SELECT game_id FROM games
         WHERE game_id LIKE %s
+        AND LENGTH(game_id) = 9
         ORDER BY game_id DESC
         LIMIT 1
     """, (f"{date_prefix}%",))
-    
+
     result = cur.fetchone()
     if result:
         last_id = result[0]
-        if len(last_id) == 9:
-            sequence = int(last_id[-4:]) + 1
-        else:
-            sequence = 1
+        sequence = int(last_id[-4:]) + 1
     else:
         sequence = 1
 
@@ -382,7 +380,7 @@ def collect_schedule_html(target_date=None):
                 'regular_season'
             ))
             
-            print(f"  {away_abbr} @ {home_abbr} - actual: {actual_status}, saved as: {db_status}")
+            print(f"  {away_abbr} @ {home_abbr} ({game_id}) - actual: {actual_status}, saved as: {db_status}")
         
         conn.commit()
         cur.close()
