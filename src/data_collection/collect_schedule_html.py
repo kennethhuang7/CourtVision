@@ -97,15 +97,15 @@ def construct_nba_game_id(target_date, home_team_id, away_team_id, cur, used_ids
     result = cur.fetchone()
     if result:
         last_id = result[0]
-        if len(last_id) == 8:
-            sequence = int(last_id[-3:]) + 1
+        if len(last_id) == 9:
+            sequence = int(last_id[-4:]) + 1
         else:
             sequence = 1
     else:
         sequence = 1
-    
+
     while True:
-        game_id = f"{date_prefix}{sequence:03d}"
+        game_id = f"{date_prefix}{sequence:04d}"
         if game_id not in used_ids:
             used_ids.add(game_id)
             return game_id

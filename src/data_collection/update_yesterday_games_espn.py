@@ -283,7 +283,7 @@ def fetch_espn_boxscore(espn_game_id):
 
 def construct_game_id(target_date, sequence):
     year_str = target_date.strftime('%y')
-    return f"002{year_str}{sequence:05d}"
+    return f"002{year_str}{sequence:04d}"
 
 def update_yesterday_games_espn(target_date=None):
     if target_date is None:
@@ -326,7 +326,7 @@ def update_yesterday_games_espn(target_date=None):
         players_updated = 0
         errors = 0
 
-        cur.execute("SELECT MAX(CAST(SUBSTRING(game_id, 6) AS INTEGER)) FROM games WHERE game_id LIKE %s", (f"002{target_date.strftime('%y')}%",))
+        cur.execute("SELECT MAX(CAST(SUBSTRING(game_id, 6) AS INTEGER)) FROM games WHERE game_id LIKE %s AND LENGTH(game_id) = 9", (f"002{target_date.strftime('%y')}%",))
         result = cur.fetchone()
         next_sequence = (result[0] or 0) + 1 if result and result[0] else 1
 
