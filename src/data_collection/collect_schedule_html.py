@@ -7,7 +7,6 @@ import requests
 import time
 from bs4 import BeautifulSoup
 import re
-from nba_api.stats.endpoints import leaguegamefinder
 
 # RUN THIS:
 # python src/data_collection/collect_schedule_html.py
@@ -131,29 +130,6 @@ def collect_schedule_html(target_date=None):
         season = f"{season_year-1}-{str(season_year)[-2:]}"
     
     try:
-        # Guardrail: if NBA API says there are no regular-season/playoff/play-in games
-        # (i.e., only preseason), do not insert anything. This prevents polluting the DB
-        # with constructed 002yyxxx ids during preseason.
-        try:
-            formatted_date = target_date.strftime('%m/%d/%Y')
-            lgf = leaguegamefinder.LeagueGameFinder(
-                season_nullable=season,
-                date_from_nullable=formatted_date,
-                date_to_nullable=formatted_date,
-                timeout=60
-            )
-            lgf_df = lgf.get_data_frames()[0]
-            real_game_ids = [str(gid) for gid in lgf_df['GAME_ID'].unique().tolist() if str(gid).startswith(('002','004','005'))]
-            if len(real_game_ids) == 0:
-                print("NBA API indicates no regular/play-in/playoff games for this date (likely preseason/off-day).")
-                print("Skipping ESPN HTML insertion to avoid creating synthetic game IDs.")
-                cur.close()
-                conn.close()
-                return
-        except Exception:
-            # If this check fails, continue with best-effort HTML mode (existing behavior).
-            pass
-
         formatted_date = target_date.strftime('%Y%m%d')
         url = f"https://www.espn.com/nba/scoreboard/_/date/{formatted_date}"
         
@@ -196,7 +172,7 @@ def collect_schedule_html(target_date=None):
                 print("This likely means it's an off-day for the NBA")
                 cur.close()
                 conn.close()
-                return
+                return True
             else:
                 print("Could not find game links on ESPN page")
                 print("Trying to extract from page text...")
@@ -223,7 +199,7 @@ def collect_schedule_html(target_date=None):
             print("This likely means it's an off-day for the NBA")
             cur.close()
             conn.close()
-            return
+            return True
         
         print(f"Found {len(games_found)} games, extracting team info...\n")
         
@@ -357,12 +333,13 @@ def collect_schedule_html(target_date=None):
                 continue
         
         valid_games = [g for g in games_found if 'away_team_id' in g]
-        
+
         if len(valid_games) == 0:
-            print("Could not extract team information for any games")
+            print("ERROR: Could not extract team information for any games")
+            print("ESPN HTML structure may have changed - manual investigation required")
             cur.close()
             conn.close()
-            return
+            return False
         
         for game in valid_games:
             game_id = game['game_id']
@@ -419,9 +396,11 @@ def collect_schedule_html(target_date=None):
         
         if scheduled_count + in_progress_count + completed_count > 0:
             print(f"\nFound {scheduled_count + in_progress_count + completed_count} games ready for predictions")
-        
+
+        return True
+
     except Exception as e:
-        print(f"Error collecting schedule: {e}")
+        print(f"ERROR: Error collecting schedule: {e}")
         import traceback
         traceback.print_exc()
         try:
@@ -429,10 +408,13 @@ def collect_schedule_html(target_date=None):
             conn.close()
         except:
             pass
+        return False
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         target_date = sys.argv[1]
-        collect_schedule_html(target_date)
+        success = collect_schedule_html(target_date)
     else:
-        collect_schedule_html()
+        success = collect_schedule_html()
+
+    sys.exit(0 if success else 1)

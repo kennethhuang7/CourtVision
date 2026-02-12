@@ -1934,20 +1934,22 @@ def predict_all_models(target_date=None):
         target_date = datetime.now().date()
     elif isinstance(target_date, str):
         target_date = datetime.strptime(target_date, '%Y-%m-%d').date()
-    
+
     model_types = ['xgboost', 'lightgbm', 'random_forest', 'catboost']
-    
+    successful_models = 0
+
     for model_type in model_types:
         try:
             predict_upcoming_games(target_date, model_type)
+            successful_models += 1
         except Exception as e:
-            print(f"Error predicting with {model_type}: {e}")
+            print(f"ERROR: Error predicting with {model_type}: {e}")
             continue
-    
+
     print("\n" + "="*70)
     print("All models completed. Recalculating confidence scores with ensemble data...")
     print("="*70)
-    
+
     try:
         recalculate_all_confidence_scores(target_date)
     except Exception as e:
@@ -1955,8 +1957,15 @@ def predict_all_models(target_date=None):
         print(f"Warning: Confidence recalculation failed: {e}")
         print("Predictions stored but confidence scores may not include ensemble agreement.")
 
+    if successful_models == 0:
+        print("ERROR: All models failed to generate predictions")
+        return False
+
+    return True
+
 if __name__ == "__main__":
     import sys
+    success = True
     if len(sys.argv) > 1:
         target_date = sys.argv[1]
         if len(sys.argv) > 2 and sys.argv[2] == '--recalculate-only':
@@ -1968,9 +1977,11 @@ if __name__ == "__main__":
             if len(sys.argv) > 3 and sys.argv[3] == '--diagnostic':
                 enable_variance_diagnostic()
                 reset_variance_diagnostic()
-            predict_all_models(target_date)
+            success = predict_all_models(target_date)
         else:
             model_type = sys.argv[2] if len(sys.argv) > 2 else 'xgboost'
             predict_upcoming_games(target_date, model_type)
     else:
-        predict_all_models()
+        success = predict_all_models()
+
+    sys.exit(0 if success else 1)
