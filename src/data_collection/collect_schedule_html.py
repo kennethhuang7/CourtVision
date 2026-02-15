@@ -8,9 +8,6 @@ import time
 from bs4 import BeautifulSoup
 import re
 
-# RUN THIS:
-# python src/data_collection/collect_schedule_html.py
-
 ESPN_TO_DB_ABBREV = {
     'GS': 'GSW', 'gs': 'GSW',
     'WSH': 'WAS', 'wsh': 'WAS',
@@ -50,6 +47,8 @@ ESPN_TO_DB_ABBREV = {
 }
 
 DB_ABBREVS = {'ATL', 'BKN', 'BOS', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN', 'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS'}
+
+ALL_STAR_TEAM_NAMES = {'WORLD', 'USA', 'TBD', 'ESPN', 'TEAM', 'RISING', 'STARS', 'STRIPES', 'EAST', 'WEST'}
 
 def get_team_id_from_abbreviation(cur, abbreviation):
     abbrev = abbreviation.upper()
@@ -204,8 +203,9 @@ def collect_schedule_html(target_date=None):
         scheduled_count = 0
         completed_count = 0
         in_progress_count = 0
+        all_star_count = 0
         used_game_ids = set()
-        
+
         for game in games_found:
             game_url = game.get('game_url', f"https://www.espn.com/nba/game/_/gameId/{game.get('espn_game_id')}")
             
@@ -250,16 +250,22 @@ def collect_schedule_html(target_date=None):
                 if len(team_abbrs) >= 2:
                     away_abbr_raw = team_abbrs[0]
                     home_abbr_raw = team_abbrs[1]
-                    
+
+                    if away_abbr_raw in ALL_STAR_TEAM_NAMES or home_abbr_raw in ALL_STAR_TEAM_NAMES:
+                        espn_id = game.get('espn_game_id', 'unknown')
+                        print(f"  Game {espn_id} - Skipping All-Star event ({away_abbr_raw} vs {home_abbr_raw})")
+                        all_star_count += 1
+                        continue
+
                     away_abbr = away_abbr_raw
                     home_abbr = home_abbr_raw
-                    
+
                     if away_abbr in ESPN_TO_DB_ABBREV:
                         away_abbr = ESPN_TO_DB_ABBREV[away_abbr]
-                    
+
                     if home_abbr in ESPN_TO_DB_ABBREV:
                         home_abbr = ESPN_TO_DB_ABBREV[home_abbr]
-                    
+
                     away_team_id = get_team_id_from_abbreviation(cur, away_abbr)
                     home_team_id = get_team_id_from_abbreviation(cur, home_abbr)
                     
@@ -333,6 +339,12 @@ def collect_schedule_html(target_date=None):
         valid_games = [g for g in games_found if 'away_team_id' in g]
 
         if len(valid_games) == 0:
+            if all_star_count > 0:
+                print(f"\nNo regular NBA games found for {target_date}")
+                print(f"Skipped {all_star_count} All-Star weekend event(s)")
+                cur.close()
+                conn.close()
+                return True
             print("ERROR: Could not extract team information for any games")
             print("ESPN HTML structure may have changed - manual investigation required")
             cur.close()
@@ -349,7 +361,6 @@ def collect_schedule_html(target_date=None):
             home_abbr = game.get('home_abbr', 'HOME')
             away_abbr = game.get('away_abbr', 'AWAY')
             
-            # Track actual status counts
             if actual_status == 'scheduled':
                 scheduled_count += 1
             elif actual_status == 'completed':
