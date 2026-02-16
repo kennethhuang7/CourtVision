@@ -7,6 +7,8 @@ import requests
 import re
 import time
 
+ALL_STAR_TEAM_NAMES = {'WORLD', 'USA', 'TBD', 'ESPN', 'TEAM', 'RISING', 'STARS', 'STRIPES', 'EAST', 'WEST'}
+
 def normalize_name(name):
     char_map = {
         'á': 'a', 'à': 'a', 'ä': 'a', 'â': 'a', 'ã': 'a', 'å': 'a', 'ā': 'a', 'ă': 'a', 'ą': 'a', 'ǎ': 'a',
@@ -325,6 +327,7 @@ def update_yesterday_games_espn(target_date=None):
         games_processed = 0
         players_updated = 0
         errors = 0
+        all_star_skipped = 0
 
         cur.execute("SELECT MAX(CAST(SUBSTRING(game_id, 6) AS INTEGER)) FROM games WHERE game_id LIKE %s AND LENGTH(game_id) = 9", (f"002{target_date.strftime('%y')}%",))
         result = cur.fetchone()
@@ -332,6 +335,14 @@ def update_yesterday_games_espn(target_date=None):
 
         for game in completed_games:
             espn_game_id = game['espn_game_id']
+
+            away_abbr = game['away_team'].upper()
+            home_abbr = game['home_team'].upper()
+            if away_abbr in ALL_STAR_TEAM_NAMES or home_abbr in ALL_STAR_TEAM_NAMES:
+                safe_print(f"Skipping All-Star event {espn_game_id}: {away_abbr} vs {home_abbr}")
+                all_star_skipped += 1
+                continue
+
             safe_print(f"Processing game {espn_game_id}...")
 
             time.sleep(1)
@@ -471,12 +482,17 @@ def update_yesterday_games_espn(target_date=None):
         safe_print(f"{'='*50}")
         safe_print(f"Games processed: {games_processed}")
         safe_print(f"Player stats updated: {players_updated}")
+        if all_star_skipped > 0:
+            safe_print(f"All-Star events skipped: {all_star_skipped}")
         safe_print(f"Errors: {errors}")
         safe_print(f"{'='*50}\n")
 
-        if errors > 0 and games_processed == 0:
+        if errors > 0 and games_processed == 0 and all_star_skipped == 0:
             safe_print("ERROR: No games were successfully processed!")
             return False
+
+        if all_star_skipped > 0 and games_processed == 0:
+            safe_print("All games were All-Star events - no regular games to process")
 
         return True
 
