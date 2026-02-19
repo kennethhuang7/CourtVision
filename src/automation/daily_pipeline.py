@@ -160,7 +160,7 @@ def run_daily_pipeline():
         os.path.join(predictions_dir, "predict_games.py"),
         [str(today), "--all"],
         critical=True,
-        timeout=2700
+        timeout=None
     )
     if not step9_success:
         failed_steps.append("Generate predictions")
