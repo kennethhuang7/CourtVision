@@ -15,7 +15,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import subprocess
 from datetime import datetime, timedelta
 
-def run_step(step_name, script_path, args=None, critical=True):
+def run_step(step_name, script_path, args=None, critical=True, timeout=600):
     print(f"\n{'='*60}")
     print(f"STEP: {step_name}")
     print("="*60)
@@ -34,7 +34,7 @@ def run_step(step_name, script_path, args=None, critical=True):
             text=True,
             encoding='utf-8',
             errors='replace',
-            timeout=600
+            timeout=timeout
         )
 
         if result.stdout:
@@ -57,7 +57,7 @@ def run_step(step_name, script_path, args=None, critical=True):
         return True
 
     except subprocess.TimeoutExpired:
-        print(f"\n[FAILED] {step_name} timed out after 10 minutes")
+        print(f"\n[FAILED] {step_name} timed out after {timeout // 60} minutes")
         return False
     except Exception as e:
         print(f"\n[FAILED] {step_name} exception: {e}")
@@ -131,7 +131,8 @@ def run_daily_pipeline():
         "Detect player transactions",
         os.path.join(data_collection_dir, "detect_and_update_trades.py"),
         str(today),
-        critical=False
+        critical=False,
+        timeout=1200
     )
     if not step6_success:
         failed_steps.append("Detect player transactions")
@@ -158,7 +159,8 @@ def run_daily_pipeline():
         "Generate predictions for today",
         os.path.join(predictions_dir, "predict_games.py"),
         [str(today), "--all"],
-        critical=True
+        critical=True,
+        timeout=2700
     )
     if not step9_success:
         failed_steps.append("Generate predictions")
