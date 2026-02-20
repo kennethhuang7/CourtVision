@@ -756,8 +756,8 @@ When reporting bugs, please include as much of the following as possible:
 
 **Enjoying CourtVision?** Give us a star ⭐ on [GitHub](https://github.com/kennethhuang7/CourtVision)
 
-**Version**: 1.1.1  
-**Last Updated**: January 2025
+**Version**: 1.1.2  
+**Last Updated**: February 2025
 </div>
 
 ---
