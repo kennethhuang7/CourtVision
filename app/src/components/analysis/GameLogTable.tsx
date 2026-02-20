@@ -35,7 +35,7 @@ export function GameLogTable({ games, selectedStat, lineValue, overUnder, isLoad
   const [showAll, setShowAll] = useState(false);
 
   const isHit = (value: number) => {
-    return overUnder === 'over' ? value > lineValue : value < lineValue;
+    return overUnder === 'over' ? value >= lineValue : value < lineValue;
   };
 
   const displayedGames = showAll ? games : games.slice(0, INITIAL_DISPLAY_LIMIT);

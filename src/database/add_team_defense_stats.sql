@@ -38,4 +38,3 @@ CREATE TABLE position_defense_stats (
 );
 
 CREATE INDEX IF NOT EXISTS idx_team_def_stats ON team_defensive_stats(team_id, season);
-CREATE INDEX IF NOT EXISTS idx_pos_def_stats ON position_defense_stats(team_id, season, position);

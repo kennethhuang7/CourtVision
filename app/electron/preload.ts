@@ -137,4 +137,5 @@ contextBridge.exposeInMainWorld('electron', {
   
   splashReady: () => ipcRenderer.invoke('splash-ready'),
   getUserInfo: () => ipcRenderer.invoke('get-user-info'),
+  fetchPipelineStatus: () => ipcRenderer.invoke('fetch-pipeline-status'),
 });

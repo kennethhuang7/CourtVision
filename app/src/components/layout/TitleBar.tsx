@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Bell, BellOff, HelpCircle, Minus, Square, X, Settings, LogOut, Check, ChevronRight, Inbox, Trash2, Copy } from 'lucide-react';
 import { SettingsModal } from '@/components/settings/SettingsModal';
+import { PipelineStatusDropdown } from '@/components/layout/PipelineStatusDropdown';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -195,6 +196,10 @@ export function TitleBar() {
     <div className="fixed top-0 left-0 right-0 z-50 flex h-10 items-center justify-between bg-background/90 backdrop-blur-md border-b border-border/20 px-2 select-none shadow-sm shadow-black/10" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
       <div className="flex items-center gap-2 pl-2 overflow-hidden flex-1 min-w-0 mr-2">
         <span className="text-sm font-medium text-foreground/70 whitespace-nowrap truncate">CourtVision</span>
+        <div className="h-4 w-px bg-border/30 shrink-0" />
+        <div style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          <PipelineStatusDropdown />
+        </div>
       </div>
 
       <div className="flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>

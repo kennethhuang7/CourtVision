@@ -1831,6 +1831,50 @@ ipcMain.on('navigate-to-route', (event, route: string) => {
   }
 });
 
+ipcMain.handle('fetch-pipeline-status', async () => {
+  try {
+    const https = require('https');
+
+    return new Promise((resolve, reject) => {
+      const options = {
+        hostname: 'api.github.com',
+        path: '/repos/kennethhuang7/CourtVision/actions/runs?per_page=10',
+        method: 'GET',
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'CourtVision-App'
+        }
+      };
+
+      const req = https.request(options, (res: any) => {
+        let data = '';
+        res.on('data', (chunk: string) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(data);
+            resolve({ success: true, data: parsed });
+          } catch (e) {
+            resolve({ success: false, error: 'Failed to parse response' });
+          }
+        });
+      });
+
+      req.on('error', (e: Error) => {
+        resolve({ success: false, error: e.message });
+      });
+
+      req.setTimeout(10000, () => {
+        req.destroy();
+        resolve({ success: false, error: 'Request timeout' });
+      });
+
+      req.end();
+    });
+  } catch (error) {
+    return { success: false, error: String(error) };
+  }
+});
+
 ipcMain.on('toggle-chat-window-from-menu', async () => {
   if (chatWin) {
     if (chatWin.isVisible()) {

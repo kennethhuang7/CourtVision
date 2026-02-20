@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronUp, MapPin, TrendingUp, TrendingDown, Minus, HelpCircle, Eye, BarChart3 } from 'lucide-react';
+import { ChevronDown, MapPin, TrendingUp, TrendingDown, Minus, HelpCircle, Eye, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Prediction, FeatureExplanation } from '@/types/nba';
@@ -1028,11 +1028,10 @@ export function PlayerDetailModal({ prediction, open, onOpenChange }: PlayerDeta
                       <span className="text-lg font-bold text-primary transition-all duration-300 group-hover:[text-shadow:0_0_10px_hsl(var(--primary)/0.7)]">
                         {value}
                       </span>
-                      {isExpanded ? (
-                        <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                      )}
+                      <ChevronDown className={cn(
+                        "h-4 w-4 text-muted-foreground transition-transform duration-200",
+                        isExpanded && "rotate-180"
+                      )} />
                     </div>
                   </div>
                 </CollapsibleTrigger>
@@ -1247,11 +1246,10 @@ export function PlayerDetailModal({ prediction, open, onOpenChange }: PlayerDeta
                             <span className="text-sm font-bold text-primary transition-all duration-300 group-hover:[text-shadow:0_0_10px_hsl(var(--primary)/0.7)]">
                               {component.calibrated_score.toFixed(0)}% confidence
                             </span>
-                            {isExpanded ? (
-                              <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                            )}
+                            <ChevronDown className={cn(
+                              "h-4 w-4 text-muted-foreground transition-transform duration-200",
+                              isExpanded && "rotate-180"
+                            )} />
                           </div>
                         </div>
                       </CollapsibleTrigger>
