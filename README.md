@@ -2,6 +2,9 @@
   <img src=".github/social-preview.png" alt="CourtVision - NBA Player Performance Analytics" width="100%">
 </div>
 
+> [!IMPORTANT]
+> **Project status: archived.** The hosted backend has been retired. The installer below still runs and the application still launches, but live predictions, account creation, and all social features depend on that backend and are no longer available. The source code, model pipeline, and documentation remain here for reference.
+
 ---
 
 CourtVision is a desktop application that provides advanced analytics and machine learning-powered predictions for NBA player performance. The application combines comprehensive player statistics, team analysis, and ensemble machine learning models to forecast player statistics for upcoming games.
@@ -118,6 +121,8 @@ For detailed technical information about the machine learning models, feature en
 ## Installation
 
 ### Windows
+
+> **Note:** The hosted backend is retired, so a fresh install will not be able to register an account or fetch predictions. These instructions are kept for reference.
 
 1. Download the latest installer from the [Releases](https://github.com/kennethhuang7/CourtVision/releases) page
 2. Run the installer executable
@@ -693,6 +698,7 @@ When reporting bugs, please include as much of the following as possible:
 
 #### Predictions Not Loading
 
+- **The hosted backend has been retired.** Predictions, account creation, and social features are no longer available. The steps below apply only to historical installations.
 - **Check your internet connection**: Predictions require an active internet connection to fetch the latest data
 - **Verify cache settings**: If predictions are cached, try clearing the cache in Settings > Cache Management
 - **Check for updates**: Ensure you're running the latest version of the application
@@ -757,7 +763,8 @@ When reporting bugs, please include as much of the following as possible:
 **Enjoying CourtVision?** Give us a star ⭐ on [GitHub](https://github.com/kennethhuang7/CourtVision)
 
 **Version**: 1.1.2  
-**Last Updated**: February 2025
+**Status**: Archived — hosted backend retired  
+**Last Updated**: October 2026
 </div>
 
 ---
